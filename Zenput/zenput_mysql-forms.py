@@ -118,7 +118,7 @@ def upsert_form_templates(form_data):
         return datetime.fromtimestamp(date_dict['$date'] / 1000)
 
     try:
-        connection = mysql.connector.connect(**DB_CONFIG)
+        connection = get_db_connection(target="zenput")
         cursor = connection.cursor()
         query = """
             INSERT INTO form_templates (form_id, title, num_submissions, date_created, date_last_submitted, creator_full_name, category_name)
@@ -147,7 +147,7 @@ def upsert_form_templates(form_data):
 def setup_submissions_tables():
     """Crea las tablas para 'submissions' y 'submission_answers' si no existen."""
     try:
-        connection = mysql.connector.connect(**DB_CONFIG)
+        connection = get_db_connection(target="zenput")
         cursor = connection.cursor()
 
         # Tabla para la metadata de cada submission
@@ -234,7 +234,7 @@ def upsert_submissions_and_answers(submissions_data, form_id):
                 ))
 
     try:
-        connection = mysql.connector.connect(**DB_CONFIG)
+        connection = get_db_connection(target="zenput")
         cursor = connection.cursor()
 
         # Upsert para la tabla 'submissions'

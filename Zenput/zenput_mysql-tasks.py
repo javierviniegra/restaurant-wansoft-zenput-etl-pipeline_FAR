@@ -222,7 +222,7 @@ def upsert_tasks(tasks_data):
     connection = None  # Definir fuera del try para usar en finally
     cursor = None  # Definir fuera del try para usar en finally
     try:
-        connection = mysql.connector.connect(**DB_CONFIG)
+        connection = get_db_connection(target="zenput")
         cursor = connection.cursor()
         query = """ INSERT INTO zenput_tasks (
                 task_id, title, description, company_id, account_id, account_name, account_address, account_city, account_state, account_zipcode, account_country, account_lat, account_lon,
