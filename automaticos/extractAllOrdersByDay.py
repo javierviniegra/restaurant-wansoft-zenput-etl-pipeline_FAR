@@ -8,11 +8,17 @@ import html
 import sys
 import os
 
+
+from dotenv import load_dotenv
 # 1. Le decimos a Python que incluya la carpeta raíz en su ruta de búsqueda
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# ── cargar .env desde carpeta padre ──────────────
+dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
+load_dotenv(dotenv_path)
+
 # 2. Ahora sí podemos importar nuestra función
-from database import get_db_connection
+from config.database import get_db_connection
 
 
 # ─────────────────────────────────────────────
@@ -239,7 +245,7 @@ def asegurar_xml_disponible(id_sucursal, password, sucursal, fecha):
     Retorna la ruta del XML si está disponible, None si no.
     """
     nombre_archivo = f"{sucursal}_{fecha.strftime('%Y%m%d')}.xml"
-    ruta_xml = os.path.join(directorio_xml, nombre_archivo)
+    ruta_xml = os.path.join(directorio_xml+"/getAllOrdersByDay", nombre_archivo)
 
     if xml_es_valido(ruta_xml):
         return ruta_xml

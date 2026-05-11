@@ -4,7 +4,7 @@ import mysql.connector
 from zeep import Client
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
-from database import get_db_connection
+from config.database import get_db_connection
 
 # Configuración de la conexión a MySQL
 db_connection = get_db_connection(target="wansoft")

@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
 from zeep import Client
 
 import sys
@@ -8,8 +9,12 @@ import os
 # 1. Le decimos a Python que incluya la carpeta raíz en su ruta de búsqueda
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# ── cargar .env desde carpeta padre ──────────────
+dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
+load_dotenv(dotenv_path)
+
 # 2. Ahora sí podemos importar nuestra función
-from database import get_db_connection
+# from database import get_db_connection
 
 
 # In[2]:
@@ -139,10 +144,10 @@ def download_xml(start_date, end_date):
 
 if __name__ == "__main__":
     # Defino el rango de fechas
-    start_date = datetime.now() - timedelta(days=1)
-    end_date = datetime.now() - timedelta(days=1)
-    #start_date = datetime(2025, 7, 4)  # Fecha inicial (YYYY, MM, DD)
-    #end_date = datetime(2025, 7, 4)   # Fecha final (YYYY, MM, DD)
+    #start_date = datetime.now() - timedelta(days=1)
+    #end_date = datetime.now() - timedelta(days=1)
+    start_date = datetime(2026, 5, 1)  # Fecha inicial (YYYY, MM, DD)
+    end_date = datetime(2026, 5, 10)   # Fecha final (YYYY, MM, DD)
 
     # comienzo con la descarga
     download_xml(start_date, end_date)

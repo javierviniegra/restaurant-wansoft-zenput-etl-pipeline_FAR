@@ -7,11 +7,16 @@ from datetime import datetime, timedelta
 
 import sys
 
+from dotenv import load_dotenv
 # 1. Le decimos a Python que incluya la carpeta raíz en su ruta de búsqueda
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# ── cargar .env desde carpeta padre ──────────────
+dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
+load_dotenv(dotenv_path)
+
 # 2. Ahora sí podemos importar nuestra función
-from database import get_db_connection
+from config.database import get_db_connection
 
 # Configuración de la conexión a MySQL
 db_connection = get_db_connection(target="wansoft")

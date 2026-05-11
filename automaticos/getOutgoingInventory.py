@@ -6,11 +6,16 @@ from datetime import datetime, timedelta
 import sys
 import os
 
+from dotenv import load_dotenv
 # 1. Le decimos a Python que incluya la carpeta raíz en su ruta de búsqueda
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# ── cargar .env desde carpeta padre ──────────────
+dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
+load_dotenv(dotenv_path)
+
 # 2. Ahora sí podemos importar nuestra función
-from database import get_db_connection
+from config.database import get_db_connection
 
 # Fechas de inicio y fin (puedes cambiarlas fuera del loop)
 start_date_range = datetime.now() - timedelta(days=1)

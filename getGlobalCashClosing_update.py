@@ -4,7 +4,7 @@ import mysql.connector
 from zeep import Client
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
-from database import get_db_connection
+from config.database import get_db_connection
 
 # Fechas de inicio y fin (puedes cambiarlas fuera del loop)
 #start_date_range = datetime.now() - timedelta(days=1)
