@@ -1,6 +1,5 @@
 # Security and Environment
 .env
-database.py
 
 # Python Environment
 __pycache__/
