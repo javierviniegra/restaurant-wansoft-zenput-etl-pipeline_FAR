@@ -20,7 +20,7 @@ dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.en
 load_dotenv(dotenv_path)
 
 # 2. Ahora sí podemos importar nuestra función
-from core.database.database import get_db_connection
+from core.database.mysql import get_db_connection
 # # Primeros Pasos
 
 # ## Otras Variables

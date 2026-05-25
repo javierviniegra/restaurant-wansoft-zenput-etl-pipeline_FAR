@@ -1,7 +1,7 @@
 import os
 
 import mysql.connector
-from core.database.database import get_db_connection
+from core.database.mysql import get_db_connection
 from zeep import Client
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
