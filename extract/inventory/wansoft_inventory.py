@@ -1,12 +1,10 @@
 """
-Inventory Extraction Module (Wansoft - Legacy Wrapper)
-
-This module wraps the existing Wansoft inventory extraction logic
-without modifying the original implementation.
+Wansoft Inventory Extraction Wrapper
 """
 
-from getStockInventory import main as legacy_inventory
+from legacy.wansoft.getStockInventory import main as legacy_inventory
+
 
 def extract_inventory():
-    print("Running Wansoft inventory extraction...")
-    legacy_inventory()
+    print("Running Wansoft Inventory extraction...")
+    return legacy_inventory()
