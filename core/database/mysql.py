@@ -10,12 +10,15 @@ import mysql.connector
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+from pathlib import Path
+
+env_path = Path(__file__).resolve().parents[2] / "core" / "config" / ".env"
+load_dotenv(dotenv_path=env_path)
 
 
-def get_mysql_connection(source: str = "wansoft"):
+def get_mysql_connection(target: str = "wansoft"):
 
-    if source == "wansoft":
+    if target == "wansoft":
         return mysql.connector.connect(
             host=os.getenv("WANSOFT_DB_HOST"),
             user=os.getenv("WANSOFT_DB_USER"),
@@ -23,7 +26,7 @@ def get_mysql_connection(source: str = "wansoft"):
             database=os.getenv("WANSOFT_DB_NAME")
         )
 
-    elif source == "zenput":
+    elif target == "zenput":
         return mysql.connector.connect(
             host=os.getenv("ZENPUT_DB_HOST"),
             user=os.getenv("ZENPUT_DB_USER"),
@@ -32,4 +35,4 @@ def get_mysql_connection(source: str = "wansoft"):
         )
 
     else:
-        raise ValueError(f"Unknown MySQL source: {source}")
+        raise ValueError(f"Unknown MySQL target: {target}")

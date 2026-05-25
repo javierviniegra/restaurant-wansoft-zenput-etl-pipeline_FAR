@@ -5,7 +5,7 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 import mysql.connector
-from core.database.mysql import get_db_connection
+from core.database.mysql import get_mysql_connection as get_db_connection
 
 # Initialize SOAP client
 client = Client('https://www.wansoft.net/wansoft.web/API/IntegrationService.asmx?wsdl')
