@@ -16,7 +16,7 @@ dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.en
 load_dotenv(dotenv_path)
 
 # 2. Ahora sí podemos importar nuestra función
-from config.database import get_db_connection
+from core.database.database import get_db_connection
 
 # Fechas de inicio y fin (puedes cambiarlas fuera del loop)
 #start_date_range = datetime.now() - timedelta(days=1)
