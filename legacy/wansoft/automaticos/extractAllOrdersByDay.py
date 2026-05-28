@@ -8,15 +8,6 @@ import html
 import sys
 import os
 
-
-from dotenv import load_dotenv
-# 1. Le decimos a Python que incluya la carpeta raíz en su ruta de búsqueda
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-# ── cargar .env desde carpeta padre ──────────────
-dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
-load_dotenv(dotenv_path)
-
 # 2. Ahora sí podemos importar nuestra función
 from core.database.mysql import get_db_connection
 
@@ -68,7 +59,8 @@ cursor = conexion.cursor()
 client = Client('https://www.wansoft.net/wansoft.web/API/IntegrationService.asmx?wsdl')
 
 # Directorio donde viven los XML descargados
-directorio_xml = os.getenv("XML_DOWNLOAD_DIR")
+from core.config.paths import get_xml_download_dir
+directorio_xml = get_xml_download_dir()
 
 
 # Definición de cuentas de sucursales
@@ -92,6 +84,13 @@ cuentas_sucursales = [
     ("12057", "La Esquina Coyoacán", os.getenv("WANSOFT_PWD_12057")),
     ("12802", "CentroMyJ", os.getenv("WANSOFT_PWD_12802")),
     ("12806", "Puebla", os.getenv("WANSOFT_PWD_12806"))
+]
+
+from core.config.company_filter import is_wansoft_company
+
+cuentas_sucursales = [
+    cuenta for cuenta in cuentas_sucursales
+    if is_wansoft_company(cuenta[1])
 ]
 
 ## ─────────────────────────────────────────────

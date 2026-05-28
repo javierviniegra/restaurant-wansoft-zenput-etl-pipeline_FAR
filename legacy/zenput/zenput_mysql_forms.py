@@ -11,13 +11,6 @@ import json
 
 import sys
 
-from dotenv import load_dotenv
-# 1. Le decimos a Python que incluya la carpeta raíz en su ruta de búsqueda
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-# ── cargar .env desde carpeta padre ──────────────
-dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
-load_dotenv(dotenv_path)
 
 # 2. Ahora sí podemos importar nuestra función
 from core.database.mysql import get_db_connection
@@ -60,6 +53,12 @@ subsidiaries = [
     {"id":12057, "nombreCorto": "La Esquina Coyoacán", "name":"Fonda Argentina - Coyoacan", "password": os.getenv("WANSOFT_PWD_12057")},
     {"id":12802, "nombreCorto": "CentroMyJ", "name":"Fonda Argentina - Centro Mario y July", "password": os.getenv("WANSOFT_PWD_12802")},
     {"id":12806, "nombreCorto": "Puebla", "name":"Fonda Argentina - Puebla", "password": os.getenv("WANSOFT_PWD_12806")}
+]
+from core.config.company_filter import is_wansoft_company
+
+subsidiaries = [
+    s for s in subsidiaries
+    if is_wansoft_company(s["nombreCorto"])
 ]
 
 # Convertir la lista de diccionarios en un DataFrame

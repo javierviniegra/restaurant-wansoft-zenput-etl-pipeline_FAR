@@ -6,8 +6,12 @@ Sales data is exclusively sourced from Wansoft.
 Odoo is NOT used for sales as it is not the system of record.
 """
 
-from legacy.wansoft.automaticos.getAllOrdersByDay import main as legacy_sales
+from extract.utils.legacy_runner import run_legacy_script
 
-def extract_sales():
-    print("Running Wansoft sales extraction...")
-    legacy_sales()
+
+def extract_sales(company=None):
+    print(f"[SALES][WANSOFT] {company}")
+    return run_legacy_script(
+        "legacy/wansoft/automaticos/getAllOrdersByDay.py",
+        company_name=company
+    )

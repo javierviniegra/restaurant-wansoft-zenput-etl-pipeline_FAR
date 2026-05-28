@@ -34,6 +34,12 @@ subsidiaries = [
     {"id":12806, "nombreCorto": "Puebla", "name":"Fonda Argentina - Puebla", "password": os.getenv("WANSOFT_PWD_12806")}
 
 ]
+from core.config.company_filter import is_wansoft_company
+
+subsidiaries = [
+    s for s in subsidiaries
+    if is_wansoft_company(s["nombreCorto"])
+]
 
 # Rango de fechas
 start_date = datetime(2025, 1, 1)

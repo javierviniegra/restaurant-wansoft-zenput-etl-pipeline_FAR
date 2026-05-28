@@ -6,13 +6,6 @@ from zeep import Client
 import sys
 import os
 
-# 1. Le decimos a Python que incluya la carpeta raíz en su ruta de búsqueda
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-# ── cargar .env desde carpeta padre ──────────────
-dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
-load_dotenv(dotenv_path)
-
 # 2. Ahora sí podemos importar nuestra función
 # from database import get_db_connection
 
@@ -62,8 +55,10 @@ accounts = [
 
 # In[5]:
 
-base_dir = os.getenv("XML_DOWNLOAD_DIR")
 
+# Directorio donde viven los XML descargados
+from core.config.paths import get_xml_download_dir
+base_dir = get_xml_download_dir()
 
 # In[6]:
 

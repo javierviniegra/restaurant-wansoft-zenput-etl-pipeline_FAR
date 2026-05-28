@@ -2,9 +2,12 @@
 Wansoft Inventory Extraction Wrapper
 """
 
-from legacy.wansoft.getStockInventory import main as legacy_inventory
+from extract.utils.legacy_runner import run_legacy_script
 
 
-def extract_inventory():
-    print("Running Wansoft Inventory extraction...")
-    return legacy_inventory()
+def extract_inventory(company=None):
+    print(f"[INVENTORY][WANSOFT] {company}")
+    return run_legacy_script(
+        "legacy/wansoft/getStockInventory.py",
+        company_name=company
+    )

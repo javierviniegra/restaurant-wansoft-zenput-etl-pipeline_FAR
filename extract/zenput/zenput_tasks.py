@@ -2,9 +2,10 @@
 Zenput Tasks Extraction Wrapper
 """
 
-from legacy.zenput.zenput_mysql_tasks import main as legacy_tasks
-
+from extract.utils.legacy_runner import run_legacy_script
 
 def extract_zenput_tasks():
-    print("Running Zenput Tasks extraction...")
-    return legacy_tasks()
+    print("[ZENPUT TASKS]")
+    return run_legacy_script(
+        "legacy/zenput/zenput_mysql_tasks.py"
+    )
