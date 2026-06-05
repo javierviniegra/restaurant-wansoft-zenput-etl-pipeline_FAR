@@ -1,35 +1,59 @@
-"""
-Inventory Extraction Module (Odoo)
-
-Extracts current stock levels from Odoo PostgreSQL database.
-"""
-
+from core.database.odoo import get_odoo_connection
 import pandas as pd
-from extract.odoo.connection import get_odoo_connection
+import re
 
 
-def extract_inventory():
-    print("Running Odoo inventory extraction...")
+def extract_odoo_inventory():
 
-    conn = get_odoo_connection()
+    uid, models, db, password = get_odoo_connection()
 
-    query = """
-    SELECT
-        sq.product_id,
-        pt.name AS product_name,
-        sq.quantity AS qty_available,
-        sl.complete_name AS location
-    FROM stock_quant sq
-    LEFT JOIN product_product pp ON sq.product_id = pp.id
-    LEFT JOIN product_template pt ON pp.product_tmpl_id = pt.id
-    LEFT JOIN stock_location sl ON sq.location_id = sl.id
-    WHERE sq.quantity != 0
-    """
+    inventory = models.execute_kw(
+        db,
+        uid,
+        password,
+        'stock.quant',
+        'search_read',
+        [[]],
+        {
+            'fields': [
+                'product_id',
+                'location_id',
+                'quantity'
+            ]
+        }
+    )
 
-    df = pd.read_sql(query, conn)
+    df = pd.DataFrame(inventory)
 
-    print(f"Records extracted: {len(df)}")
+    # Separar campos many2one
+    df["source_product_id"] = df["product_id"].apply(lambda x: x[0] if x else None)
+    df["product_name_raw"] = df["product_id"].apply(lambda x: x[1] if x else None)
 
-    conn.close()
+    df["source_location_id"] = df["location_id"].apply(lambda x: x[0] if x else None)
+    df["location_name"] = df["location_id"].apply(lambda x: x[1] if x else None)
 
-    return df
+    # Extraer código entre corchetes
+    df["product_code"] = df["product_name_raw"].apply(
+        lambda x: re.search(r"\[(.*?)\]", x).group(1) if x and "[" in x else None
+    )
+
+    # Nombre limpio sin el código
+    df["product_name"] = df["product_name_raw"].apply(
+        lambda x: re.sub(r"^\[.*?\]\s*", "", x).strip() if x else None
+    )
+
+    df = df.rename(columns={"quantity": "stock_qty"})
+
+    df["source"] = "odoo"
+
+    cols = [
+        "source",
+        "source_product_id",
+        "product_code",
+        "product_name",
+        "source_location_id",
+        "location_name",
+        "stock_qty"
+    ]
+
+    return df[cols]

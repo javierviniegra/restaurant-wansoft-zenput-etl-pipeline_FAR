@@ -724,9 +724,94 @@ CREATE TABLE `gettotalcostbydate` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
 
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `product_catalog_mapping`
+--
+
+CREATE TABLE product_catalog_mapping (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    source_system VARCHAR(20) NOT NULL,
+    wansoft_code VARCHAR(50) NULL,
+    odoo_code VARCHAR(50) NULL,
+    canonical_code VARCHAR(50) NULL,
+    canonical_name VARCHAR(255) NULL,
+    match_type VARCHAR(30) NOT NULL,
+    confidence_score DECIMAL(5,2) NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    notes TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+)ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+ALTER TABLE product_catalog_mapping
+ADD COLUMN domain VARCHAR(30) NOT NULL DEFAULT 'sales' AFTER source_system;
+
+ALTER TABLE product_catalog_mapping
+ADD UNIQUE KEY uq_product_catalog_mapping_sales (
+    domain,
+    wansoft_code,
+    odoo_code,
+    match_type
+);
 --
 -- Índices para tablas volcadas
 --
+
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `backup_product_catalog_mapping`
+--
+
+CREATE TABLE IF NOT EXISTS backup_product_catalog_mapping AS
+SELECT * FROM product_catalog_mapping;
+
+--- actualizamos la tabla antes del backup 
+
+ALTER TABLE product_catalog_mapping
+ADD COLUMN lifecycle_status VARCHAR(30) NULL AFTER status,
+ADD COLUMN replacement_group VARCHAR(255) NULL AFTER lifecycle_status,
+ADD COLUMN replacement_score DECIMAL(5,2) NULL AFTER replacement_group,
+ADD COLUMN replacement_reason VARCHAR(255) NULL AFTER replacement_score,
+ADD COLUMN review_status VARCHAR(30) NULL AFTER replacement_reason;
+
+--
+-- Índices para tablas volcadas
+--
+
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `product_replacement_candidates`
+--
+
+
+CREATE TABLE IF NOT EXISTS product_replacement_candidates (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    product_name_a VARCHAR(255),
+    product_name_b VARCHAR(255),
+    base_name VARCHAR(255),
+    presentation_a VARCHAR(50),
+    presentation_b VARCHAR(50),
+    replacement_score DECIMAL(5,2),
+    replacement_reason VARCHAR(255),
+    recommended_lifecycle_a VARCHAR(30),
+    recommended_lifecycle_b VARCHAR(30),
+    review_status VARCHAR(30),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--
+-- Índices para tablas volcadas
+--
+
+
+-- --------------------------------------------------------
+
 
 --
 -- Indices de la tabla `costeomensual`
