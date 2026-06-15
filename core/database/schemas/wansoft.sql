@@ -1104,6 +1104,60 @@ ADD COLUMN refined_scope_status VARCHAR(50) NULL AFTER refined_scope_source;
 -- --------------------------------------------------------
 
 --
+-- Estructura de tabla para la tabla `inventory_not_found_priority_backlog`
+--
+
+CREATE TABLE IF NOT EXISTS inventory_not_found_priority_backlog (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    odoo_product_id BIGINT NOT NULL,
+    odoo_product_name VARCHAR(255) NOT NULL,
+    category_name VARCHAR(255) NULL,
+    refined_inventory_scope VARCHAR(50) NULL,
+    not_found_classification VARCHAR(100) NOT NULL,
+    row_count INT NOT NULL,
+    location_count INT NOT NULL,
+    total_abs_stock_qty DECIMAL(18,4) NULL,
+    priority_bucket VARCHAR(20) NOT NULL,
+    priority_reason VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_inventory_not_found_priority (odoo_product_id)
+);
+
+--
+-- Índices para tablas volcadas
+--
+
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `inventory_not_found_p1_bridge`
+--
+
+CREATE TABLE IF NOT EXISTS inventory_not_found_p1_bridge (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    odoo_product_id BIGINT NOT NULL,
+    odoo_product_name VARCHAR(255) NOT NULL,
+    category_name VARCHAR(255) NULL,
+    wansoft_code VARCHAR(50) NULL,
+    wansoft_product_name VARCHAR(255) NULL,
+    wansoft_department VARCHAR(255) NULL,
+    lifecycle_candidate VARCHAR(50) NULL,
+    similarity_score DECIMAL(5,2) NULL,
+    suggested_action VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_inventory_not_found_p1_bridge (odoo_product_id, wansoft_code)
+);
+
+--
+-- Índices para tablas volcadas
+--
+
+
+-- --------------------------------------------------------
+
+
+--
 -- Indices de la tabla `costeomensual`
 --
 ALTER TABLE `costeomensual`
