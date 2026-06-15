@@ -6,6 +6,7 @@ def extract_odoo_products():
     """
     Extrae catálogo de productos desde Odoo.
     Prioriza x_wansoft_code sobre default_code como llave de integración.
+    Además trae company_id para clasificación de scope.
     """
 
     uid, models, db, password = get_odoo_connection()
@@ -16,7 +17,8 @@ def extract_odoo_products():
         "default_code",
         "sale_ok",
         "purchase_ok",
-        "categ_id"
+        "categ_id",
+        "company_id"
     ]
 
     custom_fields = [
@@ -58,7 +60,9 @@ def extract_odoo_products():
             "sale_ok",
             "purchase_ok",
             "category_id_only",
-            "category_name"
+            "category_name",
+            "company_id_only",
+            "company_name"
         ])
 
     # categoría
@@ -68,6 +72,14 @@ def extract_odoo_products():
     else:
         df["category_id_only"] = None
         df["category_name"] = None
+
+    # empresa asignada
+    if "company_id" in df.columns:
+        df["company_id_only"] = df["company_id"].apply(lambda x: x[0] if x else None)
+        df["company_name"] = df["company_id"].apply(lambda x: x[1] if x else None)
+    else:
+        df["company_id_only"] = None
+        df["company_name"] = None
 
     df = df.rename(columns={
         "id": "odoo_product_id",
@@ -89,7 +101,7 @@ def extract_odoo_products():
     df["default_code"] = df["default_code"].apply(clean_code)
     df["x_wansoft_code"] = df["x_wansoft_code"].apply(clean_code)
 
-    # Llave oficial de integración
+    # llave oficial de integración
     df["integration_code"] = df["x_wansoft_code"].combine_first(df["default_code"])
 
     df["product_name"] = df["product_name"].astype(str).str.strip()
@@ -106,5 +118,7 @@ def extract_odoo_products():
         "sale_ok",
         "purchase_ok",
         "category_id_only",
-        "category_name"
+        "category_name",
+        "company_id_only",
+        "company_name"
     ]]

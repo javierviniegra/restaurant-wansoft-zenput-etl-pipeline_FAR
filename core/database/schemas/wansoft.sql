@@ -814,6 +814,296 @@ CREATE TABLE IF NOT EXISTS product_replacement_candidates (
 
 
 --
+-- Estructura de tabla para la tabla `product_replacement_candidates`
+--
+
+
+CREATE TABLE IF NOT EXISTS product_replacement_candidates (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    product_name_a VARCHAR(255),
+    product_name_b VARCHAR(255),
+    base_name VARCHAR(255),
+    presentation_a VARCHAR(50),
+    presentation_b VARCHAR(50),
+    replacement_score DECIMAL(5,2),
+    replacement_reason VARCHAR(255),
+    recommended_lifecycle_a VARCHAR(30),
+    recommended_lifecycle_b VARCHAR(30),
+    review_status VARCHAR(30),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--
+-- Índices para tablas volcadas
+--
+
+
+-- --------------------------------------------------------
+
+
+--
+-- Estructura de tabla para la tabla `inventory_product_lifecycle`
+--
+
+
+CREATE TABLE IF NOT EXISTS inventory_product_lifecycle (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    CodigoProducto VARCHAR(50) NOT NULL,
+    Producto VARCHAR(255) NULL,
+    Departamento VARCHAR(255) NULL,
+    CodigoDepartamento VARCHAR(50) NULL,
+    UnidadDeMedida VARCHAR(100) NULL,
+    current_stock_qty DECIMAL(18,4) NULL,
+    last_activity_date DATETIME NULL,
+    days_since_last_activity INT NULL,
+    lifecycle_candidate VARCHAR(50) NOT NULL,
+    source_logic VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_inventory_product_lifecycle (CodigoProducto)
+);
+
+
+--
+-- Índices para tablas volcadas
+--
+
+
+-- --------------------------------------------------------
+
+
+
+
+--
+-- Estructura de tabla para la tabla `odoo_inventory_raw_no_code_classification`
+--
+
+
+CREATE TABLE IF NOT EXISTS odoo_inventory_raw_no_code_classification (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    product_name VARCHAR(255) NOT NULL,
+    category_name VARCHAR(255) NULL,
+    sale_ok TINYINT(1) NOT NULL,
+    purchase_ok TINYINT(1) NOT NULL,
+    raw_classification VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--
+-- Índices para tablas volcadas
+--
+
+
+-- --------------------------------------------------------
+
+
+--
+-- Estructura de tabla para la tabla `inventory_bridge_report`
+--
+
+CREATE TABLE IF NOT EXISTS inventory_bridge_report (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    odoo_product_name VARCHAR(255) NOT NULL,
+    odoo_category_name VARCHAR(255) NULL,
+    raw_classification VARCHAR(100) NOT NULL,
+    wansoft_code VARCHAR(50) NULL,
+    wansoft_product_name VARCHAR(255) NULL,
+    wansoft_department VARCHAR(255) NULL,
+    wansoft_lifecycle_candidate VARCHAR(50) NULL,
+    similarity_score DECIMAL(5,2) NULL,
+    suggested_action VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--
+-- Índices para tablas volcadas
+--
+
+
+-- --------------------------------------------------------
+
+
+--
+-- Estructura de tabla para la tabla `inventory_mapping_dictionary`
+--
+
+CREATE TABLE IF NOT EXISTS inventory_mapping_dictionary (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    domain VARCHAR(50) NOT NULL DEFAULT 'inventory',
+    odoo_product_id BIGINT NULL,
+    odoo_product_name VARCHAR(255) NOT NULL,
+    odoo_category_name VARCHAR(255) NULL,
+    wansoft_code VARCHAR(50) NULL,
+    wansoft_product_name VARCHAR(255) NULL,
+    wansoft_department VARCHAR(255) NULL,
+    mapping_source VARCHAR(50) NOT NULL,
+    mapping_status VARCHAR(50) NOT NULL,
+    lifecycle_candidate VARCHAR(50) NULL,
+    similarity_score DECIMAL(5,2) NULL,
+    notes TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_inventory_mapping_dictionary (domain, odoo_product_name, wansoft_code)
+);
+
+
+--
+-- Índices para tablas volcadas
+--
+
+
+-- --------------------------------------------------------
+
+
+--
+-- Indices de la tabla `odoo_inventory_raw_no_code_classification`
+--
+ALTER TABLE odoo_inventory_raw_no_code_classification
+ADD COLUMN odoo_product_id BIGINT NULL AFTER id;
+
+--
+-- Indices de la tabla `inventory_bridge_report`
+--
+ALTER TABLE inventory_bridge_report
+ADD COLUMN odoo_product_id BIGINT NULL AFTER id;
+
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `odoo_inventory_snapshot`
+--
+
+CREATE TABLE IF NOT EXISTS odoo_inventory_snapshot (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    odoo_product_id BIGINT NULL,
+    odoo_product_name VARCHAR(255) NOT NULL,
+    product_code VARCHAR(100) NULL,
+    source_location_id BIGINT NULL,
+    location_name VARCHAR(255) NULL,
+    stock_qty DECIMAL(18,4) NULL,
+
+    mapping_found TINYINT(1) NOT NULL DEFAULT 0,
+    lookup_method VARCHAR(50) NULL,
+    mapping_status VARCHAR(50) NULL,
+    usable_for_etl TINYINT(1) NOT NULL DEFAULT 0,
+
+    wansoft_code VARCHAR(50) NULL,
+    wansoft_product_name VARCHAR(255) NULL,
+    wansoft_department VARCHAR(255) NULL,
+    lifecycle_candidate VARCHAR(50) NULL,
+    similarity_score DECIMAL(5,2) NULL,
+    mapping_notes TEXT NULL,
+
+    etl_loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_odoo_inventory_snapshot (odoo_product_id, source_location_id)
+);
+
+
+--
+-- Índices para tablas volcadas
+--
+
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `odoo_inventory_snapshot`
+--
+
+CREATE TABLE IF NOT EXISTS odoo_inventory_backlog (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    odoo_product_id BIGINT NULL,
+    odoo_product_name VARCHAR(255) NOT NULL,
+    product_code VARCHAR(100) NULL,
+    source_location_id BIGINT NULL,
+    location_name VARCHAR(255) NULL,
+    stock_qty DECIMAL(18,4) NULL,
+
+    mapping_found TINYINT(1) NOT NULL DEFAULT 0,
+    lookup_method VARCHAR(50) NULL,
+    mapping_status VARCHAR(50) NULL,
+    usable_for_etl TINYINT(1) NOT NULL DEFAULT 0,
+
+    wansoft_code VARCHAR(50) NULL,
+    wansoft_product_name VARCHAR(255) NULL,
+    wansoft_department VARCHAR(255) NULL,
+    lifecycle_candidate VARCHAR(50) NULL,
+    similarity_score DECIMAL(5,2) NULL,
+    mapping_notes TEXT NULL,
+
+    backlog_bucket VARCHAR(50) NOT NULL,
+    etl_loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--
+-- Índices para tablas volcadas
+--
+
+
+-- --------------------------------------------------------
+
+--
+-- Indices de la tabla `inventory_mapping_dictionary`
+--
+
+ALTER TABLE inventory_mapping_dictionary
+ADD COLUMN inventory_scope VARCHAR(50) NULL AFTER mapping_status,
+ADD COLUMN scope_source VARCHAR(50) NULL AFTER inventory_scope,
+ADD COLUMN scope_status VARCHAR(50) NULL AFTER scope_source;
+
+
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `odoo_inventory_scope_classification`
+--
+
+CREATE TABLE IF NOT EXISTS odoo_inventory_scope_classification (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    odoo_product_id BIGINT NULL,
+    product_name VARCHAR(255) NOT NULL,
+    category_name VARCHAR(255) NULL,
+    company_id_only BIGINT NULL,
+    company_name VARCHAR(255) NULL,
+    sale_ok TINYINT(1) NOT NULL,
+    purchase_ok TINYINT(1) NOT NULL,
+    inventory_scope VARCHAR(50) NOT NULL,
+    scope_source VARCHAR(50) NOT NULL,
+    scope_status VARCHAR(50) NOT NULL,
+    notes TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_odoo_inventory_scope (odoo_product_id)
+);
+
+
+--
+-- Índices para tablas volcadas
+--
+
+
+-- --------------------------------------------------------
+
+--
+-- Indices de la tabla `odoo_inventory_scope_classification`
+--
+ALTER TABLE odoo_inventory_scope_classification
+ADD COLUMN refined_inventory_scope VARCHAR(50) NULL AFTER inventory_scope,
+ADD COLUMN refined_scope_source VARCHAR(50) NULL AFTER refined_inventory_scope,
+ADD COLUMN refined_scope_status VARCHAR(50) NULL AFTER refined_scope_source;
+
+--
+-- Índices para tablas volcadas
+--
+
+
+-- --------------------------------------------------------
+
+--
 -- Indices de la tabla `costeomensual`
 --
 ALTER TABLE `costeomensual`

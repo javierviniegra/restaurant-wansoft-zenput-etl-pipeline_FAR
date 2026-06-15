@@ -1,0 +1,184 @@
+﻿odoo_product_name,odoo_category_name,raw_classification,wansoft_code,wansoft_product_name,wansoft_department,wansoft_lifecycle_candidate,similarity_score,suggested_action
+Absolut Azul 750 Ml,Vodka,alcoholic_inventory,1000-106-102-108-001,Absolut Azul 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Aceite Vegetal,Aceites,ingredient_oil,1000-104-100-004,Aceite Vegetal,Aceites,active_operational,100.0,assign_default_code
+Achiote,"Semillas, Especias y Condimentos",ingredient_condiment,1000-104-102-018,Achiote,"Semillas, Especias Y Condimentos",active_operational,100.0,assign_default_code
+Agua de Frambuesa,Agua,liquid_inventory,1000-105-100-013,Agua de Frambuesa,agua,active_operational,100.0,assign_default_code
+Agua de Horchata,Agua,liquid_inventory,1000-105-100-004,Agua de Horchata,agua,active_operational,100.0,assign_default_code
+Agua de Mango Maracuya,Agua,liquid_inventory,1000-105-100-008,Agua de Mango Maracuya,Concentrados,active_operational,100.0,assign_default_code
+Amaretto Disaronno 700 Ml,Licores,alcoholic_inventory,1000-106-102-104-001,Amaretto Disaronno 700 Ml,Destilados,active_operational,100.0,assign_default_code
+Anis Cadenas 750 Ml,Licores,alcoholic_inventory,1000-106-102-104-002,Anis Cadenas 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Anis Chinchon Dulce 1 Lt,Licores,alcoholic_inventory,1000-106-102-104-003,Anis Chinchon Dulce 1 Lt,Destilados,active_operational,100.0,assign_default_code
+Anis Chinchon Seco 1 Lt,Licores,alcoholic_inventory,1000-106-102-104-004,Anis Chinchon Seco 1 Lt,Destilados,active_operational,100.0,assign_default_code
+Aperol 700 Ml,Aperitivos,raw_review_manual,1000-106-102-100-007,Aperol 700 Ml,Destilados,active_operational,100.0,assign_default_code
+Appleton Estate 750 Ml,Ron,alcoholic_inventory,1000-106-102-106-002,Appleton Estate 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Aros de Cebolla,Manufacturas,ingredient_fresh,2000-103-001,Aros De Cebolla,Manufacturas,active_operational,100.0,assign_default_code
+Arrachera Ss Cab,Carne de res,ingredient_protein,1000-101-101-001,Arrachera Ss Cab,Carne De Res,active_operational,100.0,assign_default_code
+Back Rib (Costillar),Carne de res,raw_review_manual,1000-101-101-002,Back Rib (Costillar),Carne De Res,active_operational,100.0,assign_default_code
+Back Rib Limpio (Costillar),Carne de res,raw_review_manual,2000-101-101-002,Back Rib Limpio (Costillar),Carne De Res,active_operational,100.0,assign_default_code
+Bobina chica papel higienico,Higiénicos desechables,raw_review_manual,1000-200-003-002,Bobina chica papel higienico,Higi??nicos desechables,active_operational,100.0,assign_default_code
+Bolillo,Gastos Salon,raw_review_manual,1000-109-002,Bolillo,Pan,active_operational,100.0,assign_default_code
+Bolsas de celofan 13x30 p/100,Material de Empaque,packaging_supply,1000-300-001-008,Bolsas de celofan 13x30 p/100,Material de Empaque,active_operational,100.0,assign_default_code
+Buchanans Master 750 Ml,Whisky,raw_review_manual,1000-106-102-109-003,Buchanans Master 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Cabeza de Lomo de Cerdo,Puerco,raw_review_manual,1000-101-105-001,Cabeza de Lomo de Cerdo,Puerco,active_operational,100.0,assign_default_code
+Cabrito,Cordero,raw_review_manual,1000-101-102-002,Cabrito,Cordero,active_operational,100.0,assign_default_code
+Cafe Americano,Cafe y te,raw_review_manual,1000-104-104-005,Cafe Americano,Cafe Y Te,active_operational,100.0,assign_default_code
+Cafe Descafeinado,Cafe y te,raw_review_manual,1000-104-104-006,Cafe Descafeinado,caf?? y te,active_operational,100.0,assign_default_code
+Cafe Espresso Forte,Cafe y te,ingredient_protein,1000-104-104-003,Cafe Espresso Forte,Caf?? y te,active_operational,100.0,assign_default_code
+Cafe Kahlua 1 Lt,Licores,alcoholic_inventory,1000-106-102-104-007,Cafe Kahlua 1 Lt,Destilados,active_operational,100.0,assign_default_code
+Cafe Lungo Decaffeinato,Cafe y te,raw_review_manual,1000-104-104-004,Cafe Lungo Decaffeinato,Caf?? y te,active_operational,100.0,assign_default_code
+Cafe Lungo Forte,Cafe y te,raw_review_manual,1000-104-104-001,Cafe Lungo Forte,Caf?? y te,active_operational,100.0,assign_default_code
+Cafe Ristretto Professional,Cafe y te,raw_review_manual,1000-104-104-002,Cafe Ristretto Professional,Caf?? y te,active_operational,100.0,assign_default_code
+Camaron 80/90 Con Cabeza,Mariscos,alcoholic_inventory,1000-101-103-018,Camaron 80/90 Con Cabeza,Mariscos,active_operational,100.0,assign_default_code
+Campari Bitter 750 Ml,Aperitivos,raw_review_manual,1000-106-102-100-001,Campari Bitter 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Cebolla en Polvo,"Semillas, Especias y Condimentos",ingredient_condiment,1000-104-102-051,Cebolla en Polvo,Semillas especias y condimentos,active_operational,100.0,assign_default_code
+Centenario Reposado 950 Ml,Tequila,alcoholic_inventory,1000-106-102-107-005,Centenario Reposado 950 Ml,Destilados,active_operational,100.0,assign_default_code
+Chambarete,Carne de res,raw_review_manual,1000-101-101-036,Chambarete,Carne De Res,active_operational,100.0,assign_default_code
+Chartreuse Verde 700 Ml,Licores,alcoholic_inventory,1000-106-102-104-008,Chartreuse Verde 700 Ml,Destilados,active_operational,100.0,assign_default_code
+Cheesecake marmoleado,PV Postres,raw_review_manual,1000-108-101-005,Cheesecake Marmoleado,Pasteles,active_operational,100.0,assign_default_code
+Chile Poblano,Frutas y Verduras,ingredient_fresh,1000-100-103-018,Chile Poblano,VERDURAS,active_operational,100.0,assign_default_code
+Chinchon Campechano 1000 Ml,Licores,alcoholic_inventory,1000-106-102-104-028,Chinchon Campechano 1000 Ml,Destilados,active_operational,100.0,assign_default_code
+Coca Zero Mini,Refrescos,raw_review_manual,1000-105-203-007,Coca Zero Mini,refrescos,active_operational,100.0,assign_default_code
+Cofia reutilizable,Higiénicos desechables,raw_review_manual,1000-300-002-004,cofia reutilizable,Eq. Seguridad e Higiene,active_operational,100.0,assign_default_code
+Cofia reutilizable,Higiénicos desechables,raw_review_manual,1000-300-002-004,cofia reutilizable,Eq. Seguridad e Higiene,active_operational,100.0,assign_default_code
+Complice Origenes 750 Ml,Mezcal,alcoholic_inventory,1000-106-102-105-013,Complice Origenes 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Controy 1 Lt,Licores,alcoholic_inventory,1000-106-102-104-010,Controy 1 Lt,Destilados,active_operational,100.0,assign_default_code
+Costilla,Carne de res,raw_review_manual,1000-101-101-005,Costilla,Carne De Res,active_operational,100.0,assign_default_code
+Crema de Coco,Jugos,ingredient_dairy,1000-105-102-002,Crema de Coco,jugos,active_operational,100.0,assign_default_code
+Detergente Liquido Neutro Multiusos,Químicos,raw_review_manual,1000-200-002-003,Detergente Liquido Neutro Multiusos,Qu??micos,active_operational,100.0,assign_default_code
+Detergente en Pasta Lavaloza,Químicos,raw_review_manual,1000-200-002-002,Detergente en Pasta Lavaloza,Qu??micos,active_operational,100.0,assign_default_code
+Don Pedro 1 Litro,Licores,alcoholic_inventory,1000-106-102-101-006,Don Pedro 1 Litro,Destilados,active_operational,100.0,assign_default_code
+Elote en Grano,Frutas y Verduras,ingredient_fresh,1000-100-103-040,Elote en Grano,Frutas y legumbres,active_operational,100.0,assign_default_code
+Encendedor,Material de Empaque,packaging_supply,1000-300-001-014,Encendedor,Material de Empaque,active_operational,100.0,assign_default_code
+Extracto de Vainilla,Materia prima,raw_review_manual,1000-104-103-003,extracto de vainilla,"Semillas, Especias Y Condimentos",active_operational,100.0,assign_default_code
+Fecula de Maiz,Materia prima,raw_review_manual,1000-104-103-002,Fecula de Maiz,Materia prima,active_operational,100.0,assign_default_code
+Flat Meat (Vacio),Carne de res,raw_review_manual,1000-101-101-006,Flat Meat (Vacio),Carne De Res,active_operational,100.0,assign_default_code
+Frangelico 700 Ml,Licores,alcoholic_inventory,1000-106-102-104-012,Frangelico 700 Ml,Destilados,active_operational,100.0,assign_default_code
+Fundador 700 Ml,Brandy,raw_review_manual,1000-106-102-101-001,Fundador 700 Ml,Destilados,active_operational,100.0,assign_default_code
+Grand Marnier 700 Ml,Licores,alcoholic_inventory,1000-106-102-104-013,Grand Marnier 700 Ml,Destilados,active_operational,100.0,assign_default_code
+Grenetina Natural,Materia prima,raw_review_manual,1000-104-103-011,Grenetina Natural,Materia prima,active_operational,100.0,assign_default_code
+Grey Groose 750 Ml,Vodka,alcoholic_inventory,1000-106-102-108-003,Grey Groose 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Guantes de Nitrilo,Jarciería,raw_review_manual,1000-200-001-013,Guantes de Nitrilo,Jarcier??a,active_operational,100.0,assign_default_code
+Helado Dulce de Leche,Helados,ingredient_dairy,1000-108-100-006,Helado Dulce de Leche,Helados,active_operational,100.0,assign_default_code
+Helado de Fresa,Helados,ingredient_protein,1000-108-100-002,Helado de Fresa,Helados,active_operational,100.0,assign_default_code
+Helado de Limon,Helados,ingredient_fresh,1000-108-100-003,Helado de Limon,Helados,active_operational,100.0,assign_default_code
+Helado de Menta con Chocolate,Helados,raw_review_manual,1000-108-100-004,Helado de Menta con Chocolate,Helados,active_operational,100.0,assign_default_code
+Hendricks 750 Ml,Ginebra,raw_review_manual,1000-106-102-103-004,Hendricks 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Henessy Vsop 700 Ml,Cognac,raw_review_manual,1000-106-102-102-001,Henessy Vsop 700 Ml,Destilados,active_operational,100.0,assign_default_code
+Herradura Blanco 950 Ml,Tequila,alcoholic_inventory,1000-106-102-107-010,Herradura Blanco 950 Ml,Destilados,active_operational,100.0,assign_default_code
+Herradura Reposado 950 Ml,Tequila,alcoholic_inventory,1000-106-102-107-012,Herradura Reposado 950 Ml,Destilados,active_operational,100.0,assign_default_code
+J.W. Etiqueta Azul 750 Ml,Whisky,raw_review_manual,1000-106-102-109-019,J.W. Etiqueta Azul 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Jabon Antiseptico para Lavado de Manos,Químicos,raw_review_manual,1000-200-002-009,Jabon Antiseptico para Lavado de Manos,Qu??micos,active_operational,100.0,assign_default_code
+Jose Cuervo Tradicional Plata 950 Ml,Tequila,alcoholic_inventory,1000-106-102-107-020,Jose Cuervo Tradicional Plata 950 Ml,Destilados,active_operational,100.0,assign_default_code
+Jugo de Arandano tetrapack,Jugos,raw_review_manual,1000-105-102-003,Jugo de Arandano tetrapack,jugos,active_operational,100.0,assign_default_code
+Jugo de Tomate tetrapack,Jugos,raw_review_manual,1000-105-102-007,Jugo de Tomate tetrapack,jugos,active_operational,100.0,assign_default_code
+Jugo de Toronja Natural,Jugos,alcoholic_inventory,1000-105-102-008,Jugo de Toronja Natural,jugos,active_operational,100.0,assign_default_code
+Jugo de Uva Tetrapack,Jugos,raw_review_manual,1000-105-102-013,Jugo de Uva Tetrapack,jugos,active_operational,100.0,assign_default_code
+Licor 43 700 Ml,Licores,alcoholic_inventory,1000-106-102-104-014,Licor 43 700 Ml,Destilados,active_operational,100.0,assign_default_code
+Licor de Cereza 1 Lt,Licores,alcoholic_inventory,1000-106-102-104-025,Licor de Cereza 1 Lt,Destilados,active_operational,100.0,assign_default_code
+Licor de Hierbas para Carajillo 1 Lt,Licores,alcoholic_inventory,1000-106-102-104-031,Licor de Hierbas para Carajillo 1 Lt,Destilados,active_operational,100.0,assign_default_code
+Lomo,Carne de res,raw_review_manual,1000-101-101-009,Lomo,Carne De Res,active_operational,100.0,assign_default_code
+Manteca de cerdo,Materia prima,raw_review_manual,1000-101-105-004,Manteca de Cerdo,Puerco,active_operational,100.0,assign_default_code
+Mantequilla,Otros lácteos,ingredient_dairy,1000-103-101-003,Mantequilla,Otros Lacteos,active_operational,100.0,assign_default_code
+Manzana Granny Smith (Verde),Frutas y Verduras,ingredient_fresh,1000-100-101-007,Manzana Granny Smith (Verde),Frutas y legumbres,active_operational,100.0,assign_default_code
+Manzanita Familiar,Refrescos,raw_review_manual,1000-105-103-011,Manzanita Familiar,refrescos,active_operational,100.0,assign_default_code
+Martell Vsop 700 Ml,Cognac,raw_review_manual,1000-106-102-102-002,Martell Vsop 700 Ml,Destilados,active_operational,100.0,assign_default_code
+Martell XO 700 Ml,Cognac,raw_review_manual,1000-106-102-102-004,Martell XO 700 Ml,Destilados,active_operational,100.0,assign_default_code
+Martini Extra Dry 750 Ml,Licores,alcoholic_inventory,1000-106-102-100-006,Martini Extra Dry 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Masa,Tortillas,raw_review_manual,1000-110-004,Masa,Tortillas,active_operational,100.0,assign_default_code
+Matusalem Clasico 750 Ml,Ron,alcoholic_inventory,1000-106-102-106-010,Matusalem Clasico 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Matusalem Platino 750 Ml,Ron,alcoholic_inventory,1000-106-102-106-012,Matusalem Platino 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Mayonesa Heinz Sobre,Gastos Salon,raw_review_manual,1000-104-102-062,Mayonesa Heinz Sobre,"Semillas, Especias Y Condimentos",active_operational,100.0,assign_default_code
+Midori 1 Lt,Licores,alcoholic_inventory,1000-106-102-104-017,Midori 1 Lt,Destilados,active_operational,100.0,assign_default_code
+Moneda Ovalada Leyenda Fonda,Dulces,raw_review_manual,1000-104-107-004,Moneda Ovalada Leyenda Fonda,Dulces,active_operational,100.0,assign_default_code
+Mostaza Dyon,"Semillas, Especias y Condimentos",ingredient_condiment,1000-104-102-003,Mostaza Dyon,"Semillas, Especias Y Condimentos",active_operational,100.0,assign_default_code
+Mostaza Sachets S&W,Gastos Salon,raw_review_manual,1000-104-102-067,Mostaza Sachets S&W,"Semillas, Especias Y Condimentos",active_operational,100.0,assign_default_code
+Nugget de pechuga de Pollo,Aves,ingredient_protein,1000-101-100-001,Nugget de pechuga de pollo,Aves,active_operational,100.0,assign_default_code
+Pacharan Basarana 20 1 Lt,Licores,alcoholic_inventory,1000-106-102-104-018,Pacharan Basarana 20 1 Lt,Destilados,active_operational,100.0,assign_default_code
+Pechuga de Pollo Pieza,Aves,ingredient_protein,1000-101-100-003,Pechuga de Pollo Pieza,Aves,active_operational,100.0,assign_default_code
+Pierna y Muslo Pieza,Aves,ingredient_protein,1000-101-100-005,Pierna y Muslo Pieza,Aves,active_operational,100.0,assign_default_code
+Piloncillo,"Semillas, Especias y Condimentos",ingredient_condiment,1000-104-106-011,Piloncillo,Edulcorantes Y Azucares,active_operational,100.0,assign_default_code
+Polvo para Hornear,Materia prima,raw_review_manual,1000-104-103-015,Polvo para Hornear,materia prima,active_operational,100.0,assign_default_code
+Queso Mozzarella rallado,Queso,ingredient_dairy,1000-103-102-007,Queso Mozzarella rallado,Quesos,active_operational,100.0,assign_default_code
+Queso Parmesano,Queso,ingredient_dairy,1000-103-102-004,Queso Parmesano,Quesos,active_operational,100.0,assign_default_code
+Queso Provoleta,Queso,ingredient_dairy,1000-103-102-005,Queso Provoleta,Quesos,active_operational,100.0,assign_default_code
+Rack De Cordero,Cordero,raw_review_manual,1000-101-102-001,Rack De Cordero,Cordero,active_operational,100.0,assign_default_code
+Recogedor de lamina,Jarciería,raw_review_manual,1000-200-001-019,Recogedor de lamina,Jarcier??a,active_operational,100.0,assign_default_code
+Retazo de pollo,Aves,ingredient_protein,1000-101-100-007,Retazo de Pollo,Aves,active_operational,100.0,assign_default_code
+Rib Eye (Bife de Chorizo),Carne de res,raw_review_manual,1000-101-101-013,Rib Eye (Bife de Chorizo),Carne De Res,active_operational,100.0,assign_default_code
+Rib Eye Limpio,Carne de res,raw_review_manual,2000-101-101-013,Rib Eye Limpio,Carne De Res,active_operational,100.0,assign_default_code
+Rompope,Licores,alcoholic_inventory,1000-106-102-104-024,Rompope,Destilados,active_operational,100.0,assign_default_code
+Salmon,Pescados,raw_review_manual,1000-101-104-001,Salmon,Pescados,active_operational,100.0,assign_default_code
+Salsa Tipo Inglesa Chica,Gastos Salon,raw_review_manual,1000-104-102-008,Salsa Tipo Inglesa Chica,"Semillas, Especias Y Condimentos",active_operational,100.0,assign_default_code
+Sambuca Blanco 700 Ml,Licores,alcoholic_inventory,1000-106-102-104-019,Sambuca Blanco 700 Ml,Destilados,active_operational,100.0,assign_default_code
+Servilleta desechable fina,Higiénicos desechables,raw_review_manual,1000-300-001-051,Servilleta desechable fina,Material de Empaque,active_operational,100.0,assign_default_code
+Short Rib (Asado de Tira),Carne de res,raw_review_manual,1000-101-101-014,Short Rib (Asado de Tira),Carne De Res,active_operational,100.0,assign_default_code
+Siete Leguas Blanco 700 Ml,Tequila,alcoholic_inventory,1000-106-102-107-022,Siete Leguas Blanco 700 Ml,Destilados,active_operational,100.0,assign_default_code
+Sisca Cassis 750 Ml,Licores,alcoholic_inventory,1000-106-102-104-023,Sisca Cassis 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Spaguetti No 7,Pastas,raw_review_manual,1000-104-105-002,Spaguetti No 7,Pastas,active_operational,100.0,assign_default_code
+Stolichnaya 750 Ml,Vodka,alcoholic_inventory,1000-106-102-108-006,Stolichnaya 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Strega 750 Ml,Licores,alcoholic_inventory,1000-106-102-104-021,Strega 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Terry Centenario 700 Ml,Brandy,raw_review_manual,1000-106-102-101-003,Terry Centenario 700 Ml,Destilados,active_operational,100.0,assign_default_code
+Tio Pepe 750 Ml,Aperitivos,raw_review_manual,1000-106-102-100-004,Tio Pepe 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Toalla en rollo,Higiénicos desechables,raw_review_manual,1000-200-003-001,Toalla en rollo,Quimicos e Higienicos Des,active_operational,100.0,assign_default_code
+Top Sirloin (Churrasco),Carne de res,raw_review_manual,1000-101-101-016,Top Sirloin (Churrasco),Carne De Res,active_operational,100.0,assign_default_code
+Top Sirloin Limpio (Churrasco),Carne de res,raw_review_manual,2000-101-101-016,Top Sirloin Limpio (Churrasco),Carne De Res,active_operational,100.0,assign_default_code
+Torres 20 700 Ml,Brandy,ingredient_protein,1000-106-102-101-005,Torres 20 700 Ml,Destilados,active_operational,100.0,assign_default_code
+Tortilla de Maiz Chica,Tortillas,raw_review_manual,1000-110-002,Tortilla de Maiz Chica,Tortillas,active_operational,100.0,assign_default_code
+Tortilla de Maiz Grande,Tortillas,raw_review_manual,1000-110-003,Tortilla de Maiz Grande,Tortillas,active_operational,100.0,assign_default_code
+Tuetano,Carne de res,raw_review_manual,1000-101-101-019,Tuetano,Carne De Res,active_operational,100.0,assign_default_code
+Vacio Limpio,Carne de res,raw_review_manual,2000-101-101-006,Vacio Limpio,Carne De Res,active_operational,100.0,assign_default_code
+Vaso para sopas 16 oz,Material de Empaque,packaging_supply,1000-300-001-025,Vaso para sopas 16 oz,Material de Empaque,active_operational,100.0,assign_default_code
+Viejo Indecente Ensamble 750 Ml,Mezcal,alcoholic_inventory,1000-106-102-105-011,Viejo Indecente Ensamble 750 Ml,Destilados,active_operational,100.0,assign_default_code
+Vinagre Blanco,"Semillas, Especias y Condimentos",ingredient_condiment,1000-104-102-028,Vinagre Blanco,"Semillas, Especias Y Condimentos",active_operational,100.0,assign_default_code
+Vinagre de Vino Tinto,"Semillas, Especias y Condimentos",ingredient_condiment,1000-104-102-031,Vinagre de Vino Tinto,"Semillas, Especias Y Condimentos",active_operational,100.0,assign_default_code
+Vino Blanco California,Vinos Nacionales,alcoholic_inventory,1000-106-101-101-025,Vino Blanco California,Vinos,active_operational,100.0,assign_default_code
+Reserva de la Familia Extra Añejo 750 Ml,Tequila,alcoholic_inventory,1000-106-102-107-026,Reserva de la Familia Extra A??ejo 750 Ml,Destilados,active_operational,96.3,assign_default_code
+Vodka para Clericot 1 Lt,Vodka,alcoholic_inventory,1000-106-102-108-007,Vodka para clericot Lt,Destilados,active_operational,95.65,assign_default_code
+Mineral 2Lt,Refrescos,raw_review_manual,1000-105-103-012,Mineral Lt,refrescos,active_operational,95.24,assign_default_code
+Bushmills S.M. 10 Años 750 Ml,Whisky,raw_review_manual,1000-106-102-109-024,Bushmills S.M. 10 A??os 750 Ml,Destilados,active_operational,94.92,assign_default_code
+1800 Cristalino Añejo 700 Ml,Tequila,alcoholic_inventory,1000-106-102-107-001,1800 Cristalino A??ejo 700 Ml,Destilados,active_operational,94.74,assign_default_code
+Chivas Regal 12 Años 750 Ml,Whisky,raw_review_manual,1000-106-102-109-006,Chivas Regal 12 A??os 750 Ml,Destilados,active_operational,94.55,assign_default_code
+Limpiador de Parrillas y Cochambre Ind,Químicos,raw_review_manual,1000-200-002-012,Limpiador de parrillas y cochambre,Qu??micos,active_operational,94.44,assign_default_code
+400 Conejos Tobalá 750 Ml,Mezcal,alcoholic_inventory,1000-106-102-105-014,400 Conejos Tobal?? 750 Ml,Destilados,active_operational,94.12,assign_default_code
+Singleton 12 Años 700 Ml,Whisky,raw_review_manual,1000-106-102-109-014,Singleton 12 A??os 700 Ml,Destilados,active_operational,93.88,assign_default_code
+Macallan 12 Años 700 Ml,Whisky,raw_review_manual,1000-106-102-109-013,Macallan 12 A??os 700 Ml,Destilados,active_operational,93.62,assign_default_code
+Bobina Chica Papel Higienico Ind,Higiénicos desechables,raw_review_manual,1000-200-003-002,Bobina chica papel higienico,Higi??nicos desechables,active_operational,93.33,assign_default_code
+Detergente en Pasta Lavaloza Ind,Químicos,raw_review_manual,1000-200-002-002,Detergente en Pasta Lavaloza,Qu??micos,active_operational,93.33,assign_default_code
+Consomé de Res,"Semillas, Especias y Condimentos",ingredient_condiment,1000-104-102-023,Consome de Res,"Semillas, Especias Y Condimentos",active_operational,92.86,assign_default_code
+Servilleta desechable fina Ind,Higiénicos desechables,raw_review_manual,1000-300-001-051,Servilleta desechable fina,Material de Empaque,active_operational,92.86,assign_default_code
+Havana 7 Años 700 Ml,Ron,alcoholic_inventory,1000-106-102-106-008,Havana 7 A??os 700 Ml,Destilados,active_operational,92.68,assign_default_code
+Salsa Tipo Inglesa Chica Ind,Gastos Salon,raw_review_manual,1000-104-102-008,Salsa Tipo Inglesa Chica,"Semillas, Especias Y Condimentos",active_operational,92.31,assign_default_code
+Tortilla de Maiz Grande Ind,Tortillas,raw_review_manual,1000-110-003,Tortilla de Maiz Grande,Tortillas,active_operational,92.0,assign_default_code
+Agua de Guayaba Rosada,Agua,liquid_inventory,1000-105-100-017,Agua de Guayaba Rosada,agua,dormant_operational,100.0,review_before_assigning_code
+Cartucho De Liquido Goteador 400 Ml,Químicos,raw_review_manual,1000-200-002-022,Cartucho De Liquido Goteador 400 Ml,Qu??micos,dormant_operational,100.0,review_before_assigning_code
+Cartucho Jabon Espuma Manual,Químicos,raw_review_manual,1000-200-002-019,Cartucho Jabon Espuma Manual,Qu??micos,dormant_operational,100.0,review_before_assigning_code
+Chuleta,Puerco,raw_review_manual,1000-101-105-003,Chuleta,Puerco,dormant_operational,100.0,review_before_assigning_code
+Cofia gusano,Higiénicos desechables,raw_review_manual,1000-300-002-002,Cofia gusano,Eq. Seguridad e Higiene,dormant_operational,100.0,review_before_assigning_code
+Control de Olores,Químicos,ingredient_protein,1000-200-003-010,Control de Olores,Higi??nicos desechables,dormant_operational,100.0,review_before_assigning_code
+Danzantes Joven 750 Ml,Mezcal,alcoholic_inventory,1000-106-102-105-008,Danzantes Joven 750 Ml,Destilados,dormant_operational,100.0,review_before_assigning_code
+Desinfectante Base Citricos,Químicos,raw_review_manual,1000-200-002-004,Desinfectante Base Citricos,Qu??micos,dormant_operational,100.0,review_before_assigning_code
+Detergente Alcalino Clorado,Químicos,raw_review_manual,1000-200-002-023,Detergente Alcalino Clorado,Qu??micos,dormant_operational,100.0,review_before_assigning_code
+Difusor De Aroma 60 Ml,Químicos,raw_review_manual,1000-200-002-021,Difusor De Aroma 60 Ml,Qu??micos,dormant_operational,100.0,review_before_assigning_code
+Gel Antibacterial,Químicos,raw_review_manual,1000-200-002-010,Gel Antibacterial,Qu??micos,dormant_operational,100.0,review_before_assigning_code
+Gran Duque de Alba 700 Ml,Brandy,raw_review_manual,1000-106-102-101-002,Gran Duque de Alba 700 Ml,Destilados,dormant_operational,100.0,review_before_assigning_code
+Lavatrastes Neutro,Químicos,raw_review_manual,1000-200-002-024,Lavatrastes Neutro,Qu??micos,dormant_operational,100.0,review_before_assigning_code
+Limpia Vidrios,Químicos,raw_review_manual,1000-200-002-006,Limpia Vidrios,Qu??micos,dormant_operational,100.0,review_before_assigning_code
+Mandil de Carnaza,Jarciería,raw_review_manual,1000-200-001-030,Mandil de Carnaza,Jarcier??a,dormant_operational,100.0,review_before_assigning_code
+Monin de Pepino 1 Lt,Concentrados,raw_review_manual,1000-105-101-007,Monin de Pepino 1 Lt,concentrados,dormant_operational,100.0,review_before_assigning_code
+Multiusos Desinfectante,Químicos,raw_review_manual,1000-200-002-026,Multiusos Desinfectante,Qu??micos,dormant_operational,100.0,review_before_assigning_code
+Pimienta Cayena,"Semillas, Especias y Condimentos",ingredient_condiment,1000-104-102-087,Pimienta Cayena,Semillas especias y condimentos,dormant_operational,100.0,review_before_assigning_code
+Sanitizante Sales Cuat. de Amonio,Químicos,raw_review_manual,1000-200-002-005,Sanitizante Sales Cuat. de Amonio,Qu??micos,dormant_operational,100.0,review_before_assigning_code
+Sanitizante en espuma,Químicos,raw_review_manual,1000-200-002-025,Sanitizante en espuma,Qu??micos,dormant_operational,100.0,review_before_assigning_code
+Suadero,Carne de res,raw_review_manual,1000-101-101-015,Suadero,Carne De Res,dormant_operational,100.0,review_before_assigning_code
+Tapa para vaso sopas 16 y 32 oz,Material de Empaque,packaging_supply,1000-300-001-026,Tapa para vaso sopas 16 y 32 oz,Material de Empaque,dormant_operational,100.0,review_before_assigning_code
+Tapete para mingitorio,Higiénicos desechables,raw_review_manual,1000-200-003-008,Tapete para mingitorio,Higi??nicos desechables,dormant_operational,100.0,review_before_assigning_code
+Top Sirloin Select,Carne de res,raw_review_manual,1000-101-101-017,Top Sirloin Select,Carne De Res,dormant_operational,100.0,review_before_assigning_code
+Vaso 12 oz,Material de Empaque,packaging_supply,1000-300-001-036,Vaso 12 oz,Material de Empaque,dormant_operational,100.0,review_before_assigning_code
+Vaso para sopas 32 oz,Material de Empaque,packaging_supply,1000-300-001-027,Vaso para sopas 32 oz,Material de Empaque,dormant_operational,100.0,review_before_assigning_code
+Tapa para soufflé 4 oz,Material de Empaque,packaging_supply,1000-300-001-035,Tapa para souffl?? 4 oz,Material de Empaque,dormant_operational,93.33,review_before_assigning_code
+Vaso tipo soufflé 4 oz,Material de Empaque,packaging_supply,1000-300-001-034,Vaso tipo souffl?? 4 oz,Material de Empaque,dormant_operational,93.33,review_before_assigning_code
+Atun en Conserva,Pescados,raw_review_manual,1000-101-104-002,Atun en conserva,Pescados,historical_with_stock_review,100.0,historical_with_remaining_stock_review
+Pimienta Blanca Molida,"Semillas, Especias y Condimentos",ingredient_condiment,1000-104-102-041,Pimienta Blanca Molida,"Semillas, Especias Y Condimentos",historical_with_stock_review,100.0,historical_with_remaining_stock_review
+Plato Trinche 19 cm Imp Ind,Loza,raw_review_manual,1000-500-002-024,Plato Trinche 19 cm Imp,Utensilios,historical_with_stock_review,92.0,historical_with_remaining_stock_review
+Cardamomo,"Semillas, Especias y Condimentos",ingredient_condiment,1000-104-102-039,Cardamomo,Semillas especias y condimentos,historical_candidate,100.0,keep_as_historical
+Salsa Inglesa Heinz Sobre,Gastos Salon,raw_review_manual,1000-104-102-064,Salsa Inglesa Heinz Sobre,"Semillas, Especias Y Condimentos",historical_candidate,100.0,keep_as_historical
