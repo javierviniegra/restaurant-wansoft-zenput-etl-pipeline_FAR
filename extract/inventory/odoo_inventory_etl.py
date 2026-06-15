@@ -1,5 +1,7 @@
 import pandas as pd
 
+from core.config.env_loader import load_environment
+from core.config.inventory_env import get_inventory_etl_config
 from core.database.mysql import get_mysql_connection as get_db_connection
 from extract.inventory.odoo_inventory import extract_odoo_inventory
 from extract.utils.inventory_dictionary_wrapper import (
@@ -285,6 +287,9 @@ def run_odoo_inventory_etl():
 
     print("=== ODOO INVENTORY ETL START ===")
 
+    load_environment()
+    etl_cfg = get_inventory_etl_config()
+
     # 1. Extract
     df_odoo = extract_odoo_inventory()
     df_odoo = _prepare_inventory_dataframe(df_odoo)
@@ -292,31 +297,34 @@ def run_odoo_inventory_etl():
     # 2. Merge refined scope
     df_odoo = _merge_inventory_scope(df_odoo)
 
-    # 3. Separar universos
+    # 3. Separar universos según configuración .env
+    sales_reference_scope = etl_cfg["sales_reference_scope"]
+    sales_reference_source = etl_cfg["sales_reference_source"]
+    inventory_scope_include = etl_cfg["scope_include"]
+    scope_backlog_list = etl_cfg["scope_backlog"]
+
     # A) Productos de restaurantes provenientes del universo de ventas:
     #    NO pasan por inventory dictionary
     df_sales_reference = df_odoo[
-        (df_odoo["refined_inventory_scope"] == "restaurantes") &
-        (df_odoo["scope_source"] == "sales_reference")
+        (df_odoo["refined_inventory_scope"] == sales_reference_scope) &
+        (df_odoo["scope_source"] == sales_reference_source)
     ].copy()
 
-    # B) Candidatos reales para inventory dictionary:
-    #    SOLO shared_cross_company
+    # B) Candidatos reales para inventory dictionary
     df_inventory_candidates = df_odoo[
-        df_odoo["refined_inventory_scope"].isin(["shared_cross_company"])
+        df_odoo["refined_inventory_scope"].isin(inventory_scope_include)
     ].copy()
 
-    # C) Scope backlog explícito:
-    #    bodegon, empanadas y review_scope
+    # C) Scope backlog explícito
     df_scope_backlog = df_odoo[
-        df_odoo["refined_inventory_scope"].isin([
-            "bodegon",
-            "empanadas",
-            "bodegon_candidate",
-            "empanadas_candidate",
-            "review_scope"
-        ])
+        df_odoo["refined_inventory_scope"].isin(scope_backlog_list)
     ].copy()
+
+    print("\n--- ETL CONFIG ---")
+    print(f"sales_reference_scope: {sales_reference_scope}")
+    print(f"sales_reference_source: {sales_reference_source}")
+    print(f"inventory_scope_include: {inventory_scope_include}")
+    print(f"scope_backlog_list: {scope_backlog_list}")
 
     print("\n--- SCOPE COUNTS ---")
     print(f"sales_reference_rows: {len(df_sales_reference)}")
