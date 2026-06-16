@@ -1175,6 +1175,27 @@ CREATE TABLE IF NOT EXISTS inventory_not_found_p2_bridge (
     UNIQUE KEY uq_inventory_not_found_p2_bridge (odoo_product_id, wansoft_code)
 );
 
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `inventory_not_found_residual_bridge`
+--
+
+CREATE TABLE IF NOT EXISTS inventory_not_found_residual_bridge (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    odoo_product_id BIGINT NOT NULL,
+    odoo_product_name VARCHAR(255) NOT NULL,
+    category_name VARCHAR(255) NULL,
+    wansoft_code VARCHAR(50) NULL,
+    wansoft_product_name VARCHAR(255) NULL,
+    wansoft_department VARCHAR(255) NULL,
+    lifecycle_candidate VARCHAR(50) NULL,
+    similarity_score DECIMAL(5,2) NULL,
+    suggested_action VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_inventory_not_found_residual_bridge (odoo_product_id, wansoft_code)
+);
+
 
 --
 -- Índices para tablas volcadas
