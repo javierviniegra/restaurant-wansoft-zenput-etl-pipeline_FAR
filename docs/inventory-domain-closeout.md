@@ -240,16 +240,3 @@ The residual not-found backlog is now small enough to be treated as:
 - heuristic refinements
 
 ---
-
-## Phase conclusion
-
-The **Inventory Domain baseline is complete**.
-
-The domain is:
-- technically stable
-- functionally advanced
-- ready to support the next pipeline domains
-
-The next recommended domain is:
-
-# Purchases

@@ -148,8 +148,3 @@ At inventory phase closeout:
 This is considered a stable operational baseline in test.
 
 ---
-
-## Recommended next domain
-
-# Purchases
-The inventory baseline is sufficiently mature to move into the purchases domain.
