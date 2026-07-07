@@ -1197,6 +1197,206 @@ CREATE TABLE IF NOT EXISTS inventory_not_found_residual_bridge (
 );
 
 
+-- =====================================================
+-- ODOO PURCHASE DOMAIN
+-- Purchase orders and purchase order lines snapshots
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS odoo_purchase_order_snapshot (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    odoo_purchase_order_id BIGINT NOT NULL,
+    purchase_order_name VARCHAR(100) NOT NULL,
+
+    vendor_id BIGINT NULL,
+    vendor_name VARCHAR(255) NULL,
+
+    company_id BIGINT NULL,
+    company_name VARCHAR(255) NULL,
+
+    order_date DATETIME NULL,
+    approval_date DATETIME NULL,
+
+    state VARCHAR(50) NULL,
+    invoice_status VARCHAR(50) NULL,
+
+    amount_untaxed DECIMAL(18,4) NULL,
+    amount_tax DECIMAL(18,4) NULL,
+    amount_total DECIMAL(18,4) NULL,
+
+    currency_id BIGINT NULL,
+    currency_name VARCHAR(50) NULL,
+
+    picking_count INT NULL,
+
+    etl_loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_odoo_purchase_order_snapshot (odoo_purchase_order_id),
+    KEY idx_purchase_order_name (purchase_order_name),
+    KEY idx_purchase_vendor_id (vendor_id),
+    KEY idx_purchase_company_id (company_id),
+    KEY idx_purchase_state (state),
+    KEY idx_purchase_invoice_status (invoice_status),
+    KEY idx_purchase_order_date (order_date)
+);
+
+
+CREATE TABLE IF NOT EXISTS odoo_purchase_order_line_snapshot (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    odoo_purchase_order_line_id BIGINT NOT NULL,
+    odoo_purchase_order_id BIGINT NOT NULL,
+    purchase_order_name VARCHAR(100) NOT NULL,
+
+    vendor_name VARCHAR(255) NULL,
+
+    product_id BIGINT NULL,
+    product_name VARCHAR(255) NULL,
+
+    product_qty DECIMAL(18,4) NULL,
+    qty_received DECIMAL(18,4) NULL,
+    qty_invoiced DECIMAL(18,4) NULL,
+
+    price_unit DECIMAL(18,4) NULL,
+    price_subtotal DECIMAL(18,4) NULL,
+    price_total DECIMAL(18,4) NULL,
+
+    company_name VARCHAR(255) NULL,
+    order_date DATETIME NULL,
+    state VARCHAR(50) NULL,
+
+    etl_loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_odoo_purchase_order_line_snapshot (odoo_purchase_order_line_id),
+    KEY idx_purchase_line_order_id (odoo_purchase_order_id),
+    KEY idx_purchase_line_order_name (purchase_order_name),
+    KEY idx_purchase_line_product_id (product_id),
+    KEY idx_purchase_line_state (state),
+    KEY idx_purchase_line_order_date (order_date)
+);
+
+ALTER TABLE odoo_purchase_order_line_snapshot
+ADD COLUMN vendor_id BIGINT NULL AFTER purchase_order_name,
+ADD COLUMN company_id BIGINT NULL AFTER price_total,
+ADD KEY idx_purchase_line_vendor_id (vendor_id),
+ADD KEY idx_purchase_line_company_id (company_id);
+
+ALTER TABLE odoo_purchase_order_line_snapshot
+ADD COLUMN purchase_line_type VARCHAR(50) NULL AFTER state,
+ADD KEY idx_purchase_line_type (purchase_line_type);
+
+-- =====================================================
+-- PURCHASE DOMAIN PRODUCT MAPPING COLUMNS
+-- These columns are populated by the ETL, not by manual UPDATE.
+-- =====================================================
+
+ALTER TABLE odoo_purchase_order_line_snapshot
+ADD COLUMN product_mapping_found TINYINT(1) NOT NULL DEFAULT 0 AFTER purchase_line_type,
+ADD COLUMN product_mapping_status VARCHAR(50) NULL AFTER product_mapping_found,
+ADD COLUMN wansoft_code VARCHAR(50) NULL AFTER product_mapping_status,
+ADD COLUMN wansoft_product_name VARCHAR(255) NULL AFTER wansoft_code,
+ADD COLUMN wansoft_department VARCHAR(255) NULL AFTER wansoft_product_name,
+ADD COLUMN product_mapping_source VARCHAR(50) NULL AFTER wansoft_department,
+ADD KEY idx_purchase_line_mapping_found (product_mapping_found),
+ADD KEY idx_purchase_line_mapping_status (product_mapping_status),
+ADD KEY idx_purchase_line_wansoft_code (wansoft_code);
+
+-- =====================================================
+-- PURCHASE DOMAIN UNMAPPED LINE CLASSIFICATION
+-- These columns are populated by the ETL.
+-- No manual UPDATE logic should live in the schema.
+-- =====================================================
+
+ALTER TABLE odoo_purchase_order_line_snapshot
+ADD COLUMN purchase_product_scope VARCHAR(50) NULL AFTER product_mapping_source,
+ADD COLUMN purchase_mapping_bucket VARCHAR(50) NULL AFTER purchase_product_scope,
+ADD COLUMN purchase_classification_source VARCHAR(50) NULL AFTER purchase_mapping_bucket,
+ADD COLUMN extracted_product_code VARCHAR(100) NULL AFTER purchase_classification_source,
+ADD KEY idx_purchase_product_scope (purchase_product_scope),
+ADD KEY idx_purchase_mapping_bucket (purchase_mapping_bucket),
+ADD KEY idx_purchase_classification_source (purchase_classification_source),
+ADD KEY idx_purchase_extracted_product_code (extracted_product_code);
+
+-- =====================================================
+-- COMPANY MIGRATION POLICY
+-- Controls per-company cutoffs and history source
+-- for Odoo/Wansoft transition domains.
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS odoo_company_migration_policy (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    odoo_company_id BIGINT NOT NULL,
+    company_name VARCHAR(255) NOT NULL,
+
+    company_migration_type VARCHAR(50) NOT NULL,
+    -- Expected values:
+    -- migrated_from_wansoft
+    -- new_odoo_branch
+
+    history_source VARCHAR(50) NOT NULL,
+    -- Expected values:
+    -- wansoft
+    -- odoo
+
+    include_odoo_history TINYINT(1) NOT NULL DEFAULT 0,
+
+    operational_start_date DATE NOT NULL,
+
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+
+    notes VARCHAR(500) NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_odoo_company_migration_policy (odoo_company_id),
+    KEY idx_company_migration_type (company_migration_type),
+    KEY idx_history_source (history_source),
+    KEY idx_operational_start_date (operational_start_date),
+    KEY idx_company_policy_active (is_active)
+);
+
+-- =====================================================
+-- COMPANY MIGRATION POLICY
+-- Controls per-company cutoffs and history source
+-- for Odoo/Wansoft transition domains.
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS odoo_company_migration_policy (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    odoo_company_id BIGINT NOT NULL,
+    company_name VARCHAR(255) NOT NULL,
+
+    company_migration_type VARCHAR(50) NOT NULL,
+    -- Expected values:
+    -- migrated_from_wansoft
+    -- new_odoo_branch
+
+    history_source VARCHAR(50) NOT NULL,
+    -- Expected values:
+    -- wansoft
+    -- odoo
+
+    include_odoo_history TINYINT(1) NOT NULL DEFAULT 0,
+
+    operational_start_date DATE NOT NULL,
+
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+
+    notes VARCHAR(500) NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_odoo_company_migration_policy (odoo_company_id),
+    KEY idx_company_migration_type (company_migration_type),
+    KEY idx_history_source (history_source),
+    KEY idx_operational_start_date (operational_start_date),
+    KEY idx_company_policy_active (is_active)
+);
+
 --
 -- Índices para tablas volcadas
 --
