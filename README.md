@@ -455,6 +455,10 @@ purchase.order.line.product_id
 
 This allows Odoo purchases to remain aligned with Wansoft product codes during the transition.
 
+### Product Mapping Policy
+
+The Purchases domain does not create automatic product aliases. A product is mapped only when it has an approved reference in `inventory_mapping_dictionary`. Similar names without an approved reference remain as new products in the purchase inventory mapping backlog.
+
 ## Current Purchases ETL Behaviour
 
 The ETL currently:
