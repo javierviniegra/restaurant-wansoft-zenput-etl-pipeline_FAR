@@ -1466,6 +1466,109 @@ CREATE TABLE IF NOT EXISTS odoo_purchase_inventory_mapping_backlog (
 );
 
 
+-- =====================================================
+-- ODOO PURCHASE RECEIPT DOMAIN
+-- Purchase receipts and receipt moves snapshots
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS odoo_purchase_receipt_snapshot (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    odoo_receipt_id BIGINT NOT NULL,
+    receipt_name VARCHAR(100) NOT NULL,
+
+    origin VARCHAR(100) NULL,
+
+    vendor_id BIGINT NULL,
+    vendor_name VARCHAR(255) NULL,
+
+    company_id BIGINT NULL,
+    company_name VARCHAR(255) NULL,
+
+    company_migration_type VARCHAR(50) NULL,
+    history_source VARCHAR(50) NULL,
+    include_odoo_history TINYINT(1) NULL,
+    operational_start_date DATE NULL,
+    migration_policy_source VARCHAR(50) NULL,
+
+    picking_type_id BIGINT NULL,
+    picking_type_name VARCHAR(255) NULL,
+    picking_type_code VARCHAR(50) NULL,
+
+    scheduled_date DATETIME NULL,
+    date_done DATETIME NULL,
+
+    state VARCHAR(50) NULL,
+
+    move_count INT NULL,
+    move_line_count INT NULL,
+
+    etl_loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_odoo_purchase_receipt_snapshot (odoo_receipt_id),
+    KEY idx_purchase_receipt_name (receipt_name),
+    KEY idx_purchase_receipt_origin (origin),
+    KEY idx_purchase_receipt_vendor_id (vendor_id),
+    KEY idx_purchase_receipt_company_id (company_id),
+    KEY idx_purchase_receipt_state (state),
+    KEY idx_purchase_receipt_scheduled_date (scheduled_date),
+    KEY idx_purchase_receipt_date_done (date_done),
+    KEY idx_purchase_receipt_policy_source (migration_policy_source)
+);
+
+
+CREATE TABLE IF NOT EXISTS odoo_purchase_receipt_move_snapshot (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    odoo_stock_move_id BIGINT NOT NULL,
+
+    reference VARCHAR(100) NULL,
+    origin VARCHAR(100) NULL,
+
+    odoo_receipt_id BIGINT NULL,
+    receipt_name VARCHAR(100) NULL,
+
+    odoo_purchase_order_line_id BIGINT NULL,
+    purchase_line_name VARCHAR(255) NULL,
+
+    product_id BIGINT NULL,
+    product_name VARCHAR(255) NULL,
+
+    product_uom_qty DECIMAL(18,4) NULL,
+    quantity DECIMAL(18,4) NULL,
+
+    product_uom_id BIGINT NULL,
+    product_uom_name VARCHAR(50) NULL,
+
+    company_id BIGINT NULL,
+    company_name VARCHAR(255) NULL,
+
+    company_migration_type VARCHAR(50) NULL,
+    history_source VARCHAR(50) NULL,
+    include_odoo_history TINYINT(1) NULL,
+    operational_start_date DATE NULL,
+    migration_policy_source VARCHAR(50) NULL,
+
+    state VARCHAR(50) NULL,
+
+    move_date DATETIME NULL,
+    date_deadline DATETIME NULL,
+
+    etl_loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_odoo_purchase_receipt_move_snapshot (odoo_stock_move_id),
+    KEY idx_purchase_receipt_move_reference (reference),
+    KEY idx_purchase_receipt_move_origin (origin),
+    KEY idx_purchase_receipt_move_receipt_id (odoo_receipt_id),
+    KEY idx_purchase_receipt_move_purchase_line_id (odoo_purchase_order_line_id),
+    KEY idx_purchase_receipt_move_product_id (product_id),
+    KEY idx_purchase_receipt_move_company_id (company_id),
+    KEY idx_purchase_receipt_move_state (state),
+    KEY idx_purchase_receipt_move_date (move_date),
+    KEY idx_purchase_receipt_move_deadline (date_deadline),
+    KEY idx_purchase_receipt_move_policy_source (migration_policy_source)
+);
+
 --
 -- Índices para tablas volcadas
 --
