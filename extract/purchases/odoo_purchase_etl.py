@@ -1,4 +1,5 @@
 import os
+import re
 import pandas as pd
 
 from core.config.env_loader import load_environment
@@ -537,15 +538,198 @@ def save_purchase_order_lines(df: pd.DataFrame):
     print(f"Insertados {inserted} registros en odoo_purchase_order_line_snapshot.")
     return inserted
 
+def extract_code_from_product_name(product_name):
+    """
+    Extrae códigos embebidos en nombres de productos.
+    Ejemplo:
+    [5100-101-100-002] Empanada...
+    """
+    if pd.isna(product_name) or product_name is None:
+        return None
+
+    text = str(product_name).strip()
+
+    match = re.match(r"^\[([^\]]+)\]", text)
+
+    if match:
+        return match.group(1).strip()
+
+    return None
+
+
+def classify_purchase_unmapped_line(row):
+    """
+    Clasifica líneas de compra después del product mapping.
+
+    Reglas principales:
+    - mapped_inventory: línea ya mapeada contra inventory_mapping_dictionary
+    - empty_line: línea administrativa sin producto/cantidad/importe
+    - empanadas_candidate: productos/códigos vinculados a Empanadas
+    - bodegon_candidate: compras a Bodegón u operación Bodegón
+    - sales_reference_candidate: productos comerciales / venta pública con código embebido
+    - operational_non_inventory_candidate: líneas operativas no inventariables
+    - inventory_candidate: producto real de compra aún no mapeado
+    - manual_review: fallback
+    """
+
+    purchase_line_type = row.get("purchase_line_type")
+    mapping_found = bool(row.get("product_mapping_found"))
+
+    product_name = row.get("product_name")
+    vendor_name = row.get("vendor_name")
+    company_name = row.get("company_name")
+
+    product_name_norm = "" if pd.isna(product_name) else str(product_name).strip().lower()
+    vendor_name_norm = "" if pd.isna(vendor_name) else str(vendor_name).strip().lower()
+    company_name_norm = "" if pd.isna(company_name) else str(company_name).strip().lower()
+
+    extracted_code = extract_code_from_product_name(product_name)
+
+    # 1) Líneas vacías / administrativas
+    if purchase_line_type == "empty_line":
+        return {
+            "purchase_product_scope": "empty_line",
+            "purchase_mapping_bucket": "empty_line",
+            "purchase_classification_source": "line_type_rule",
+            "extracted_product_code": extracted_code,
+        }
+
+    # 2) Líneas ya mapeadas contra inventory dictionary
+    if purchase_line_type == "product_line" and mapping_found:
+        return {
+            "purchase_product_scope": "mapped_inventory",
+            "purchase_mapping_bucket": "mapped",
+            "purchase_classification_source": "inventory_dictionary",
+            "extracted_product_code": extracted_code,
+        }
+
+    # 3) Códigos comerciales embebidos en nombre
+    #    Ejemplos vistos:
+    #    [5100-...] Empanadas
+    #    [5200-...] Cervezas / comerciales
+    #    [6200-...] Bebidas / refrescos
+    if extracted_code:
+        if extracted_code.startswith("5100"):
+            return {
+                "purchase_product_scope": "empanadas_candidate",
+                "purchase_mapping_bucket": "unmapped_empanadas",
+                "purchase_classification_source": "product_name_code_pattern",
+                "extracted_product_code": extracted_code,
+            }
+
+        if extracted_code.startswith(("5200", "6200")):
+            return {
+                "purchase_product_scope": "sales_reference_candidate",
+                "purchase_mapping_bucket": "unmapped_sales_reference",
+                "purchase_classification_source": "product_name_code_pattern",
+                "extracted_product_code": extracted_code,
+            }
+
+        return {
+            "purchase_product_scope": "sales_reference_candidate",
+            "purchase_mapping_bucket": "unmapped_sales_reference",
+            "purchase_classification_source": "product_name_code_pattern",
+            "extracted_product_code": extracted_code,
+        }
+
+    # 4) Reglas por proveedor / empresa
+    if "empanadas" in vendor_name_norm or "empanadas" in company_name_norm:
+        return {
+            "purchase_product_scope": "empanadas_candidate",
+            "purchase_mapping_bucket": "unmapped_empanadas",
+            "purchase_classification_source": "vendor_company_rule",
+            "extracted_product_code": extracted_code,
+        }
+
+    if "bodegon" in vendor_name_norm or "bodegón" in vendor_name_norm:
+        return {
+            "purchase_product_scope": "bodegon_candidate",
+            "purchase_mapping_bucket": "unmapped_bodegon",
+            "purchase_classification_source": "vendor_company_rule",
+            "extracted_product_code": extracted_code,
+        }
+
+    if "bodegon" in company_name_norm or "bodegón" in company_name_norm:
+        return {
+            "purchase_product_scope": "bodegon_candidate",
+            "purchase_mapping_bucket": "unmapped_bodegon",
+            "purchase_classification_source": "vendor_company_rule",
+            "extracted_product_code": extracted_code,
+        }
+
+    # 5) No inventariable / operativo
+    operational_keywords = [
+        "servicio",
+        "mantenimiento",
+        "reparacion",
+        "reparación",
+        "limpieza",
+        "lavado",
+        "uniforme",
+        "publicidad",
+        "diseño",
+        "diseno",
+        "asesoria",
+        "asesoría",
+        "honorarios",
+        "internet",
+        "renta",
+        "arrendamiento",
+        "flete",
+        "envio",
+        "envío",
+        "paqueteria",
+        "paquetería",
+        "papeleria",
+        "papelería",
+        "equipo",
+        "mobiliario",
+        "cristaleria",
+        "cristalería",
+        "loza",
+    ]
+
+    if any(keyword in product_name_norm for keyword in operational_keywords):
+        return {
+            "purchase_product_scope": "operational_non_inventory_candidate",
+            "purchase_mapping_bucket": "unmapped_operational",
+            "purchase_classification_source": "product_name_heuristic",
+            "extracted_product_code": extracted_code,
+        }
+
+    # 6) Producto real no mapeado
+    if purchase_line_type == "product_line" and not mapping_found:
+        return {
+            "purchase_product_scope": "inventory_candidate",
+            "purchase_mapping_bucket": "unmapped_inventory_candidate",
+            "purchase_classification_source": "manual_review_fallback",
+            "extracted_product_code": extracted_code,
+        }
+
+    # 7) Fallback
+    return {
+        "purchase_product_scope": "manual_review",
+        "purchase_mapping_bucket": "unmapped_manual_review",
+        "purchase_classification_source": "manual_review_fallback",
+        "extracted_product_code": extracted_code,
+    }
 
 def initialize_purchase_line_classification_columns(df_lines: pd.DataFrame) -> pd.DataFrame:
     """
-    Inicializa columnas de clasificación futura de líneas no mapeadas.
+    Clasifica líneas de compra en buckets operativos.
 
-    La lógica específica se implementará en el siguiente paso.
-    Por ahora se dejan listas para persistencia sin romper el ETL.
+    Esta lógica reemplaza cualquier UPDATE manual.
     """
+    if df_lines is None or df_lines.empty:
+        return df_lines
+
     df = df_lines.copy()
+
+    classified = df.apply(
+        classify_purchase_unmapped_line,
+        axis=1,
+        result_type="expand"
+    )
 
     for col in [
         "purchase_product_scope",
@@ -553,8 +737,7 @@ def initialize_purchase_line_classification_columns(df_lines: pd.DataFrame) -> p
         "purchase_classification_source",
         "extracted_product_code",
     ]:
-        if col not in df.columns:
-            df[col] = None
+        df[col] = classified[col]
 
     return df
 
