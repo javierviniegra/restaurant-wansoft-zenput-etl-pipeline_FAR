@@ -1397,6 +1397,34 @@ CREATE TABLE IF NOT EXISTS odoo_company_migration_policy (
     KEY idx_company_policy_active (is_active)
 );
 
+
+-- =====================================================
+-- PURCHASE DOMAIN COMPANY MIGRATION POLICY TRACEABILITY
+-- These columns are populated by the ETL.
+-- =====================================================
+
+ALTER TABLE odoo_purchase_order_snapshot
+ADD COLUMN company_migration_type VARCHAR(50) NULL AFTER company_name,
+ADD COLUMN history_source VARCHAR(50) NULL AFTER company_migration_type,
+ADD COLUMN include_odoo_history TINYINT(1) NULL AFTER history_source,
+ADD COLUMN operational_start_date DATE NULL AFTER include_odoo_history,
+ADD COLUMN migration_policy_source VARCHAR(50) NULL AFTER operational_start_date,
+ADD KEY idx_purchase_order_migration_type (company_migration_type),
+ADD KEY idx_purchase_order_history_source (history_source),
+ADD KEY idx_purchase_order_operational_start_date (operational_start_date),
+ADD KEY idx_purchase_order_policy_source (migration_policy_source);
+
+
+ALTER TABLE odoo_purchase_order_line_snapshot
+ADD COLUMN company_migration_type VARCHAR(50) NULL AFTER company_name,
+ADD COLUMN history_source VARCHAR(50) NULL AFTER company_migration_type,
+ADD COLUMN include_odoo_history TINYINT(1) NULL AFTER history_source,
+ADD COLUMN operational_start_date DATE NULL AFTER include_odoo_history,
+ADD COLUMN migration_policy_source VARCHAR(50) NULL AFTER operational_start_date,
+ADD KEY idx_purchase_line_migration_type (company_migration_type),
+ADD KEY idx_purchase_line_history_source (history_source),
+ADD KEY idx_purchase_line_operational_start_date (operational_start_date),
+ADD KEY idx_purchase_line_policy_source (migration_policy_source);
 --
 -- Índices para tablas volcadas
 --
