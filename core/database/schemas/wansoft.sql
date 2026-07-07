@@ -1425,6 +1425,47 @@ ADD KEY idx_purchase_line_migration_type (company_migration_type),
 ADD KEY idx_purchase_line_history_source (history_source),
 ADD KEY idx_purchase_line_operational_start_date (operational_start_date),
 ADD KEY idx_purchase_line_policy_source (migration_policy_source);
+
+-- =====================================================
+-- PURCHASE DOMAIN INVENTORY MAPPING BACKLOG
+-- Deduplicated backlog of purchase products that are
+-- not mapped to Wansoft inventory dictionary yet.
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS odoo_purchase_inventory_mapping_backlog (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    product_id BIGINT NOT NULL,
+    product_name VARCHAR(255) NOT NULL,
+
+    purchase_product_scope VARCHAR(50) NOT NULL,
+    purchase_mapping_bucket VARCHAR(50) NOT NULL,
+
+    total_lines INT NOT NULL,
+    unique_vendors INT NOT NULL,
+    unique_companies INT NOT NULL,
+
+    total_qty DECIMAL(18,4) NULL,
+    total_received DECIMAL(18,4) NULL,
+    total_amount DECIMAL(18,4) NULL,
+
+    first_order_date DATETIME NULL,
+    last_order_date DATETIME NULL,
+
+    suggested_action VARCHAR(50) NOT NULL DEFAULT 'review_for_inventory_mapping',
+    backlog_status VARCHAR(50) NOT NULL DEFAULT 'open',
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_purchase_inventory_mapping_backlog_product (product_id),
+    KEY idx_purchase_inventory_backlog_scope (purchase_product_scope),
+    KEY idx_purchase_inventory_backlog_bucket (purchase_mapping_bucket),
+    KEY idx_purchase_inventory_backlog_status (backlog_status),
+    KEY idx_purchase_inventory_backlog_amount (total_amount)
+);
+
+
 --
 -- Índices para tablas volcadas
 --
