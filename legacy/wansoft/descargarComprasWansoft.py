@@ -8,7 +8,8 @@ import mysql.connector
 from core.database.mysql import get_mysql_connection as get_db_connection
 
 # Initialize SOAP client
-client = Client('https://www.wansoft.net/wansoft.web/API/IntegrationService.asmx?wsdl')
+from core.clients.wansoft_client import get_wansoft_client
+client = get_wansoft_client()
 
 # List of subsidiaries and their credentials
 subsidiaries = [

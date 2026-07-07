@@ -86,7 +86,8 @@ CREATE TABLE IF NOT EXISTS getOutgoingInventory_Salida (
 db_connection.commit()
 
 # Initialize SOAP client
-client = Client('https://www.wansoft.net/wansoft.web/API/IntegrationService.asmx?wsdl')
+from core.clients.wansoft_client import get_wansoft_client
+client = get_wansoft_client()
 
 # Función auxiliar para convertir valores a float eliminando comas
 def safe_float(value, default=0.0):

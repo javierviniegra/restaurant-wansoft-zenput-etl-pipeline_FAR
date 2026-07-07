@@ -55,8 +55,9 @@ cursor = conexion.cursor()
 
 
 
-# Cliente SOAP (mismo que tu script de descarga)
-client = Client('https://www.wansoft.net/wansoft.web/API/IntegrationService.asmx?wsdl')
+# Initialize SOAP client
+from core.clients.wansoft_client import get_wansoft_client
+client = get_wansoft_client()
 
 # Directorio donde viven los XML descargados
 from core.config.paths import get_xml_download_dir

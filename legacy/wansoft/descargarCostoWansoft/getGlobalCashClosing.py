@@ -115,7 +115,8 @@ cursor.execute("""
 db_connection.commit()
 
 # Initialize SOAP client
-client = Client('https://www.wansoft.net/wansoft.web/API/IntegrationService.asmx?wsdl')
+from core.clients.wansoft_client import get_wansoft_client
+client = get_wansoft_client()
 
 
 # Funciones de ayuda

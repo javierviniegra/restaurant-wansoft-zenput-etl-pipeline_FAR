@@ -13,8 +13,9 @@ import os
 # In[2]:
 
 
-# Inicializo el cliente SOAP
-client = Client('https://www.wansoft.net/wansoft.web/API/IntegrationService.asmx?wsdl')
+# Initialize SOAP client
+from core.clients.wansoft_client import get_wansoft_client
+client = get_wansoft_client()
 
 
 # In[3]:

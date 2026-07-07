@@ -77,7 +77,8 @@ db_connection.commit()
 # Conexion a la API
 
 # Initialize SOAP client
-client = Client('https://www.wansoft.net/wansoft.web/API/IntegrationService.asmx?wsdl')
+from core.clients.wansoft_client import get_wansoft_client
+client = get_wansoft_client()
 
 
 # Función auxiliar para convertir valores a float eliminando comas
