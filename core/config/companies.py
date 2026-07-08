@@ -56,3 +56,129 @@ COMPANY_SOURCE = {
     "CentroMyJ": "wansoft",
     "Puebla": "wansoft"
 }
+
+# =====================================================
+# COMPANY SOURCE GOVERNANCE
+# =====================================================
+# This configuration defines the official source system
+# by operational company/sucursal.
+#
+# Rules:
+# - sales always remain Wansoft
+# - purchases follow COMPANY_SOURCE
+# - inventory follows COMPANY_SOURCE
+# - operational_start_date applies only when source = odoo
+# =====================================================
+
+
+# Domains controlled by COMPANY_SOURCE
+COMPANY_SOURCE_CONTROLLED_DOMAINS = {
+    "purchases",
+    "inventory",
+}
+
+
+# Domains that must always use Wansoft
+ALWAYS_WANSOFT_DOMAINS = {
+    "sales",
+}
+
+
+# Optional mapping from Odoo company names to operational source keys.
+# This allows Odoo company_name values to match COMPANY_SOURCE keys.
+ODOO_COMPANY_SOURCE_KEY = {
+    "FONDA ARGENTINA LAS ANTENAS": "Antenas",
+    "FONDA ARGENTINA ENCUENTRO OCEANIA": "Oceanía",
+    "FONDA ARGENTINA SAN JERONIMO": "San Jeronimo",
+    "FONDA ARGENTINA PUEBLA": "Puebla",
+    "FONDA ARGENTINA COYOACAN": "La Esquina Coyoacán",
+    "FONDA ARGENTINA MAQ": "Acoxpa",
+    "FONDA ARGENTINA": "Isabel La Católica",
+    "FONDA COSTA NERA": "Acoxpa",
+    "MARIO Y JULY": "CentroMyJ",
+}
+
+
+def normalize_company_name(value):
+    """
+    Normalizes company names for source-system lookup.
+    """
+    if value is None:
+        return None
+
+    text = str(value).strip()
+
+    if not text:
+        return None
+
+    return text
+
+
+def get_company_source_key(company_name):
+    """
+    Resolves the operational COMPANY_SOURCE key from an Odoo/Wansoft company name.
+
+    Example:
+    FONDA ARGENTINA LAS ANTENAS -> Antenas
+    """
+    normalized_name = normalize_company_name(company_name)
+
+    if normalized_name is None:
+        return None
+
+    if normalized_name in ODOO_COMPANY_SOURCE_KEY:
+        return ODOO_COMPANY_SOURCE_KEY[normalized_name]
+
+    return normalized_name
+
+
+def get_company_source(company_name, default="wansoft"):
+    """
+    Returns the configured source system for a company.
+
+    Returns:
+    - "wansoft"
+    - "odoo"
+    """
+    source_key = get_company_source_key(company_name)
+
+    if source_key is None:
+        return default
+
+    return COMPANY_SOURCE.get(source_key, default)
+
+
+def get_domain_company_source(company_name, domain, default="wansoft"):
+    """
+    Returns the official source system for a company and domain.
+
+    Rules:
+    - sales always returns wansoft
+    - purchases and inventory use COMPANY_SOURCE
+    - unknown domains default to Wansoft unless explicitly handled
+    """
+    domain_normalized = str(domain).strip().lower()
+
+    if domain_normalized in ALWAYS_WANSOFT_DOMAINS:
+        return "wansoft"
+
+    if domain_normalized in COMPANY_SOURCE_CONTROLLED_DOMAINS:
+        return get_company_source(company_name, default=default)
+
+    return default
+
+
+def is_company_odoo_source(company_name, domain):
+    """
+    Returns True only if the company is configured as Odoo source
+    for the requested domain.
+    """
+    return get_domain_company_source(company_name, domain) == "odoo"
+
+
+def is_company_wansoft_source(company_name, domain):
+    """
+    Returns True if the company is configured as Wansoft source
+    for the requested domain.
+    """
+    return get_domain_company_source(company_name, domain) == "wansoft"
