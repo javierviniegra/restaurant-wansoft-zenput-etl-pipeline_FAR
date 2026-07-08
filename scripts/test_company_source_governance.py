@@ -1,7 +1,10 @@
 from core.config.companies import (
+    get_company_source_key,
     get_domain_company_source,
     is_company_odoo_source,
     is_company_wansoft_source,
+    is_company_internal_provider,
+    should_include_company_in_final_domain,
 )
 
 
@@ -12,6 +15,10 @@ TEST_COMPANIES = [
     "FONDA ARGENTINA PUEBLA",
     "FONDA ARGENTINA COYOACAN",
     "FONDA ARGENTINA MAQ",
+    "FONDA COSTA NERA",
+    "EL BODEGON DE FITO",
+    "LAS EMPANADAS DE MARIA EVA",
+    "MARIO Y JULY",
     "Acoxpa",
     "Antenas",
     "Oceanía",
@@ -30,16 +37,21 @@ if __name__ == "__main__":
     print("==== TEST COMPANY SOURCE GOVERNANCE ====\n")
 
     for company_name in TEST_COMPANIES:
+        source_key = get_company_source_key(company_name)
+
         print(f"\nCompany: {company_name}")
+        print(f"  source_key={source_key}")
 
         for domain in TEST_DOMAINS:
             source = get_domain_company_source(company_name, domain)
 
             print(
                 f"  domain={domain:<10} "
-                f"source={source:<8} "
+                f"source={source:<18} "
                 f"is_odoo={is_company_odoo_source(company_name, domain)} "
-                f"is_wansoft={is_company_wansoft_source(company_name, domain)}"
+                f"is_wansoft={is_company_wansoft_source(company_name, domain)} "
+                f"is_internal_provider={is_company_internal_provider(company_name, domain)} "
+                f"include_final={should_include_company_in_final_domain(company_name, domain)}"
             )
 
     print("\n==== DONE ✅ ====")

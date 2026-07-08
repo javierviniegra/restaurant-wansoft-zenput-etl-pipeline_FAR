@@ -552,6 +552,16 @@ Rules:
 
 This prevents Odoo parallel-operation data from replacing Wansoft before a company is formally configured as Odoo source.
 
+### Internal Provider Companies
+
+Some Odoo companies are used for intercompany/provider workflows but should not be treated as final operating branches in Grupo Fonda Argentina BI tables.
+
+Current internal provider companies:
+
+```text
+EL BODEGON DE FITO
+LAS EMPANADAS DE MARIA EVA
+
 ---
 
 # Wansoft SOAP / Local WSDL
