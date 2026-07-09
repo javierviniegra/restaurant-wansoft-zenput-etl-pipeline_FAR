@@ -538,19 +538,23 @@ Purchases ETL no longer relies only on PURCHASE_ETL_MIN_ORDER_DATE.
 Each company uses its configured operational_start_date.
 ```
 
-## Company Source Governance
+### Company Source Governance
 
-`COMPANY_SOURCE` in `companies.py` is the authoritative source selector for operational domains.
+`COMPANY_SOURCE` in `core/config/companies.py` is the authoritative selector for source systems.
 
 Rules:
 
-- Sales always use Wansoft.
+- Sales always use Wansoft for operating branches.
 - Purchases use `COMPANY_SOURCE`.
 - Inventory uses `COMPANY_SOURCE`.
 - `odoo_company_migration_policy.operational_start_date` only applies when `COMPANY_SOURCE` marks the company as `odoo`.
 - `.env` dates are fallback values, not the main business rule.
 
-This prevents Odoo parallel-operation data from replacing Wansoft before a company is formally configured as Odoo source.
+Special mappings:
+
+```text
+FONDA ARGENTINA MAQ -> Tepeyac
+FONDA COSTA NERA -> Acoxpa
 
 ### Internal Provider Companies
 

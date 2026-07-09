@@ -84,8 +84,19 @@ ALWAYS_WANSOFT_DOMAINS = {
 }
 
 
-# Optional mapping from Odoo company names to operational source keys.
-# This allows Odoo company_name values to match COMPANY_SOURCE keys.
+
+# =====================================================
+# ODOO COMPANY NAME TO OPERATIONAL SOURCE KEY
+# =====================================================
+# Maps Odoo company names to the operational keys used in COMPANY_SOURCE.
+#
+# Important:
+# - Bodegón and Empanadas may exist as Odoo companies because they are part
+#   of the intercompany/provider flow.
+# - For Grupo Fonda Argentina final BI tables, they are treated as suppliers,
+#   not as operating restaurant branches.
+# =====================================================
+
 ODOO_COMPANY_SOURCE_KEY = {
     "FONDA ARGENTINA LAS ANTENAS": "Antenas",
     "FONDA ARGENTINA ENCUENTRO OCEANIA": "Oceanía",
@@ -93,95 +104,28 @@ ODOO_COMPANY_SOURCE_KEY = {
     "FONDA ARGENTINA PUEBLA": "Puebla",
     "FONDA ARGENTINA COYOACAN": "La Esquina Coyoacán",
     "FONDA ARGENTINA MAQ": "Tepeyac",
-    "FONDA ARGENTINA": "Isabel La Católica",
     "FONDA COSTA NERA": "Acoxpa",
+    "FONDA ARGENTINA": "Isabel La Católica",
     "MARIO Y JULY": "CentroMyJ",
 }
 
 
-def normalize_company_name(value):
-    """
-    Normalizes company names for source-system lookup.
-    """
-    if value is None:
-        return None
+# =====================================================
+# INTERNAL PROVIDER COMPANIES
+# =====================================================
+# These companies may exist in Odoo for intercompany operations,
+# purchases, sales orders, receipts, or supplier flows.
+#
+# They should NOT be treated as final operating branches for
+# Grupo Fonda Argentina BI canonical tables.
+# =====================================================
 
-    text = str(value).strip()
-
-    if not text:
-        return None
-
-    return text
-
-
-def get_company_source_key(company_name):
-    """
-    Resolves the operational COMPANY_SOURCE key from an Odoo/Wansoft company name.
-
-    Example:
-    FONDA ARGENTINA LAS ANTENAS -> Antenas
-    """
-    normalized_name = normalize_company_name(company_name)
-
-    if normalized_name is None:
-        return None
-
-    if normalized_name in ODOO_COMPANY_SOURCE_KEY:
-        return ODOO_COMPANY_SOURCE_KEY[normalized_name]
-
-    return normalized_name
+ODOO_INTERNAL_PROVIDER_COMPANIES = {
+    "EL BODEGON DE FITO",
+    "LAS EMPANADAS DE MARIA EVA",
+}
 
 
-def get_company_source(company_name, default="wansoft"):
-    """
-    Returns the configured source system for a company.
-
-    Returns:
-    - "wansoft"
-    - "odoo"
-    """
-    source_key = get_company_source_key(company_name)
-
-    if source_key is None:
-        return default
-
-    return COMPANY_SOURCE.get(source_key, default)
-
-
-def get_domain_company_source(company_name, domain, default="wansoft"):
-    """
-    Returns the official source system for a company and domain.
-
-    Rules:
-    - sales always returns wansoft
-    - purchases and inventory use COMPANY_SOURCE
-    - unknown domains default to Wansoft unless explicitly handled
-    """
-    domain_normalized = str(domain).strip().lower()
-
-    if domain_normalized in ALWAYS_WANSOFT_DOMAINS:
-        return "wansoft"
-
-    if domain_normalized in COMPANY_SOURCE_CONTROLLED_DOMAINS:
-        return get_company_source(company_name, default=default)
-
-    return default
-
-
-def is_company_odoo_source(company_name, domain):
-    """
-    Returns True only if the company is configured as Odoo source
-    for the requested domain.
-    """
-    return get_domain_company_source(company_name, domain) == "odoo"
-
-
-def is_company_wansoft_source(company_name, domain):
-    """
-    Returns True if the company is configured as Wansoft source
-    for the requested domain.
-    """
-    return get_domain_company_source(company_name, domain) == "wansoft"
 
 def normalize_company_name(value):
     """
@@ -215,8 +159,9 @@ def get_company_source_key(company_name):
     """
     Resolves the operational COMPANY_SOURCE key from an Odoo/Wansoft company name.
 
-    Example:
+    Examples:
     FONDA ARGENTINA LAS ANTENAS -> Antenas
+    FONDA ARGENTINA MAQ -> Tepeyac
     FONDA COSTA NERA -> Acoxpa
 
     Internal provider companies return None because they should not be treated
@@ -243,7 +188,7 @@ def get_company_source(company_name, default="wansoft"):
     Returns:
     - "wansoft"
     - "odoo"
-    - "internal_provider" for excluded internal provider companies
+    - "internal_provider"
     """
     if is_internal_provider_company(company_name):
         return "internal_provider"
@@ -261,20 +206,26 @@ def get_domain_company_source(company_name, domain, default="wansoft"):
     Returns the official source system for a company and domain.
 
     Rules:
-    - sales always returns wansoft
+    - internal providers return internal_provider for purchases/inventory
+    - sales always returns wansoft for operating companies
     - purchases and inventory use COMPANY_SOURCE
-    - internal provider companies return internal_provider for purchases/inventory
     - unknown domains default to Wansoft unless explicitly handled
     """
     domain_normalized = str(domain).strip().lower()
+
+    if is_internal_provider_company(company_name):
+        if domain_normalized in COMPANY_SOURCE_CONTROLLED_DOMAINS:
+            return "internal_provider"
+
+        # Sales always remains Wansoft as source system,
+        # but final inclusion is controlled separately.
+        if domain_normalized in ALWAYS_WANSOFT_DOMAINS:
+            return "wansoft"
 
     if domain_normalized in ALWAYS_WANSOFT_DOMAINS:
         return "wansoft"
 
     if domain_normalized in COMPANY_SOURCE_CONTROLLED_DOMAINS:
-        if is_internal_provider_company(company_name):
-            return "internal_provider"
-
         return get_company_source(company_name, default=default)
 
     return default
@@ -296,11 +247,14 @@ def is_company_wansoft_source(company_name, domain):
     return get_domain_company_source(company_name, domain) == "wansoft"
 
 
-def is_company_internal_provider(company_name, domain):
+def is_company_internal_provider(company_name, domain=None):
     """
-    Returns True when the company is an internal provider for the requested domain.
+    Returns True when the company is an internal provider.
+
+    The domain parameter is optional because provider classification is
+    company-level, not domain-level.
     """
-    return get_domain_company_source(company_name, domain) == "internal_provider"
+    return is_internal_provider_company(company_name)
 
 
 def should_include_company_in_final_domain(company_name, domain):
@@ -310,25 +264,7 @@ def should_include_company_in_final_domain(company_name, domain):
 
     Internal providers are excluded from final branch-level BI facts.
     """
-    source = get_domain_company_source(company_name, domain)
-
-    if source == "internal_provider":
+    if is_internal_provider_company(company_name):
         return False
 
     return True
-
-
-# =====================================================
-# INTERNAL PROVIDER COMPANIES
-# =====================================================
-# These companies may exist in Odoo for intercompany operations,
-# purchases, sales orders, receipts, or supplier flows.
-#
-# They should NOT be treated as final operating branches for
-# Grupo Fonda Argentina BI canonical tables.
-# =====================================================
-
-ODOO_INTERNAL_PROVIDER_COMPANIES = {
-    "EL BODEGON DE FITO",
-    "LAS EMPANADAS DE MARIA EVA",
-}
