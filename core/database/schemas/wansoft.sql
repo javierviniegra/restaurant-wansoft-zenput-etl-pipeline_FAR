@@ -1569,6 +1569,276 @@ CREATE TABLE IF NOT EXISTS odoo_purchase_receipt_move_snapshot (
     KEY idx_purchase_receipt_move_policy_source (migration_policy_source)
 );
 
+-- =====================================================
+-- CANONICAL PURCHASE DOMAIN
+-- Final BI-ready purchase layer with source_system control
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS canonical_purchase_order_snapshot (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    source_system VARCHAR(20) NOT NULL,
+    -- Expected values:
+    -- wansoft
+    -- odoo
+
+    source_domain VARCHAR(50) NOT NULL DEFAULT 'purchase_order',
+
+    source_order_id VARCHAR(100) NOT NULL,
+    purchase_order_name VARCHAR(100) NULL,
+
+    vendor_id VARCHAR(100) NULL,
+    vendor_name VARCHAR(255) NULL,
+
+    company_id VARCHAR(100) NULL,
+    company_name VARCHAR(255) NULL,
+    company_source_key VARCHAR(100) NULL,
+
+    final_purchase_source_status VARCHAR(50) NULL,
+    -- Expected examples:
+    -- final_odoo_enabled
+    -- wansoft_only
+    -- exclude_internal_provider
+
+    company_migration_type VARCHAR(50) NULL,
+    history_source VARCHAR(50) NULL,
+    include_odoo_history TINYINT(1) NULL,
+    operational_start_date DATE NULL,
+    migration_policy_source VARCHAR(50) NULL,
+
+    order_date DATETIME NULL,
+    approval_date DATETIME NULL,
+
+    state VARCHAR(50) NULL,
+    invoice_status VARCHAR(50) NULL,
+
+    amount_untaxed DECIMAL(18,4) NULL,
+    amount_tax DECIMAL(18,4) NULL,
+    amount_total DECIMAL(18,4) NULL,
+
+    currency_id VARCHAR(100) NULL,
+    currency_name VARCHAR(50) NULL,
+
+    picking_count INT NULL,
+
+    canonical_loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_canonical_purchase_order_source (
+        source_system,
+        source_order_id
+    ),
+    KEY idx_canonical_purchase_order_source_system (source_system),
+    KEY idx_canonical_purchase_order_name (purchase_order_name),
+    KEY idx_canonical_purchase_order_vendor_name (vendor_name),
+    KEY idx_canonical_purchase_order_company_name (company_name),
+    KEY idx_canonical_purchase_order_company_key (company_source_key),
+    KEY idx_canonical_purchase_order_status (state),
+    KEY idx_canonical_purchase_order_date (order_date),
+    KEY idx_canonical_purchase_order_final_status (final_purchase_source_status)
+);
+
+
+CREATE TABLE IF NOT EXISTS canonical_purchase_order_line_snapshot (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    source_system VARCHAR(20) NOT NULL,
+    -- Expected values:
+    -- wansoft
+    -- odoo
+
+    source_domain VARCHAR(50) NOT NULL DEFAULT 'purchase_order_line',
+
+    source_order_line_id VARCHAR(100) NOT NULL,
+    source_order_id VARCHAR(100) NULL,
+
+    purchase_order_name VARCHAR(100) NULL,
+
+    vendor_id VARCHAR(100) NULL,
+    vendor_name VARCHAR(255) NULL,
+
+    company_id VARCHAR(100) NULL,
+    company_name VARCHAR(255) NULL,
+    company_source_key VARCHAR(100) NULL,
+
+    final_purchase_source_status VARCHAR(50) NULL,
+
+    company_migration_type VARCHAR(50) NULL,
+    history_source VARCHAR(50) NULL,
+    include_odoo_history TINYINT(1) NULL,
+    operational_start_date DATE NULL,
+    migration_policy_source VARCHAR(50) NULL,
+
+    product_id VARCHAR(100) NULL,
+    product_name VARCHAR(255) NULL,
+
+    wansoft_code VARCHAR(50) NULL,
+    wansoft_product_name VARCHAR(255) NULL,
+    wansoft_department VARCHAR(255) NULL,
+
+    product_mapping_found TINYINT(1) NULL,
+    product_mapping_status VARCHAR(50) NULL,
+    product_mapping_source VARCHAR(50) NULL,
+
+    purchase_line_type VARCHAR(50) NULL,
+    purchase_product_scope VARCHAR(50) NULL,
+    purchase_mapping_bucket VARCHAR(50) NULL,
+    purchase_classification_source VARCHAR(50) NULL,
+    extracted_product_code VARCHAR(100) NULL,
+
+    product_qty DECIMAL(18,4) NULL,
+    qty_received DECIMAL(18,4) NULL,
+    qty_invoiced DECIMAL(18,4) NULL,
+
+    price_unit DECIMAL(18,4) NULL,
+    price_subtotal DECIMAL(18,4) NULL,
+    price_total DECIMAL(18,4) NULL,
+
+    order_date DATETIME NULL,
+    state VARCHAR(50) NULL,
+
+    canonical_loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_canonical_purchase_line_source (
+        source_system,
+        source_order_line_id
+    ),
+    KEY idx_canonical_purchase_line_source_system (source_system),
+    KEY idx_canonical_purchase_line_order_name (purchase_order_name),
+    KEY idx_canonical_purchase_line_vendor_name (vendor_name),
+    KEY idx_canonical_purchase_line_company_name (company_name),
+    KEY idx_canonical_purchase_line_company_key (company_source_key),
+    KEY idx_canonical_purchase_line_product_id (product_id),
+    KEY idx_canonical_purchase_line_wansoft_code (wansoft_code),
+    KEY idx_canonical_purchase_line_order_date (order_date),
+    KEY idx_canonical_purchase_line_state (state),
+    KEY idx_canonical_purchase_line_final_status (final_purchase_source_status),
+    KEY idx_canonical_purchase_line_mapping_bucket (purchase_mapping_bucket)
+);
+
+
+CREATE TABLE IF NOT EXISTS canonical_purchase_receipt_snapshot (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    source_system VARCHAR(20) NOT NULL,
+    source_domain VARCHAR(50) NOT NULL DEFAULT 'purchase_receipt',
+
+    source_receipt_id VARCHAR(100) NOT NULL,
+    receipt_name VARCHAR(100) NULL,
+    origin VARCHAR(100) NULL,
+
+    vendor_id VARCHAR(100) NULL,
+    vendor_name VARCHAR(255) NULL,
+
+    company_id VARCHAR(100) NULL,
+    company_name VARCHAR(255) NULL,
+    company_source_key VARCHAR(100) NULL,
+
+    final_purchase_source_status VARCHAR(50) NULL,
+
+    company_migration_type VARCHAR(50) NULL,
+    history_source VARCHAR(50) NULL,
+    include_odoo_history TINYINT(1) NULL,
+    operational_start_date DATE NULL,
+    migration_policy_source VARCHAR(50) NULL,
+
+    picking_type_id VARCHAR(100) NULL,
+    picking_type_name VARCHAR(255) NULL,
+    picking_type_code VARCHAR(50) NULL,
+
+    scheduled_date DATETIME NULL,
+    date_done DATETIME NULL,
+
+    state VARCHAR(50) NULL,
+
+    move_count INT NULL,
+    move_line_count INT NULL,
+
+    canonical_loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_canonical_purchase_receipt_source (
+        source_system,
+        source_receipt_id
+    ),
+    KEY idx_canonical_purchase_receipt_source_system (source_system),
+    KEY idx_canonical_purchase_receipt_name (receipt_name),
+    KEY idx_canonical_purchase_receipt_origin (origin),
+    KEY idx_canonical_purchase_receipt_vendor_name (vendor_name),
+    KEY idx_canonical_purchase_receipt_company_name (company_name),
+    KEY idx_canonical_purchase_receipt_company_key (company_source_key),
+    KEY idx_canonical_purchase_receipt_state (state),
+    KEY idx_canonical_purchase_receipt_scheduled_date (scheduled_date),
+    KEY idx_canonical_purchase_receipt_date_done (date_done),
+    KEY idx_canonical_purchase_receipt_final_status (final_purchase_source_status)
+);
+
+
+CREATE TABLE IF NOT EXISTS canonical_purchase_receipt_move_snapshot (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    source_system VARCHAR(20) NOT NULL,
+    source_domain VARCHAR(50) NOT NULL DEFAULT 'purchase_receipt_move',
+
+    source_stock_move_id VARCHAR(100) NOT NULL,
+
+    reference VARCHAR(100) NULL,
+    origin VARCHAR(100) NULL,
+
+    source_receipt_id VARCHAR(100) NULL,
+    receipt_name VARCHAR(100) NULL,
+
+    source_order_line_id VARCHAR(100) NULL,
+    purchase_line_name VARCHAR(255) NULL,
+
+    product_id VARCHAR(100) NULL,
+    product_name VARCHAR(255) NULL,
+
+    wansoft_code VARCHAR(50) NULL,
+    wansoft_product_name VARCHAR(255) NULL,
+    wansoft_department VARCHAR(255) NULL,
+
+    product_uom_qty DECIMAL(18,4) NULL,
+    quantity DECIMAL(18,4) NULL,
+
+    product_uom_id VARCHAR(100) NULL,
+    product_uom_name VARCHAR(50) NULL,
+
+    company_id VARCHAR(100) NULL,
+    company_name VARCHAR(255) NULL,
+    company_source_key VARCHAR(100) NULL,
+
+    final_purchase_source_status VARCHAR(50) NULL,
+
+    company_migration_type VARCHAR(50) NULL,
+    history_source VARCHAR(50) NULL,
+    include_odoo_history TINYINT(1) NULL,
+    operational_start_date DATE NULL,
+    migration_policy_source VARCHAR(50) NULL,
+
+    state VARCHAR(50) NULL,
+
+    move_date DATETIME NULL,
+    date_deadline DATETIME NULL,
+
+    canonical_loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_canonical_purchase_receipt_move_source (
+        source_system,
+        source_stock_move_id
+    ),
+    KEY idx_canonical_purchase_receipt_move_source_system (source_system),
+    KEY idx_canonical_purchase_receipt_move_reference (reference),
+    KEY idx_canonical_purchase_receipt_move_origin (origin),
+    KEY idx_canonical_purchase_receipt_move_receipt_id (source_receipt_id),
+    KEY idx_canonical_purchase_receipt_move_order_line_id (source_order_line_id),
+    KEY idx_canonical_purchase_receipt_move_product_id (product_id),
+    KEY idx_canonical_purchase_receipt_move_wansoft_code (wansoft_code),
+    KEY idx_canonical_purchase_receipt_move_company_name (company_name),
+    KEY idx_canonical_purchase_receipt_move_company_key (company_source_key),
+    KEY idx_canonical_purchase_receipt_move_state (state),
+    KEY idx_canonical_purchase_receipt_move_date (move_date),
+    KEY idx_canonical_purchase_receipt_move_final_status (final_purchase_source_status)
+);
+
 --
 -- Índices para tablas volcadas
 --
