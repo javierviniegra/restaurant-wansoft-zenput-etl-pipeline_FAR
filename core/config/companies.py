@@ -34,6 +34,22 @@ CUENTAS_SUCURSALES = [
     ("12806", "Puebla", os.getenv("WANSOFT_PWD_12806"))
 ]
 
+# =====================================================
+# WANSOFT SUBSIDIARY TO OPERATIONAL SOURCE KEY
+# =====================================================
+# Derived from CUENTAS_SUCURSALES.
+#
+# Maps Wansoft subsidiary identifiers to COMPANY_SOURCE keys.
+#
+# Example:
+# "4960" -> "Antenas"
+# =====================================================
+
+WANSOFT_SUBSIDIARY_SOURCE_KEY = {
+    str(subsidiary_id): company_name
+    for subsidiary_id, company_name, _password in CUENTAS_SUCURSALES
+}
+
 # 🔥 CONFIGURACIÓN DE FUENTE POR EMPRESA
 COMPANY_SOURCE = {
     "Acoxpa": "wansoft",

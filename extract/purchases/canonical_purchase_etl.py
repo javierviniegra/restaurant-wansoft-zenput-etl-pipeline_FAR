@@ -12,6 +12,7 @@ from analysis.build_purchase_company_source_eligibility_report import (
 
 FINAL_ODOO_STATUS = "final_odoo_enabled"
 SOURCE_SYSTEM_ODOO = "odoo"
+SOURCE_SYSTEM_WANSOFT = "wansoft"
 
 
 def load_table(table_name: str) -> pd.DataFrame:
@@ -537,4 +538,13 @@ def run_canonical_purchase_odoo_etl():
         "lines_inserted": inserted_lines,
         "receipts_inserted": inserted_receipts,
         "receipt_moves_inserted": inserted_moves,
+    }
+
+def run_canonical_purchase_wansoft_etl():
+    print("canonical_purchase_wansoft_etl module loaded correctly.")
+    return {
+        "orders_inserted": 0,
+        "lines_inserted": 0,
+        "receipts_inserted": 0,
+        "receipt_moves_inserted": 0,
     }
