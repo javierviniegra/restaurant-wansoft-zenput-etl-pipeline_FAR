@@ -172,49 +172,12 @@ Recommended reading order:
 
 ```text
 1. docs/project-technical-guide.md
-2. docs/project-status-and-todo.md
-3. docs/production-orchestration-plan.md
-4. docs/purchases-company-migration-policy.md
-5. docs/purchases-product-mapping-policy.md
-6. docs/purchases-canonical-layer.md
-7. docs/purchases-runbook.md
-8. docs/inventory-domain-closeout.md
-9. docs/inventory-runbook.md
-10. docs/wansoft-local-wsdl.md
-```
-
-Document roles:
-
-```text
-docs/project-technical-guide.md
-    Umbrella technical guide for the full project.
-
-docs/project-status-and-todo.md
-    Current project checkpoint, completed work, pending work, and TODO list.
-
-docs/production-orchestration-plan.md
-    Initial production-style orchestration plan, validation gates, logging needs, and automation boundaries.
-
-docs/purchases-company-migration-policy.md
-    Company source governance and migration policy for Purchases.
-
-docs/purchases-product-mapping-policy.md
-    Product mapping policy for Purchases. Defines why explicit reference beats name similarity.
-
-docs/purchases-canonical-layer.md
-    Technical design and validation of the canonical Purchases layer.
-
-docs/purchases-runbook.md
-    Operational runbook for running and validating the Purchases domain.
-
-docs/inventory-domain-closeout.md
-    Technical closeout of the Inventory domain baseline.
-
-docs/inventory-runbook.md
-    Operational runbook for running and validating the Inventory domain.
-
-docs/wansoft-local-wsdl.md
-    Technical documentation for the local Wansoft SOAP/WSDL setup.
+2. docs/purchases-company-migration-policy.md
+3. docs/purchases-product-mapping-policy.md
+4. docs/purchases-canonical-layer.md
+5. docs/inventory-domain-closeout.md
+6. docs/inventory-runbook.md
+7. docs/wansoft-local-wsdl.md
 ```
 
 ---
@@ -829,6 +792,27 @@ python -m scripts.test_wansoft_wsdl_client
 
 ---
 
+# Validation Queries
+
+The complete validation queries for Purchases canonical layer are documented in:
+
+```text
+docs/purchases-canonical-layer.md
+```
+
+Core validations include:
+
+```text
+source-system coexistence
+Antenas source split
+Wansoft final-source companies
+internal providers as vendors
+internal providers not as final companies
+Wansoft Antenas cutoff validation
+```
+
+---
+
 # Environment Configuration
 
 Configuration is driven through `.env`.
@@ -944,17 +928,14 @@ Power BI should consume stable, repeatable, validated outputs.
 
 ---
 
-# Related Documentation
+# Current Next Step
+
+Recommended next step:
 
 ```text
-docs/project-technical-guide.md
-docs/project-status-and-todo.md
-docs/production-orchestration-plan.md
-docs/inventory-domain-closeout.md
-docs/inventory-runbook.md
-docs/purchases-company-migration-policy.md
-docs/purchases-product-mapping-policy.md
-docs/purchases-canonical-layer.md
-docs/purchases-runbook.md
-docs/wansoft-local-wsdl.md
+Review repository documentation consistency and then decide whether to continue with:
+1. production orchestration planning
+2. purchases runbook
+3. inventory source governance alignment
+4. Power BI integration layer
 ```

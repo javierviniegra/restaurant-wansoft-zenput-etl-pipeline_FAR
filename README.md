@@ -215,7 +215,15 @@ Wansoft technical keys
 validation queries
 ```
 
+<<<<<<< HEAD
 ### `docs/purchases-runbook.md`
+=======
+#### `docs/purchases-runbook.md`
+
+Operational runbook for the Purchases domain. It explains the recommended execution order, validation queries, troubleshooting steps, canonical refresh strategy, and checklist for running the Purchases ETL safely.
+
+#### `docs/wansoft-local-wsdl.md`
+>>>>>>> f56cacd (docs(project): add technical guide and domain documentation)
 
 Operational runbook for the Purchases domain.
 
@@ -241,6 +249,7 @@ For a full project review, read the documentation in this order:
 
 ```text
 1. docs/project-technical-guide.md
+<<<<<<< HEAD
 2. docs/project-status-and-todo.md
 3. docs/production-orchestration-plan.md
 4. docs/purchases-company-migration-policy.md
@@ -250,6 +259,15 @@ For a full project review, read the documentation in this order:
 8. docs/inventory-domain-closeout.md
 9. docs/inventory-runbook.md
 10. docs/wansoft-local-wsdl.md
+=======
+2. docs/purchases-company-migration-policy.md
+3. docs/purchases-product-mapping-policy.md
+4. docs/purchases-canonical-layer.md
+5. docs/purchases-runbook.md
+6. docs/inventory-domain-closeout.md
+7. docs/inventory-runbook.md
+8. docs/wansoft-local-wsdl.md
+>>>>>>> f56cacd (docs(project): add technical guide and domain documentation)
 ```
 
 ---
@@ -692,6 +710,7 @@ INVENTORY_ETL_SALES_REFERENCE_SCOPE=restaurantes
 INVENTORY_ETL_SALES_REFERENCE_SOURCE=sales_reference
 INVENTORY_ETL_SCOPE_INCLUDE=shared_cross_company
 INVENTORY_ETL_SCOPE_BACKLOG=bodegon,empanadas,bodegon_candidate,empanadas_candidate,review_scope,operational_non_inventory
+<<<<<<< HEAD
 ```
 
 ## Inventory not_found analyser example
@@ -702,6 +721,8 @@ INVENTORY_SCOPE_INCLUDE=shared_cross_company,review_scope
 INVENTORY_SCOPE_EXCLUDE=bodegon,empanadas,restaurantes,operational_non_inventory
 INVENTORY_NOT_FOUND_EXPORT=true
 INVENTORY_NOT_FOUND_EXPORT_FILE=inventory_not_found_analysis.csv
+=======
+>>>>>>> f56cacd (docs(project): add technical guide and domain documentation)
 ```
 
 ## Purchases ETL example
@@ -1122,23 +1143,6 @@ from zeep import Client
 client = Client("https://www.wansoft.net/wansoft.web/API/IntegrationService.asmx?wsdl")
 ```
 
-## WSDL Test
-
-Run:
-
-```bash
-python -m scripts.test_wansoft_wsdl_client
-```
-
-Expected output:
-
-```text
-WSDL resolved path: file:///...
-SERVICES
-PORTS / OPERATIONS
-DONE
-```
-
 ---
 
 # SQL Folder
@@ -1315,12 +1319,17 @@ git push
 Recommended next step:
 
 ```text
+<<<<<<< HEAD
 Commit the completed documentation package.
+=======
+Review documentation consistency, then commit the documentation package.
+>>>>>>> f56cacd (docs(project): add technical guide and domain documentation)
 ```
 
 After the documentation package is committed, the next technical options are:
 
 ```text
+<<<<<<< HEAD
 1. production orchestration implementation
 2. purchases refresh orchestration
 3. ETL run logging
@@ -1339,4 +1348,10 @@ Reason:
 
 ```text
 Power BI should consume stable, repeatable, validated outputs.
+=======
+1. production orchestration planning
+2. purchases refresh orchestration
+3. Power BI integration layer
+4. inventory source governance alignment
+>>>>>>> f56cacd (docs(project): add technical guide and domain documentation)
 ```
