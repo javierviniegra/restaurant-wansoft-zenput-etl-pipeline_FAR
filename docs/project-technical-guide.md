@@ -89,6 +89,7 @@ docs/inventory-runbook.md
 docs/purchases-company-migration-policy.md
 docs/purchases-product-mapping-policy.md
 docs/purchases-canonical-layer.md
+docs/purchases-runbook.md
 docs/wansoft-local-wsdl.md
 ```
 
@@ -99,9 +100,38 @@ Recommended reading order:
 2. docs/purchases-company-migration-policy.md
 3. docs/purchases-product-mapping-policy.md
 4. docs/purchases-canonical-layer.md
-5. docs/inventory-domain-closeout.md
-6. docs/inventory-runbook.md
-7. docs/wansoft-local-wsdl.md
+5. docs/purchases-runbook.md
+6. docs/inventory-domain-closeout.md
+7. docs/inventory-runbook.md
+8. docs/wansoft-local-wsdl.md
+```
+
+Document roles:
+
+```text
+docs/project-technical-guide.md
+    Umbrella technical guide for the full project.
+
+docs/purchases-company-migration-policy.md
+    Company source governance and migration policy for Purchases.
+
+docs/purchases-product-mapping-policy.md
+    Product mapping policy for Purchases. Defines why explicit reference beats name similarity.
+
+docs/purchases-canonical-layer.md
+    Technical design and validation of the canonical Purchases layer.
+
+docs/purchases-runbook.md
+    Operational runbook for running and validating the Purchases domain.
+
+docs/inventory-domain-closeout.md
+    Technical closeout of the Inventory domain baseline.
+
+docs/inventory-runbook.md
+    Operational runbook for running and validating the Inventory domain.
+
+docs/wansoft-local-wsdl.md
+    Technical documentation for the local Wansoft SOAP/WSDL setup.
 ```
 
 ---
@@ -742,7 +772,7 @@ python -m scripts.test_wansoft_wsdl_client
 
 # Validation Queries
 
-The complete validation queries for Purchases canonical layer are documented in:
+The complete validation queries for the Purchases canonical layer are documented in:
 
 ```text
 docs/purchases-canonical-layer.md
@@ -940,12 +970,36 @@ git push
 
 # Current Next Step
 
-Recommended next step:
+The documentation package is now ready for final consistency review.
+
+Recommended immediate action:
 
 ```text
-Review repository documentation consistency and then decide whether to continue with:
+Run git status.
+Confirm README.md and docs/ include the final documentation set.
+Commit the documentation package.
+```
+
+After the documentation package is committed, the next technical options are:
+
+```text
 1. production orchestration planning
-2. purchases runbook
-3. inventory source governance alignment
-4. Power BI integration layer
+2. purchases refresh orchestration
+3. Power BI integration layer
+4. inventory source governance alignment
+```
+
+---
+
+# Related Documentation
+
+```text
+docs/project-technical-guide.md
+docs/inventory-domain-closeout.md
+docs/inventory-runbook.md
+docs/purchases-company-migration-policy.md
+docs/purchases-product-mapping-policy.md
+docs/purchases-canonical-layer.md
+docs/purchases-runbook.md
+docs/wansoft-local-wsdl.md
 ```

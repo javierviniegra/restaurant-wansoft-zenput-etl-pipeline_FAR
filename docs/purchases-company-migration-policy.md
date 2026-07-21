@@ -2,232 +2,244 @@
 
 ## Purpose
 
-The `odoo_company_migration_policy` table controls from which date each Odoo company should be included in the Purchases ETL pipeline.
+This document defines the company-level source governance policy for the Purchases domain during the Wansoft to Odoo transition.
 
-This is required because the Odoo transition contains two different company scenarios:
+The purpose of this policy is to prevent premature replacement of Wansoft data with Odoo data while preserving historical continuity and source traceability.
 
-1. Companies migrated from Wansoft to Odoo
-2. New branches that start directly in Odoo
-
-The policy prevents historical Odoo data from being mixed incorrectly with Wansoft historical data.
-
----
-
-## Business Context
-
-During the Odoo transition, not all companies should be treated the same way.
-
-Some companies already have operational history in Wansoft. For those companies, Wansoft remains the historical source, and Odoo should only be used from the approved operational start date.
-
-Other companies are new branches that begin operations directly in Odoo. For those companies, Odoo is the valid historical source from their operational start date.
-
-This policy allows the ETL to apply the correct cutoff date per company instead of relying only on a global date from `.env`.
-
----
-
-## Business Rule
-
-### Migrated companies
-
-For companies migrated from Wansoft to Odoo:
-
-- Historical source remains Wansoft
-- Odoo data should only be included from the approved operational start date
-- Odoo pre-cutoff history is excluded from the analytical pipeline
-
-Configuration:
+The policy applies to:
 
 ```text
-company_migration_type = migrated_from_wansoft
-history_source = wansoft
-include_odoo_history = 0
+Purchases
+Inventory
+Canonical purchase tables
+Odoo purchase snapshots
+Wansoft purchase-like inputs
+```
+
+This policy does not apply to Sales because Sales always remains Wansoft.
+
+---
+
+## Core Principle
+
+The authoritative source selector is:
+
+```text
+core/config/companies.py
+```
+
+The key configuration is:
+
+```python
+COMPANY_SOURCE
+```
+
+Main rule:
+
+```text
+COMPANY_SOURCE determines the official source system by operating company.
+```
+
+`operational_start_date` does not decide whether a company uses Odoo or Wansoft.
+
+`operational_start_date` only applies after `COMPANY_SOURCE` marks the company as Odoo.
+
+---
+
+## Domain Source Rules
+
+The project uses the following source rules:
+
+```text
+Sales      -> always Wansoft
+Purchases  -> COMPANY_SOURCE
+Inventory  -> COMPANY_SOURCE
+```
+
+Meaning:
+
+```text
+Sales does not switch to Odoo.
+Purchases switch by company according to COMPANY_SOURCE.
+Inventory switches by company according to COMPANY_SOURCE.
 ```
 
 ---
 
-### New Odoo branches
+## Source Governance Hierarchy
 
-For new branches that start operations directly in Odoo:
-
-- Historical source is Odoo
-- Odoo data is included from the branch operational start date
-
-Configuration:
+The source selection hierarchy is:
 
 ```text
-company_migration_type = new_odoo_branch
-history_source = odoo
-include_odoo_history = 1
+1. COMPANY_SOURCE
+2. odoo_company_migration_policy.operational_start_date
+3. .env fallback dates
 ```
 
----
+### 1. COMPANY_SOURCE
 
-## Table
+`COMPANY_SOURCE` is the authoritative source selector.
 
-```text
-odoo_company_migration_policy
+Example:
+
+```python
+COMPANY_SOURCE = {
+    "Acoxpa": "wansoft",
+    "Aeropuerto": "wansoft",
+    "Isabel La Católica": "wansoft",
+    "Antenas": "odoo",
+    "Taquería parroquia": "wansoft",
+    "Vía Vallejo": "wansoft",
+    "Viaducto": "wansoft",
+    "Taquería Viaducto": "wansoft",
+    "San Jeronimo": "wansoft",
+    "Tepeyac": "wansoft",
+    "Playa del Carmen": "wansoft",
+    "Oceanía": "wansoft",
+    "Cancun": "wansoft",
+    "Napoles": "wansoft",
+    "Metepec": "wansoft",
+    "Versalles": "wansoft",
+    "La Esquina Coyoacán": "wansoft",
+    "CentroMyJ": "wansoft",
+    "Puebla": "wansoft",
+}
 ```
 
----
-
-## Main Columns
-
-| Column | Purpose |
-|---|---|
-| `odoo_company_id` | Odoo company ID |
-| `company_name` | Odoo company name |
-| `company_migration_type` | Defines whether the company migrated from Wansoft or is a new Odoo branch |
-| `history_source` | Defines the official historical data source |
-| `include_odoo_history` | Indicates whether Odoo historical data should be included |
-| `operational_start_date` | First valid date for ETL inclusion |
-| `is_active` | Enables or disables the policy |
-| `notes` | Operational or governance notes |
-
----
-
-## Accepted Values
-
-### `company_migration_type`
-
-```text
-migrated_from_wansoft
-new_odoo_branch
-```
-
-### `history_source`
+If a company is marked as:
 
 ```text
 wansoft
+```
+
+then Wansoft remains the official final source for Purchases and Inventory.
+
+If a company is marked as:
+
+```text
 odoo
 ```
 
-### `include_odoo_history`
+then Odoo becomes the official final source for Purchases and Inventory from the configured operational start date.
+
+---
+
+### 2. operational_start_date
+
+`operational_start_date` defines the valid Odoo start date for companies that are already configured as Odoo-source.
+
+Correct interpretation:
 
 ```text
-0 = Do not include Odoo history before operational_start_date
-1 = Include Odoo history from operational_start_date
+If COMPANY_SOURCE = 'odoo':
+    operational_start_date defines when Odoo becomes final.
+
+If COMPANY_SOURCE = 'wansoft':
+    operational_start_date does not switch the company to Odoo.
 ```
 
 ---
 
-## Repository Files
+### 3. .env fallback
 
-### Schema
+`.env` date parameters are fallback values only.
 
-```text
-wansoft.sql
-```
-
-Contains only the table structure:
-
-```sql
-CREATE TABLE IF NOT EXISTS odoo_company_migration_policy (...)
-```
-
-The schema should only include structural definitions such as:
-
-```sql
-CREATE TABLE
-ALTER TABLE
-ADD COLUMN
-ADD KEY
-```
-
----
-
-### Seed
-
-```text
-sql/seeds/seed_odoo_company_migration_policy.sql
-```
-
-Contains the initial controlled configuration for companies currently detected in the purchases snapshot.
-
-This file can be used to seed the initial policy in a test or production environment after review.
-
----
-
-### Maintenance / Overrides
-
-```text
-sql/maintenance/update_odoo_company_migration_policy.sql
-```
-
-Contains controlled examples for safe updates, such as:
-
-- marking a company as a new Odoo branch
-- changing an operational start date
-- disabling a company policy
-- inserting a new company policy
-
-This file should not be executed blindly in production. Copy and execute only the required block for the approved change.
-
----
-
-## Important Rule
-
-The schema should contain only structure.
-
-The following belongs in schema:
-
-```sql
-CREATE TABLE ...
-ALTER TABLE ...
-ADD COLUMN ...
-ADD KEY ...
-```
-
-The following does **not** belong in schema:
-
-```sql
-UPDATE ...
-CASE WHEN ...
-runtime classification logic
-manual business transformations
-```
-
-Runtime logic belongs in ETL code.
-
-Configuration seed and approved changes belong in versioned SQL seed or maintenance files.
-
----
-
-## ETL Behaviour
-
-The Purchases ETL should filter purchase orders and purchase order lines using this policy.
-
-Expected logic:
-
-```text
-If company exists in odoo_company_migration_policy and is_active = 1:
-    use operational_start_date from the company policy
-
-If company does not exist in policy:
-    use PURCHASE_ETL_MIN_ORDER_DATE from .env as fallback
-```
-
-This allows each company to have its own cutoff date.
-
----
-
-## Current Fallback Configuration
-
-The global fallback value is configured in `.env`:
+Examples:
 
 ```env
 PURCHASE_ETL_MIN_ORDER_DATE=2026-06-01
 PURCHASE_ETL_MIN_RECEIPT_DATE=2026-06-01
 ```
 
-This fallback is only used when a company does not exist in `odoo_company_migration_policy` or has no active policy.
+These values should not override company-specific governance.
 
 ---
 
-## Recommended Workflow
+## Current Source Status
 
-### 1. Add a migrated company
+Current validated company source behaviour:
 
-Use this configuration:
+```text
+Antenas:
+    Purchases -> Odoo
+    Inventory -> Odoo
+    Sales -> Wansoft
+
+All other configured companies:
+    Purchases -> Wansoft
+    Inventory -> Wansoft
+    Sales -> Wansoft
+```
+
+---
+
+## Antenas Source Split
+
+Antenas is currently the active Odoo-source company for Purchases.
+
+Validated behaviour:
+
+```text
+Antenas Wansoft:
+    historical purchases before 2026-06-01
+
+Antenas Odoo:
+    final purchases from 2026-06-01 onward
+```
+
+Validated canonical ranges:
+
+```text
+Wansoft Antenas max_order_date: 2026-05-31 22:51:54
+Odoo Antenas min_order_date: 2026-06-01 16:10:54
+```
+
+This confirms:
+
+```text
+Wansoft does not invade the Odoo period for Antenas.
+Odoo does not replace Wansoft history before the operational start date.
+```
+
+---
+
+## Company Migration Policy Table
+
+The company migration policy is stored in:
+
+```text
+odoo_company_migration_policy
+```
+
+This table stores metadata such as:
+
+```text
+company_name
+company_migration_type
+history_source
+include_odoo_history
+operational_start_date
+is_active
+```
+
+The policy table is used to determine valid date boundaries, not to override `COMPANY_SOURCE`.
+
+---
+
+## Company Migration Types
+
+### migrated_from_wansoft
+
+Used for companies that had historical operations in Wansoft and later begin operating in Odoo.
+
+Expected behaviour:
+
+```text
+Wansoft remains historical source.
+Odoo starts at operational_start_date.
+```
+
+Typical configuration:
 
 ```text
 company_migration_type = migrated_from_wansoft
@@ -235,44 +247,19 @@ history_source = wansoft
 include_odoo_history = 0
 ```
 
-Example:
-
-```sql
-INSERT INTO odoo_company_migration_policy (
-    odoo_company_id,
-    company_name,
-    company_migration_type,
-    history_source,
-    include_odoo_history,
-    operational_start_date,
-    is_active,
-    notes
-)
-VALUES (
-    999,
-    'COMPANY NAME',
-    'migrated_from_wansoft',
-    'wansoft',
-    0,
-    '2026-06-01',
-    1,
-    'Migrated from Wansoft. Odoo data included only from approved operational start date.'
-)
-ON DUPLICATE KEY UPDATE
-    company_name = VALUES(company_name),
-    company_migration_type = VALUES(company_migration_type),
-    history_source = VALUES(history_source),
-    include_odoo_history = VALUES(include_odoo_history),
-    operational_start_date = VALUES(operational_start_date),
-    is_active = VALUES(is_active),
-    notes = VALUES(notes);
-```
-
 ---
 
-### 2. Add a new Odoo branch
+### new_odoo_branch
 
-Use this configuration:
+Used for companies that start directly in Odoo.
+
+Expected behaviour:
+
+```text
+Odoo is the source from operational_start_date.
+```
+
+Typical configuration:
 
 ```text
 company_migration_type = new_odoo_branch
@@ -280,223 +267,553 @@ history_source = odoo
 include_odoo_history = 1
 ```
 
-Example:
-
-```sql
-INSERT INTO odoo_company_migration_policy (
-    odoo_company_id,
-    company_name,
-    company_migration_type,
-    history_source,
-    include_odoo_history,
-    operational_start_date,
-    is_active,
-    notes
-)
-VALUES (
-    999,
-    'NEW COMPANY NAME',
-    'new_odoo_branch',
-    'odoo',
-    1,
-    '2026-07-07',
-    1,
-    'New Odoo branch. Odoo history included from operational start date.'
-)
-ON DUPLICATE KEY UPDATE
-    company_name = VALUES(company_name),
-    company_migration_type = VALUES(company_migration_type),
-    history_source = VALUES(history_source),
-    include_odoo_history = VALUES(include_odoo_history),
-    operational_start_date = VALUES(operational_start_date),
-    is_active = VALUES(is_active),
-    notes = VALUES(notes);
-```
-
 ---
 
-### 3. Update an existing company
+## Odoo Company Name Mapping
 
-Use the maintenance file:
+Odoo company names are mapped to operational company keys used by `COMPANY_SOURCE`.
+
+Validated mappings:
 
 ```text
-sql/maintenance/update_odoo_company_migration_policy.sql
+FONDA ARGENTINA LAS ANTENAS -> Antenas
+FONDA ARGENTINA ENCUENTRO OCEANIA -> Oceanía
+FONDA ARGENTINA SAN JERONIMO -> San Jeronimo
+FONDA ARGENTINA PUEBLA -> Puebla
+FONDA ARGENTINA COYOACAN -> La Esquina Coyoacán
+FONDA ARGENTINA MAQ -> Tepeyac
+FONDA COSTA NERA -> Acoxpa
+FONDA ARGENTINA -> Isabel La Católica
+MARIO Y JULY -> CentroMyJ
 ```
 
-Recommended process:
+Important corrections:
 
 ```text
-1. Open the maintenance SQL file
-2. Copy only the required block
-3. Adjust company name, type, history source and date
-4. Execute the block in MySQL
-5. Run the validation query
-6. Commit the approved change if the SQL file was updated
+FONDA ARGENTINA MAQ -> Tepeyac
+FONDA COSTA NERA -> Acoxpa
 ```
 
 ---
 
-## Validation Query
+## Wansoft Subsidiary Mapping
 
-Use this query after seeding or updating the policy:
+Wansoft subsidiary mapping is derived from:
 
-```sql
-SELECT
-    odoo_company_id,
-    company_name,
-    company_migration_type,
-    history_source,
-    include_odoo_history,
-    operational_start_date,
-    is_active,
-    notes
-FROM odoo_company_migration_policy
-ORDER BY company_name;
+```python
+CUENTAS_SUCURSALES
 ```
+
+The derived mapping is:
+
+```python
+WANSOFT_SUBSIDIARY_SOURCE_KEY = {
+    str(subsidiary_id): company_name
+    for subsidiary_id, company_name, _password in CUENTAS_SUCURSALES
+}
+```
+
+Validated examples:
+
+```text
+4960 -> Antenas
+6175 -> Cancun
+5320 -> Acoxpa
+6560 -> Tepeyac
+5943 -> Oceanía
+12806 -> Puebla
+```
+
+This avoids maintaining a second manual mapping dictionary.
 
 ---
 
-## Current Initial Policy
+## Internal Provider Companies
 
-The initial policy was seeded from the current purchase snapshot.
+Some Odoo companies exist for intercompany/provider workflows but should not be treated as final operating branches.
 
-Current companies detected in the purchase snapshot include:
+Current internal provider companies:
 
 ```text
 EL BODEGON DE FITO
-FONDA ARGENTINA
-FONDA ARGENTINA COYOACAN
-FONDA ARGENTINA ENCUENTRO OCEANIA
-FONDA ARGENTINA LAS ANTENAS
-FONDA ARGENTINA MAQ
-FONDA ARGENTINA PUEBLA
-FONDA ARGENTINA SAN JERONIMO
-FONDA COSTA NERA
 LAS EMPANADAS DE MARIA EVA
-MARIO Y JULY
 ```
 
-All companies were initially seeded as:
+These companies may exist in Odoo because they participate in intercompany or provider flows.
+
+However, for Grupo Fonda Argentina canonical BI facts:
 
 ```text
-company_migration_type = migrated_from_wansoft
-history_source = wansoft
-include_odoo_history = 0
-```
-
-Before production usage, each company should be reviewed and confirmed as either:
-
-```text
-migrated_from_wansoft
-new_odoo_branch
+They are not final operating branches.
+They are treated as internal providers.
 ```
 
 ---
 
-## Example Maintenance Cases
+## Internal Provider Rules
 
-### Mark a company as a new Odoo branch
+### Rule 1: Exclude as company_name
+
+If an internal provider appears as the buying or operating company:
+
+```text
+company_name = EL BODEGON DE FITO
+company_name = LAS EMPANADAS DE MARIA EVA
+```
+
+then the row is excluded from final branch-level canonical facts.
+
+---
+
+### Rule 2: Keep as vendor_name
+
+If an internal provider appears as the supplier/vendor:
+
+```text
+vendor_name = EL BODEGON DE FITO
+vendor_name = LAS EMPANADAS DE MARIA EVA
+```
+
+then the row is kept if the buying company is a valid final company.
+
+Correct example:
+
+```text
+company_name = FONDA ARGENTINA LAS ANTENAS
+vendor_name  = EL BODEGON DE FITO
+
+Result:
+    keep row
+```
+
+Incorrect example:
+
+```text
+company_name = EL BODEGON DE FITO
+vendor_name  = external supplier
+
+Result:
+    exclude row from final branch-level canonical facts
+```
+
+---
+
+## Purchases Canonical Source Status
+
+The canonical purchase layer uses `final_purchase_source_status` to explain why a row is included or excluded.
+
+### final_odoo_enabled
+
+Used when:
+
+```text
+source_system = odoo
+company source = odoo
+company is final-eligible
+```
+
+Current example:
+
+```text
+Antenas Odoo purchases from 2026-06-01 onward.
+```
+
+---
+
+### final_wansoft_enabled
+
+Used when:
+
+```text
+source_system = wansoft
+company source = wansoft
+company is final-eligible
+```
+
+Current example:
+
+```text
+Acoxpa
+Aeropuerto
+Isabel La Católica
+Oceanía
+Tepeyac
+Puebla
+Cancun
+```
+
+---
+
+### wansoft_history_before_odoo
+
+Used when:
+
+```text
+source_system = wansoft
+company source = odoo
+row date is before operational_start_date
+```
+
+Current example:
+
+```text
+Antenas Wansoft purchases before 2026-06-01.
+```
+
+---
+
+### exclude_after_odoo_start
+
+Used when:
+
+```text
+source_system = wansoft
+company source = odoo
+row date is greater than or equal to operational_start_date
+```
+
+These rows are excluded from final canonical purchases.
+
+---
+
+### exclude_internal_provider
+
+Used when:
+
+```text
+company_name is an internal provider company
+```
+
+These rows are excluded from final branch-level canonical facts.
+
+---
+
+### unknown_source_review
+
+Used when:
+
+```text
+company could not be resolved to a known source key
+```
+
+These rows should not be loaded to final canonical facts until mapping is corrected.
+
+---
+
+## Purchases Canonical Behaviour
+
+The Purchases canonical layer supports:
+
+```text
+source_system = odoo
+source_system = wansoft
+```
+
+Canonical purchase tables:
+
+```text
+canonical_purchase_order_snapshot
+canonical_purchase_order_line_snapshot
+canonical_purchase_receipt_snapshot
+canonical_purchase_receipt_move_snapshot
+```
+
+Current validated behaviour:
+
+```text
+Antenas:
+    Wansoft historical purchases before Odoo operational start date
+    Odoo final purchases from Odoo operational start date onward
+
+Other Wansoft companies:
+    Wansoft remains the final purchase source
+
+Internal providers:
+    excluded as company_name
+    allowed as vendor_name
+```
+
+---
+
+## Current Validated Counts
+
+### Odoo canonical load
+
+```text
+orders_inserted: 282
+lines_inserted: 1381
+receipts_inserted: 268
+receipt_moves_inserted: 1184
+```
+
+### Wansoft canonical load
+
+```text
+orders_inserted: 145047
+lines_inserted: 745344
+receipts_inserted: 145047
+receipt_moves_inserted: 745344
+```
+
+### Wansoft status summary
+
+```text
+final_wansoft_enabled        693059
+wansoft_history_before_odoo   52285
+```
+
+---
+
+## Validation Queries
+
+### 1. Validate Antenas source split
 
 ```sql
-UPDATE odoo_company_migration_policy
-SET
-    company_migration_type = 'new_odoo_branch',
-    history_source = 'odoo',
-    include_odoo_history = 1,
-    operational_start_date = '2026-07-07',
-    notes = 'New Odoo branch. Odoo history included from operational start date.'
-WHERE company_name = 'FONDA ARGENTINA ENCUENTRO OCEANIA';
+SELECT
+    source_system,
+    company_source_key,
+    final_purchase_source_status,
+    MIN(order_date) AS min_order_date,
+    MAX(order_date) AS max_order_date,
+    COUNT(*) AS total_lines,
+    SUM(COALESCE(price_total, 0)) AS total_amount
+FROM canonical_purchase_order_line_snapshot
+WHERE company_source_key = 'Antenas'
+GROUP BY
+    source_system,
+    company_source_key,
+    final_purchase_source_status
+ORDER BY
+    source_system,
+    final_purchase_source_status;
 ```
 
----
-
-### Adjust operational start date
-
-```sql
-UPDATE odoo_company_migration_policy
-SET
-    operational_start_date = '2026-06-01',
-    notes = 'Migrated from Wansoft. Odoo included only from approved operational date.'
-WHERE company_name = 'FONDA ARGENTINA MAQ';
-```
-
----
-
-### Disable a company policy
-
-```sql
-UPDATE odoo_company_migration_policy
-SET
-    is_active = 0,
-    notes = 'Policy disabled. Company excluded from migration-aware ETL.'
-WHERE company_name = 'COMPANY NAME';
-```
-
----
-
-## How This Policy Affects Purchases ETL
-
-The Purchases ETL should apply the policy to:
+Expected:
 
 ```text
-purchase.order
-purchase.order.line
-stock.picking
-stock.move
+odoo     Antenas    final_odoo_enabled
+wansoft  Antenas    wansoft_history_before_odoo
 ```
-
-The same company cutoff logic should later be applied to:
-
-- purchase order headers
-- purchase order lines
-- purchase receipts
-- receipt moves
 
 ---
 
-## Relationship With Inventory Domain
+### 2. Validate Wansoft final-source companies
 
-The Purchases domain uses the inventory dictionary for product alignment.
-
-Purchase lines are enriched through:
-
-```text
-purchase.order.line.product_id
-→ inventory_mapping_dictionary.odoo_product_id
-→ wansoft_code
-→ wansoft_product_name
-→ wansoft_department
+```sql
+SELECT
+    source_system,
+    company_source_key,
+    final_purchase_source_status,
+    COUNT(*) AS total_lines,
+    SUM(COALESCE(price_total, 0)) AS total_amount
+FROM canonical_purchase_order_line_snapshot
+WHERE source_system = 'wansoft'
+GROUP BY
+    source_system,
+    company_source_key,
+    final_purchase_source_status
+ORDER BY total_lines DESC;
 ```
 
-This allows purchase activity in Odoo to remain analytically aligned with Wansoft product codes during the transition.
+Expected:
+
+```text
+Companies configured as Wansoft should appear as final_wansoft_enabled.
+Antenas may appear only as wansoft_history_before_odoo.
+```
+
+---
+
+### 3. Validate internal providers as vendors
+
+```sql
+SELECT
+    source_system,
+    vendor_name,
+    company_name,
+    company_source_key,
+    COUNT(*) AS total_lines,
+    SUM(COALESCE(price_total, 0)) AS total_amount
+FROM canonical_purchase_order_line_snapshot
+WHERE vendor_name IN (
+    'EL BODEGON DE FITO',
+    'LAS EMPANADAS DE MARIA EVA'
+)
+GROUP BY
+    source_system,
+    vendor_name,
+    company_name,
+    company_source_key
+ORDER BY total_lines DESC;
+```
+
+Expected:
+
+```text
+Rows may appear.
+```
+
+Reason:
+
+```text
+Internal providers are valid vendors.
+```
+
+---
+
+### 4. Validate internal providers are not final companies
+
+```sql
+SELECT
+    source_system,
+    company_name,
+    COUNT(*) AS total_lines
+FROM canonical_purchase_order_line_snapshot
+WHERE company_name IN (
+    'EL BODEGON DE FITO',
+    'LAS EMPANADAS DE MARIA EVA'
+)
+GROUP BY
+    source_system,
+    company_name;
+```
+
+Expected:
+
+```text
+0 rows
+```
+
+---
+
+## ETL Entrypoints
+
+### Company source governance
+
+```bash
+python -m scripts.test_company_source_governance
+```
+
+### Odoo source eligibility
+
+```bash
+python -m scripts.test_purchase_company_source_eligibility
+```
+
+### Odoo canonical purchase load
+
+```bash
+python -m scripts.test_canonical_purchase_odoo_etl
+```
+
+### Wansoft subsidiary mapping report
+
+```bash
+python -m scripts.test_wansoft_purchase_subsidiary_mapping_report
+```
+
+### Wansoft canonical purchase load
+
+```bash
+python -m scripts.test_canonical_purchase_wansoft_etl
+```
+
+---
+
+## Files Related to This Policy
+
+```text
+core/config/companies.py
+wansoft.sql
+sql/seeds/seed_odoo_company_migration_policy.sql
+sql/maintenance/update_odoo_company_migration_policy.sql
+docs/purchases-company-migration-policy.md
+docs/purchases-canonical-layer.md
+docs/purchases-runbook.md
+```
+
+---
+
+## Known Design Decisions
+
+### 1. COMPANY_SOURCE is authoritative
+
+The source system is not inferred from available data.
+
+Even if Odoo contains records for a company, those rows do not become final unless `COMPANY_SOURCE` marks the company as Odoo.
+
+---
+
+### 2. operational_start_date does not switch companies
+
+`operational_start_date` only defines the valid Odoo starting date for companies already configured as Odoo-source.
+
+---
+
+### 3. Sales always remain Wansoft
+
+Sales does not follow `COMPANY_SOURCE`.
+
+Sales remains Wansoft even when Purchases or Inventory use Odoo for a company.
+
+---
+
+### 4. Internal providers are excluded only as companies
+
+Bodegón and Empanadas are not final operating branches.
+
+They may remain valid vendors.
+
+---
+
+### 5. Wansoft historical data is preserved
+
+When a company switches to Odoo, Wansoft data before the operational start date remains historical and valid.
 
 ---
 
 ## Current Status
 
-The company migration policy table has been created.
+This policy is active.
 
-The initial policy seed has been generated from the current purchases snapshot.
-
-The next implementation step is:
+Validated:
 
 ```text
-Integrate odoo_company_migration_policy into the Purchases ETL.
+COMPANY_SOURCE governance
+Antenas Odoo source
+Antenas Wansoft history before Odoo
+Wansoft final-source companies
+internal providers as vendors
+internal providers excluded as companies
+canonical purchase layer source split
 ```
 
 ---
 
-## Next Step
-
-Implement company-specific filtering in:
+## Related Documentation
 
 ```text
-extract/purchases/odoo_purchase_etl.py
+docs/project-technical-guide.md
+docs/purchases-canonical-layer.md
+docs/purchases-product-mapping-policy.md
+docs/purchases-runbook.md
+docs/inventory-domain-closeout.md
+docs/inventory-runbook.md
+docs/wansoft-local-wsdl.md
 ```
 
-Expected result:
+---
 
-```text
-Purchases ETL no longer relies only on PURCHASE_ETL_MIN_ORDER_DATE.
-Each company uses its configured operational_start_date.
+## Recommended Commit
+
+This document should be committed together with the rest of the documentation refresh.
+
+Recommended final commit after all documentation updates:
+
+```bash
+git add README.md docs/
+
+git commit -m "docs(project): add technical guide and domain documentation"
+
+git push
 ```

@@ -70,6 +70,7 @@ docs/inventory-runbook.md
 docs/purchases-company-migration-policy.md
 docs/purchases-product-mapping-policy.md
 docs/purchases-canonical-layer.md
+docs/purchases-runbook.md
 docs/wansoft-local-wsdl.md
 ```
 
@@ -126,6 +127,10 @@ Wansoft technical keys
 validation queries
 ```
 
+#### `docs/purchases-runbook.md`
+
+Operational runbook for the Purchases domain. It explains the recommended execution order, validation queries, troubleshooting steps, canonical refresh strategy, and checklist for running the Purchases ETL safely.
+
 #### `docs/wansoft-local-wsdl.md`
 
 Documents the Wansoft SOAP/WSDL technical setup, including use of a local WSDL file, client configuration, environment variables, and validation scripts.
@@ -141,9 +146,10 @@ For a full project review, read the documentation in this order:
 2. docs/purchases-company-migration-policy.md
 3. docs/purchases-product-mapping-policy.md
 4. docs/purchases-canonical-layer.md
-5. docs/inventory-domain-closeout.md
-6. docs/inventory-runbook.md
-7. docs/wansoft-local-wsdl.md
+5. docs/purchases-runbook.md
+6. docs/inventory-domain-closeout.md
+7. docs/inventory-runbook.md
+8. docs/wansoft-local-wsdl.md
 ```
 
 ---
@@ -504,6 +510,7 @@ Canonical BI-ready tables
 │   ├── purchases-canonical-layer.md
 │   ├── purchases-company-migration-policy.md
 │   ├── purchases-product-mapping-policy.md
+│   ├── purchases-runbook.md
 │   └── wansoft-local-wsdl.md
 │
 ├── extract/
@@ -572,49 +579,27 @@ Canonical BI-ready tables
 
 Configuration is driven through `.env`.
 
-## Inventory ETL Example
+## Inventory ETL example
 
 ```env
-# =========================
-# INVENTORY ETL
-# =========================
-
 INVENTORY_ETL_SALES_REFERENCE_SCOPE=restaurantes
 INVENTORY_ETL_SALES_REFERENCE_SOURCE=sales_reference
 INVENTORY_ETL_SCOPE_INCLUDE=shared_cross_company
 INVENTORY_ETL_SCOPE_BACKLOG=bodegon,empanadas,bodegon_candidate,empanadas_candidate,review_scope,operational_non_inventory
-
-# =========================
-# INVENTORY NOT_FOUND ANALYZER
-# =========================
-
-INVENTORY_NOT_FOUND_BUCKET=not_found
-INVENTORY_SCOPE_INCLUDE=shared_cross_company,review_scope
-INVENTORY_SCOPE_EXCLUDE=bodegon,empanadas,restaurantes,operational_non_inventory
-INVENTORY_NOT_FOUND_EXPORT=true
-INVENTORY_NOT_FOUND_EXPORT_FILE=inventory_not_found_analysis.csv
 ```
 
-## Purchases ETL Example
+## Purchases ETL example
 
 ```env
-# =========================
-# PURCHASE ETL
-# =========================
-
 PURCHASE_ETL_MIN_ORDER_DATE=2026-06-01
 PURCHASE_ETL_MIN_RECEIPT_DATE=2026-06-01
 PURCHASE_ETL_APPLY_PRODUCT_MAPPING=true
 PURCHASE_ETL_ALLOWED_MAPPING_STATUS=approved
 ```
 
-## Wansoft SOAP / WSDL Example
+## Wansoft SOAP example
 
 ```env
-# =========================
-# WANSOFT SOAP / WSDL
-# =========================
-
 WANSOFT_USE_LOCAL_WSDL=true
 WANSOFT_WSDL_PATH=resources/wsdl/wansoft.wsdl
 WANSOFT_SERVICE_URL=https://www.wansoft.net/wansoft.web/API/IntegrationService.asmx
@@ -977,23 +962,6 @@ from zeep import Client
 client = Client("https://www.wansoft.net/wansoft.web/API/IntegrationService.asmx?wsdl")
 ```
 
-## WSDL Test
-
-Run:
-
-```bash
-python -m scripts.test_wansoft_wsdl_client
-```
-
-Expected output:
-
-```text
-WSDL resolved path: file:///...
-SERVICES
-PORTS / OPERATIONS
-DONE
-```
-
 ---
 
 # SQL Folder
@@ -1133,12 +1101,12 @@ project-technical-guide.md
 
 # Suggested Commit Patterns
 
-## Technical documentation index and purchases canonical layer
+## Technical documentation index and domain documentation
 
 ```bash
 git add README.md docs/
 
-git commit -m "docs(project): add documentation index and canonical purchases guide"
+git commit -m "docs(project): add technical guide and domain documentation"
 
 git push
 ```
@@ -1149,26 +1117,6 @@ git push
 git add .
 
 git commit -m "feat(purchases): load Odoo and Wansoft purchases into canonical layer"
-
-git push
-```
-
-## Purchases product mapping policy
-
-```bash
-git add docs/purchases-product-mapping-policy.md
-
-git commit -m "docs(purchases): document product mapping policy without automatic aliases"
-
-git push
-```
-
-## Purchases company migration policy
-
-```bash
-git add .
-
-git commit -m "feat(purchases): add per-company migration policy for Odoo-Wansoft transition"
 
 git push
 ```
@@ -1187,10 +1135,17 @@ git push
 
 # Current Next Step
 
-The next recommended step is:
+Recommended next step:
 
 ```text
-Create or update docs/project-technical-guide.md
+Review documentation consistency, then commit the documentation package.
 ```
 
-This document should become the umbrella technical guide for the full project and should reference all domain-specific documentation.
+After the documentation package is committed, the next technical options are:
+
+```text
+1. production orchestration planning
+2. purchases refresh orchestration
+3. Power BI integration layer
+4. inventory source governance alignment
+```
