@@ -59,7 +59,7 @@ Odoo writeback should not happen.
 
 ---
 
-## Task Classification
+# Task Classification
 
 ## Safe to Automate
 
@@ -309,12 +309,6 @@ inventory backlog counts
 purchase mapping buckets
 ```
 
-Expected behaviour:
-
-```text
-Validation results should be stored or exported.
-```
-
 Future recommendation:
 
 ```text
@@ -543,14 +537,14 @@ Canonical tables should be refreshed by `source_system`.
 
 Example:
 
-```text
+```sql
 DELETE FROM canonical_purchase_order_snapshot
 WHERE source_system = 'odoo';
 ```
 
 or:
 
-```text
+```sql
 DELETE FROM canonical_purchase_order_snapshot
 WHERE source_system = 'wansoft';
 ```
@@ -701,16 +695,4 @@ docs/purchases-product-mapping-policy.md
 docs/purchases-canonical-layer.md
 docs/purchases-runbook.md
 docs/wansoft-local-wsdl.md
-```
-
----
-
-# Recommended Commit
-
-```bash
-git add README.md docs/
-
-git commit -m "docs(project): add project status and orchestration plan"
-
-git push
 ```

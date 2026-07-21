@@ -18,7 +18,7 @@ This document should be used as the project checkpoint before continuing with pr
 
 ## Current Project Phase
 
-The project is currently in the transition point between:
+The project is currently between:
 
 ```text
 validated domain ETLs
@@ -53,7 +53,7 @@ controlled orchestration and consumption
 This means:
 
 ```text
-turn validated scripts into a repeatable execution flow
+turn validated scripts into repeatable execution flows
 define refresh order
 define validation gates
 prepare Power BI consumption
@@ -123,7 +123,7 @@ Catalog governance decisions are stored in MySQL.
 Current rule:
 
 ```text
-No ETL should write back to Odoo products, inventory, company data, or catalog references.
+No ETL should write back to Odoo products, inventory quantities, company data, catalog references, or operational records.
 ```
 
 ---
@@ -283,6 +283,7 @@ company source eligibility report
 Odoo canonical purchase load
 Wansoft canonical purchase load
 canonical purchase tables
+source_system coexistence
 ```
 
 Current validated Odoo canonical load:
@@ -385,6 +386,8 @@ Completed or drafted:
 ```text
 README.md
 docs/project-technical-guide.md
+docs/project-status-and-todo.md
+docs/production-orchestration-plan.md
 docs/inventory-domain-closeout.md
 docs/inventory-runbook.md
 docs/purchases-company-migration-policy.md
@@ -392,13 +395,6 @@ docs/purchases-product-mapping-policy.md
 docs/purchases-canonical-layer.md
 docs/purchases-runbook.md
 docs/wansoft-local-wsdl.md
-```
-
-New documents added in this phase:
-
-```text
-docs/project-status-and-todo.md
-docs/production-orchestration-plan.md
 ```
 
 ---
@@ -416,11 +412,11 @@ In progress
 TODO:
 
 ```text
-[ ] Add docs/project-status-and-todo.md
-[ ] Add docs/production-orchestration-plan.md
-[ ] Add both files to README.md
-[ ] Add both files to docs/project-technical-guide.md
-[ ] Confirm all docs are listed consistently
+[ ] Confirm README.md includes all current docs
+[ ] Confirm docs/project-technical-guide.md includes all current docs
+[ ] Confirm docs/project-status-and-todo.md is listed in README and technical guide
+[ ] Confirm docs/production-orchestration-plan.md is listed in README and technical guide
+[ ] Confirm all domain docs are listed consistently
 [ ] Commit documentation package
 ```
 
@@ -528,7 +524,8 @@ TODO:
 [ ] Define measures:
     purchase amount
     received quantity
-    mapped/unmapped products
+    mapped products
+    unmapped products
     source split
     provider purchases
 [ ] Define validation dashboard
@@ -549,7 +546,8 @@ TODO:
 
 ```text
 [ ] Create ETL run log table
-[ ] Store ETL start/end timestamps
+[ ] Store ETL start timestamps
+[ ] Store ETL end timestamps
 [ ] Store row counts by table
 [ ] Store source_system counts
 [ ] Store validation status
@@ -559,15 +557,10 @@ TODO:
 [ ] Add source governance exceptions
 ```
 
-Possible future table:
+Possible future tables:
 
 ```text
 etl_run_log
-```
-
-Possible future table:
-
-```text
 etl_validation_result
 ```
 
@@ -659,7 +652,7 @@ TODO:
 [ ] Define failure response process
 [ ] Define database backup expectations
 [ ] Define release checklist
-[ ] Define branch/tag/versioning strategy
+[ ] Define branch, tag, or versioning strategy
 [ ] Define dependency on Odoo operational readiness
 ```
 
@@ -679,6 +672,12 @@ historical-only decisions
 Odoo catalog cleanup
 manual correction of Odoo inventory movements
 accounting reconciliation adjustments
+```
+
+Reason:
+
+```text
+These actions represent governance or operational decisions, not mechanical ETL refreshes.
 ```
 
 ---
@@ -762,7 +761,7 @@ docs/wansoft-local-wsdl.md
 ```bash
 git add README.md docs/
 
-git commit -m "docs(project): add project status and todo documentation"
+git commit -m "docs(project): add project status and orchestration plan"
 
 git push
 ```

@@ -33,6 +33,8 @@ Purchases
 ```text
 Inventory domain baseline completed
 Inventory dictionary governance established
+Inventory lifecycle analysis implemented
+Inventory backlog and bridge-review process established
 Wansoft local WSDL client implemented
 Purchases Odoo snapshots implemented
 Purchases company migration policy implemented
@@ -40,7 +42,20 @@ Purchases product mapping policy implemented
 Purchases receipts and receipt moves implemented
 Purchases canonical layer implemented
 Odoo and Wansoft coexist in canonical purchase tables
+Project status and TODO documentation added
+Production orchestration planning documented
 ```
+
+### Current project stage
+
+```text
+Validated domain ETLs
+→ Documentation package
+→ Production-style orchestration planning
+→ Power BI / reporting consumption
+```
+
+The project is no longer in early discovery. The next major step is to move from individually validated scripts to controlled, repeatable execution flows.
 
 ---
 
@@ -48,44 +63,114 @@ Odoo and Wansoft coexist in canonical purchase tables
 
 This project includes a structured documentation layer under the `docs/` directory.
 
-The documentation is organized into one main technical guide and several domain-specific documents.
+The documentation is organized into:
 
-### Main Technical Guide
+```text
+main technical guide
+project planning documents
+domain-specific documentation
+operational runbooks
+technical policy documents
+```
+
+---
+
+## Main Technical Guide
 
 ```text
 docs/project-technical-guide.md
 ```
 
-This is the umbrella technical guide for the full project. It explains the overall architecture, source systems, domain strategy, ETL flow, source governance, canonical layers, validation logic, and pending work.
+This is the umbrella technical guide for the full project.
+
+It explains:
+
+```text
+overall architecture
+source systems
+domain strategy
+ETL flow
+source governance
+canonical layers
+validation logic
+documentation structure
+future work
+```
 
 Use this document when you need to understand the project end-to-end.
 
 ---
 
-### Domain and Policy Documents
+## Project Planning Documents
 
 ```text
-docs/project-technical-guide.md
 docs/project-status-and-todo.md
 docs/production-orchestration-plan.md
+```
+
+### `docs/project-status-and-todo.md`
+
+Documents the current project checkpoint.
+
+It explains:
+
+```text
+where the project currently stands
+what has already been completed
+what is still pending
+what should not be automated yet
+recommended next work sequence
+```
+
+### `docs/production-orchestration-plan.md`
+
+Defines the first production-style orchestration plan.
+
+It explains:
+
+```text
+execution layers
+safe automation candidates
+controlled manual steps
+validation gates
+logging requirements
+failure handling
+future orchestration scripts
+```
+
+---
+
+## Domain and Policy Documents
+
+```text
+docs/inventory-domain-closeout.md
+docs/inventory-runbook.md
 docs/purchases-company-migration-policy.md
 docs/purchases-product-mapping-policy.md
 docs/purchases-canonical-layer.md
 docs/purchases-runbook.md
-docs/inventory-domain-closeout.md
-docs/inventory-runbook.md
 docs/wansoft-local-wsdl.md
 ```
 
-#### `docs/inventory-domain-closeout.md`
+### `docs/inventory-domain-closeout.md`
 
 Documents the technical closure of the Inventory domain, including scope classification, dictionary governance, lifecycle and backlog status, and remaining considerations.
 
-#### `docs/inventory-runbook.md`
+### `docs/inventory-runbook.md`
 
-Operational runbook for the Inventory domain. It explains how to execute ETLs, validate outputs, review backlog candidates, and handle dictionary promotion processes.
+Operational runbook for the Inventory domain.
 
-#### `docs/purchases-company-migration-policy.md`
+It explains:
+
+```text
+how to execute Inventory ETLs
+how to validate outputs
+how to review backlog candidates
+how to handle dictionary promotion processes
+how to troubleshoot common inventory issues
+```
+
+### `docs/purchases-company-migration-policy.md`
 
 Documents the company migration and source governance policy for Purchases.
 
@@ -96,7 +181,7 @@ COMPANY_SOURCE is the authoritative source selector.
 operational_start_date only applies when COMPANY_SOURCE = 'odoo'.
 ```
 
-#### `docs/purchases-product-mapping-policy.md`
+### `docs/purchases-product-mapping-policy.md`
 
 Documents the Purchases product mapping policy.
 
@@ -108,7 +193,7 @@ Explicit reference beats name similarity.
 
 Products without explicit Wansoft/Odoo reference mapping remain as new products or backlog candidates. The project does not create automatic product aliases.
 
-#### `docs/purchases-canonical-layer.md`
+### `docs/purchases-canonical-layer.md`
 
 Documents the canonical Purchases layer.
 
@@ -130,13 +215,23 @@ Wansoft technical keys
 validation queries
 ```
 
-#### `docs/purchases-runbook.md`
+### `docs/purchases-runbook.md`
 
-Operational runbook for the Purchases domain. It explains the recommended execution order, validation queries, troubleshooting steps, canonical refresh strategy, and checklist for running the Purchases ETL safely.
+Operational runbook for the Purchases domain.
 
-#### `docs/wansoft-local-wsdl.md`
+It explains:
 
-Documents the Wansoft SOAP/WSDL technical setup, including use of a local WSDL file, client configuration, environment variables, and validation scripts.
+```text
+recommended execution order
+validation queries
+troubleshooting steps
+canonical refresh strategy
+safe execution checklist
+```
+
+### `docs/wansoft-local-wsdl.md`
+
+Documents the Wansoft SOAP/WSDL technical setup, including use of a local WSDL file, client configuration, environment variables, validation scripts, and relationship with Wansoft endpoints.
 
 ---
 
@@ -320,6 +415,8 @@ odoo_purchase_order_snapshot
 odoo_purchase_order_line_snapshot
 odoo_purchase_receipt_snapshot
 odoo_purchase_receipt_move_snapshot
+odoo_inventory_snapshot
+odoo_inventory_backlog
 ```
 
 ### Canonical purchase tables
@@ -331,7 +428,7 @@ canonical_purchase_receipt_snapshot
 canonical_purchase_receipt_move_snapshot
 ```
 
-Canonical tables include:
+Canonical purchase tables include:
 
 ```text
 source_system = 'odoo'
@@ -461,6 +558,8 @@ Snapshot tables
 Backlogs and dictionaries
         ↓
 Canonical BI-ready tables
+        ↓
+Power BI / analysis / reporting
 ```
 
 ---
@@ -511,6 +610,8 @@ Canonical BI-ready tables
 ├── docs/
 │   ├── inventory-domain-closeout.md
 │   ├── inventory-runbook.md
+│   ├── production-orchestration-plan.md
+│   ├── project-status-and-todo.md
 │   ├── project-technical-guide.md
 │   ├── purchases-canonical-layer.md
 │   ├── purchases-company-migration-policy.md
@@ -593,6 +694,16 @@ INVENTORY_ETL_SCOPE_INCLUDE=shared_cross_company
 INVENTORY_ETL_SCOPE_BACKLOG=bodegon,empanadas,bodegon_candidate,empanadas_candidate,review_scope,operational_non_inventory
 ```
 
+## Inventory not_found analyser example
+
+```env
+INVENTORY_NOT_FOUND_BUCKET=not_found
+INVENTORY_SCOPE_INCLUDE=shared_cross_company,review_scope
+INVENTORY_SCOPE_EXCLUDE=bodegon,empanadas,restaurantes,operational_non_inventory
+INVENTORY_NOT_FOUND_EXPORT=true
+INVENTORY_NOT_FOUND_EXPORT_FILE=inventory_not_found_analysis.csv
+```
+
 ## Purchases ETL example
 
 ```env
@@ -620,6 +731,30 @@ WANSOFT_SERVICE_URL=https://www.wansoft.net/wansoft.web/API/IntegrationService.a
 python -m scripts.test_odoo_inventory_etl
 ```
 
+## Inventory scope classification
+
+```bash
+python -m scripts.test_odoo_inventory_scope_classification
+```
+
+## Inventory dictionary lookup
+
+```bash
+python -m scripts.test_inventory_dictionary_lookup
+```
+
+## Inventory dictionary application
+
+```bash
+python -m scripts.test_apply_inventory_dictionary
+```
+
+## Inventory not_found analyser
+
+```bash
+python -m scripts.test_inventory_not_found_analyzer
+```
+
 ## Odoo purchases snapshot load
 
 ```bash
@@ -630,6 +765,24 @@ python -m scripts.test_odoo_purchase_etl
 
 ```bash
 python -m scripts.test_odoo_purchase_receipt_etl
+```
+
+## Purchase inventory mapping backlog
+
+```bash
+python -m scripts.test_purchase_inventory_mapping_backlog
+```
+
+## Purchase backlog product reference report
+
+```bash
+python -m scripts.test_purchase_backlog_product_reference_report
+```
+
+## Purchase company source eligibility
+
+```bash
+python -m scripts.test_purchase_company_source_eligibility
 ```
 
 ## Odoo canonical purchase load
@@ -680,6 +833,8 @@ Important rule:
 ```text
 Sales always remain Wansoft.
 ```
+
+Sales does not follow `COMPANY_SOURCE`.
 
 ---
 
@@ -967,6 +1122,23 @@ from zeep import Client
 client = Client("https://www.wansoft.net/wansoft.web/API/IntegrationService.asmx?wsdl")
 ```
 
+## WSDL Test
+
+Run:
+
+```bash
+python -m scripts.test_wansoft_wsdl_client
+```
+
+Expected output:
+
+```text
+WSDL resolved path: file:///...
+SERVICES
+PORTS / OPERATIONS
+DONE
+```
+
 ---
 
 # SQL Folder
@@ -1143,14 +1315,28 @@ git push
 Recommended next step:
 
 ```text
-Review documentation consistency, then commit the documentation package.
+Commit the completed documentation package.
 ```
 
 After the documentation package is committed, the next technical options are:
 
 ```text
-1. production orchestration planning
+1. production orchestration implementation
 2. purchases refresh orchestration
-3. Power BI integration layer
-4. inventory source governance alignment
+3. ETL run logging
+4. Power BI integration layer
+5. inventory source governance alignment
+```
+
+Recommended technical priority:
+
+```text
+production orchestration first
+Power BI modelling second
+```
+
+Reason:
+
+```text
+Power BI should consume stable, repeatable, validated outputs.
 ```

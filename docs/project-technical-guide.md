@@ -72,6 +72,79 @@ Power BI / analysis / reporting
 
 ---
 
+## Current Project Checkpoint
+
+The current project checkpoint is documented in:
+
+```text
+docs/project-status-and-todo.md
+```
+
+At this stage, the project has moved beyond early discovery.
+
+Current state:
+
+```text
+Sales domain is functionally established.
+Inventory domain is technically stable and functionally advanced.
+Purchases domain has a validated canonical layer with Odoo and Wansoft.
+Documentation package is complete.
+Production orchestration is pending.
+Power BI semantic modelling is pending.
+```
+
+The next major phase is:
+
+```text
+controlled orchestration and consumption
+```
+
+This means:
+
+```text
+turn validated scripts into repeatable execution flows
+define validation gates
+add run logging
+prepare Power BI consumption
+keep governance decisions controlled
+```
+
+---
+
+## Production Orchestration Plan
+
+The initial production orchestration strategy is documented in:
+
+```text
+docs/production-orchestration-plan.md
+```
+
+The orchestration plan separates:
+
+```text
+safe automation
+controlled governance steps
+validation gates
+failure handling
+logging requirements
+future orchestration scripts
+```
+
+Recommended priority:
+
+```text
+production orchestration first
+Power BI modelling second
+```
+
+Reason:
+
+```text
+Power BI should consume stable, repeatable, validated outputs.
+```
+
+---
+
 ## Repository Documentation Structure
 
 The project uses a structured documentation layer under:
@@ -84,6 +157,8 @@ Current documentation files:
 
 ```text
 docs/project-technical-guide.md
+docs/project-status-and-todo.md
+docs/production-orchestration-plan.md
 docs/inventory-domain-closeout.md
 docs/inventory-runbook.md
 docs/purchases-company-migration-policy.md
@@ -97,13 +172,15 @@ Recommended reading order:
 
 ```text
 1. docs/project-technical-guide.md
-2. docs/purchases-company-migration-policy.md
-3. docs/purchases-product-mapping-policy.md
-4. docs/purchases-canonical-layer.md
-5. docs/purchases-runbook.md
-6. docs/inventory-domain-closeout.md
-7. docs/inventory-runbook.md
-8. docs/wansoft-local-wsdl.md
+2. docs/project-status-and-todo.md
+3. docs/production-orchestration-plan.md
+4. docs/purchases-company-migration-policy.md
+5. docs/purchases-product-mapping-policy.md
+6. docs/purchases-canonical-layer.md
+7. docs/purchases-runbook.md
+8. docs/inventory-domain-closeout.md
+9. docs/inventory-runbook.md
+10. docs/wansoft-local-wsdl.md
 ```
 
 Document roles:
@@ -111,6 +188,12 @@ Document roles:
 ```text
 docs/project-technical-guide.md
     Umbrella technical guide for the full project.
+
+docs/project-status-and-todo.md
+    Current project checkpoint, completed work, pending work, and TODO list.
+
+docs/production-orchestration-plan.md
+    Initial production-style orchestration plan, validation gates, logging needs, and automation boundaries.
 
 docs/purchases-company-migration-policy.md
     Company source governance and migration policy for Purchases.
@@ -349,19 +432,6 @@ If company_name is an internal provider:
 
 If vendor_name is an internal provider:
     keep the row if the buying company is final-eligible
-```
-
-Example kept:
-
-```text
-company_name = FONDA ARGENTINA LAS ANTENAS
-vendor_name  = EL BODEGON DE FITO
-```
-
-Example excluded:
-
-```text
-company_name = EL BODEGON DE FITO
 ```
 
 ---
@@ -657,17 +727,6 @@ source_order_line_id = wansoft_line:{id}
 source_stock_move_id = wansoft_move:{id}
 ```
 
-Natural values remain available in business columns such as:
-
-```text
-purchase_order_name
-vendor_id
-vendor_name
-wansoft_code
-wansoft_product_name
-order_date
-```
-
 Detailed documentation:
 
 ```text
@@ -770,27 +829,6 @@ python -m scripts.test_wansoft_wsdl_client
 
 ---
 
-# Validation Queries
-
-The complete validation queries for the Purchases canonical layer are documented in:
-
-```text
-docs/purchases-canonical-layer.md
-```
-
-Core validations include:
-
-```text
-source-system coexistence
-Antenas source split
-Wansoft final-source companies
-internal providers as vendors
-internal providers not as final companies
-Wansoft Antenas cutoff validation
-```
-
----
-
 # Environment Configuration
 
 Configuration is driven through `.env`.
@@ -819,28 +857,6 @@ PURCHASE_ETL_ALLOWED_MAPPING_STATUS=approved
 WANSOFT_USE_LOCAL_WSDL=true
 WANSOFT_WSDL_PATH=resources/wsdl/wansoft.wsdl
 WANSOFT_SERVICE_URL=https://www.wansoft.net/wansoft.web/API/IntegrationService.asmx
-```
-
----
-
-# SQL Folder
-
-The `sql/` folder contains seed and maintenance scripts.
-
-```text
-sql/
-├── maintenance/
-│   └── update_odoo_company_migration_policy.sql
-└── seeds/
-    └── seed_odoo_company_migration_policy.sql
-```
-
-Use cases:
-
-```text
-initial controlled seed data
-company migration policy updates
-operational governance examples
 ```
 
 ---
@@ -875,49 +891,6 @@ COMPANY_SOURCE changes
 
 ---
 
-# Recommended Workflow For Future Development
-
-## 1. Build domain baseline
-
-```text
-isolate source universe
-understand fields
-classify scope
-define snapshot and backlog
-```
-
-## 2. Add governance layer
-
-```text
-dictionary
-bridges
-prioritization
-controlled promotion
-company policy
-source governance
-```
-
-## 3. Validate through ETL reruns
-
-```text
-measure snapshot growth
-measure backlog reduction
-confirm source-system isolation
-keep Odoo untouched
-```
-
-## 4. Promote to canonical layer
-
-```text
-apply COMPANY_SOURCE
-apply operational start dates when relevant
-load source_system-specific canonical rows
-validate source split
-validate provider handling
-```
-
----
-
 # Production Rollout Notes
 
 Before production automation, complete:
@@ -934,43 +907,9 @@ canonical purchases refresh orchestration
 
 ---
 
-# Suggested Commit Patterns
-
-## Technical guide
-
-```bash
-git add docs/project-technical-guide.md
-
-git commit -m "docs(project): add technical guide"
-
-git push
-```
-
-## Full documentation refresh
-
-```bash
-git add README.md docs/
-
-git commit -m "docs(project): update technical documentation"
-
-git push
-```
-
-## Purchases canonical layer
-
-```bash
-git add .
-
-git commit -m "feat(purchases): load Odoo and Wansoft purchases into canonical layer"
-
-git push
-```
-
----
-
 # Current Next Step
 
-The documentation package is now ready for final consistency review.
+The documentation package is now ready for final commit.
 
 Recommended immediate action:
 
@@ -983,10 +922,24 @@ Commit the documentation package.
 After the documentation package is committed, the next technical options are:
 
 ```text
-1. production orchestration planning
+1. production orchestration implementation
 2. purchases refresh orchestration
-3. Power BI integration layer
-4. inventory source governance alignment
+3. ETL run logging
+4. Power BI integration layer
+5. inventory source governance alignment
+```
+
+Recommended technical priority:
+
+```text
+production orchestration first
+Power BI modelling second
+```
+
+Reason:
+
+```text
+Power BI should consume stable, repeatable, validated outputs.
 ```
 
 ---
@@ -995,6 +948,8 @@ After the documentation package is committed, the next technical options are:
 
 ```text
 docs/project-technical-guide.md
+docs/project-status-and-todo.md
+docs/production-orchestration-plan.md
 docs/inventory-domain-closeout.md
 docs/inventory-runbook.md
 docs/purchases-company-migration-policy.md
