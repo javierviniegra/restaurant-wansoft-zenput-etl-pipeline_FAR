@@ -4,27 +4,377 @@
 
 This repository contains the Python ETL and catalog-governance layer used to integrate **Odoo**, **Wansoft**, and other operational sources into a centralized **MySQL-based analytical environment**.
 
-The project is designed around a core principle:
+The project is designed around a few core principles:
 
 - **Odoo is treated as a read-only source**
-- **MySQL stores mapping dictionaries, scope classification, lifecycle logic, snapshots, and backlogs**
+- **Wansoft remains the source of truth for sales**
+- **MySQL stores mapping dictionaries, scope classification, lifecycle logic, snapshots, canonical layers, and backlogs**
 - **Catalog governance is resolved outside Odoo**
 - **Wansoft SOAP access is centralized through a local WSDL client**
+- **Purchases and Inventory use company-level source governance**
+- **Canonical tables preserve source traceability through `source_system`**
 
 The goal is to enable operational, analytical, and accounting-friendly data flows without modifying Odoo as part of the ETL process.
 
 ---
 
-## Current Domains
+## Current Project Status
 
-### Implemented / Advanced
+### Implemented or advanced domains
 
-- **Sales**
-- **Inventory**
+```text
+Sales
+Inventory
+Purchases
+```
 
-### In progress
+### Current validated milestones
 
-- **Purchases**
+```text
+Inventory domain baseline completed
+Inventory dictionary governance established
+Wansoft local WSDL client implemented
+Purchases Odoo snapshots implemented
+Purchases company migration policy implemented
+Purchases product mapping policy implemented
+Purchases receipts and receipt moves implemented
+Purchases canonical layer implemented
+Odoo and Wansoft coexist in canonical purchase tables
+```
+
+---
+
+## Technical Documentation
+
+This project includes a structured documentation layer under the `docs/` directory.
+
+The documentation is organized into one main technical guide and several domain-specific documents.
+
+### Main Technical Guide
+
+```text
+docs/project-technical-guide.md
+```
+
+This is the umbrella technical guide for the full project. It explains the overall architecture, source systems, domain strategy, ETL flow, source governance, canonical layers, validation logic, and pending work.
+
+Use this document when you need to understand the project end-to-end.
+
+---
+
+### Domain and Policy Documents
+
+```text
+docs/inventory-domain-closeout.md
+docs/inventory-runbook.md
+docs/purchases-company-migration-policy.md
+docs/purchases-product-mapping-policy.md
+docs/purchases-canonical-layer.md
+docs/wansoft-local-wsdl.md
+```
+
+#### `docs/inventory-domain-closeout.md`
+
+Documents the technical closure of the Inventory domain, including scope classification, dictionary governance, lifecycle and backlog status, and remaining considerations.
+
+#### `docs/inventory-runbook.md`
+
+Operational runbook for the Inventory domain. It explains how to execute ETLs, validate outputs, review backlog candidates, and handle dictionary promotion processes.
+
+#### `docs/purchases-company-migration-policy.md`
+
+Documents the company migration and source governance policy for Purchases.
+
+Key rule:
+
+```text
+COMPANY_SOURCE is the authoritative source selector.
+operational_start_date only applies when COMPANY_SOURCE = 'odoo'.
+```
+
+#### `docs/purchases-product-mapping-policy.md`
+
+Documents the Purchases product mapping policy.
+
+Key rule:
+
+```text
+Explicit reference beats name similarity.
+```
+
+Products without explicit Wansoft/Odoo reference mapping remain as new products or backlog candidates. The project does not create automatic product aliases.
+
+#### `docs/purchases-canonical-layer.md`
+
+Documents the canonical Purchases layer.
+
+It explains:
+
+```text
+canonical_purchase_order_snapshot
+canonical_purchase_order_line_snapshot
+canonical_purchase_receipt_snapshot
+canonical_purchase_receipt_move_snapshot
+source_system
+source_domain
+Odoo canonical load
+Wansoft canonical load
+COMPANY_SOURCE governance
+internal provider handling
+Antenas source split
+Wansoft technical keys
+validation queries
+```
+
+#### `docs/wansoft-local-wsdl.md`
+
+Documents the Wansoft SOAP/WSDL technical setup, including use of a local WSDL file, client configuration, environment variables, and validation scripts.
+
+---
+
+## Recommended Reading Order
+
+For a full project review, read the documentation in this order:
+
+```text
+1. docs/project-technical-guide.md
+2. docs/purchases-company-migration-policy.md
+3. docs/purchases-product-mapping-policy.md
+4. docs/purchases-canonical-layer.md
+5. docs/inventory-domain-closeout.md
+6. docs/inventory-runbook.md
+7. docs/wansoft-local-wsdl.md
+```
+
+---
+
+## Source Governance Summary
+
+The project uses centralized source governance defined in:
+
+```text
+core/config/companies.py
+```
+
+Main source rules:
+
+```text
+Sales      -> always Wansoft
+Purchases  -> COMPANY_SOURCE
+Inventory  -> COMPANY_SOURCE
+```
+
+`COMPANY_SOURCE` defines whether each operating company uses Wansoft or Odoo as the official source for Purchases and Inventory.
+
+Example:
+
+```python
+COMPANY_SOURCE = {
+    "Acoxpa": "wansoft",
+    "Aeropuerto": "wansoft",
+    "Isabel La Católica": "wansoft",
+    "Antenas": "odoo",
+    "Taquería parroquia": "wansoft",
+    "Vía Vallejo": "wansoft",
+    "Viaducto": "wansoft",
+    "Taquería Viaducto": "wansoft",
+    "San Jeronimo": "wansoft",
+    "Tepeyac": "wansoft",
+    "Playa del Carmen": "wansoft",
+    "Oceanía": "wansoft",
+    "Cancun": "wansoft",
+    "Napoles": "wansoft",
+    "Metepec": "wansoft",
+    "Versalles": "wansoft",
+    "La Esquina Coyoacán": "wansoft",
+    "CentroMyJ": "wansoft",
+    "Puebla": "wansoft",
+}
+```
+
+### Important source-governance rule
+
+```text
+COMPANY_SOURCE determines whether a company uses Odoo or Wansoft.
+operational_start_date only applies when COMPANY_SOURCE marks the company as Odoo.
+.env dates are fallback values, not the main business rule.
+```
+
+---
+
+## Company Mapping
+
+### Odoo company mapping
+
+Odoo company names are mapped to operational source keys.
+
+Examples:
+
+```text
+FONDA ARGENTINA LAS ANTENAS -> Antenas
+FONDA ARGENTINA ENCUENTRO OCEANIA -> Oceanía
+FONDA ARGENTINA SAN JERONIMO -> San Jeronimo
+FONDA ARGENTINA PUEBLA -> Puebla
+FONDA ARGENTINA COYOACAN -> La Esquina Coyoacán
+FONDA ARGENTINA MAQ -> Tepeyac
+FONDA COSTA NERA -> Acoxpa
+FONDA ARGENTINA -> Isabel La Católica
+MARIO Y JULY -> CentroMyJ
+```
+
+### Wansoft subsidiary mapping
+
+Wansoft subsidiary mapping is derived from:
+
+```python
+CUENTAS_SUCURSALES
+```
+
+The derived dictionary is:
+
+```python
+WANSOFT_SUBSIDIARY_SOURCE_KEY = {
+    str(subsidiary_id): company_name
+    for subsidiary_id, company_name, _password in CUENTAS_SUCURSALES
+}
+```
+
+Examples:
+
+```text
+4960 -> Antenas
+6175 -> Cancun
+5320 -> Acoxpa
+6560 -> Tepeyac
+5943 -> Oceanía
+12806 -> Puebla
+```
+
+This avoids maintaining a second manual mapping table for Wansoft subsidiary IDs.
+
+---
+
+## Internal Provider Companies
+
+Some Odoo companies are used for intercompany or provider workflows but should not be treated as final operating branches in Grupo Fonda Argentina BI tables.
+
+Current internal provider companies:
+
+```text
+EL BODEGON DE FITO
+LAS EMPANADAS DE MARIA EVA
+```
+
+Rules:
+
+```text
+If company_name is an internal provider:
+    exclude from final canonical branch-level facts
+
+If vendor_name is an internal provider:
+    keep the row if the buying company is a valid final company
+```
+
+Correct example:
+
+```text
+company_name = FONDA ARGENTINA LAS ANTENAS
+vendor_name  = EL BODEGON DE FITO
+
+Result:
+    keep row
+```
+
+Incorrect example:
+
+```text
+company_name = EL BODEGON DE FITO
+
+Result:
+    exclude row from final branch-level canonical facts
+```
+
+---
+
+## Canonical Layer Summary
+
+The project separates technical source snapshots from final BI-ready canonical tables.
+
+### Technical snapshots
+
+Examples:
+
+```text
+odoo_purchase_order_snapshot
+odoo_purchase_order_line_snapshot
+odoo_purchase_receipt_snapshot
+odoo_purchase_receipt_move_snapshot
+```
+
+### Canonical purchase tables
+
+```text
+canonical_purchase_order_snapshot
+canonical_purchase_order_line_snapshot
+canonical_purchase_receipt_snapshot
+canonical_purchase_receipt_move_snapshot
+```
+
+Canonical tables include:
+
+```text
+source_system = 'odoo'
+source_system = 'wansoft'
+```
+
+This allows the project to preserve both systems during the transition while keeping source traceability in downstream reporting.
+
+---
+
+## Current Purchases Canonical Status
+
+The Purchases canonical layer currently supports both Odoo and Wansoft.
+
+Current validated behaviour:
+
+```text
+Antenas:
+    Wansoft historical purchases before Odoo operational start date
+    Odoo final purchases from Odoo operational start date onward
+
+Other Wansoft companies:
+    Wansoft remains the final purchase source
+
+Internal providers:
+    Bodegón and Empanadas are excluded as final companies
+    Bodegón and Empanadas may remain as vendors
+```
+
+Current validated canonical counts:
+
+```text
+Odoo:
+    orders_inserted: 282
+    lines_inserted: 1381
+    receipts_inserted: 268
+    receipt_moves_inserted: 1184
+
+Wansoft:
+    orders_inserted: 145047
+    lines_inserted: 745344
+    receipts_inserted: 145047
+    receipt_moves_inserted: 745344
+```
+
+Validated Antenas source split:
+
+```text
+Wansoft Antenas:
+    historical purchases before 2026-06-01
+
+Odoo Antenas:
+    final purchases from 2026-06-01 onward
+```
 
 ---
 
@@ -32,19 +382,22 @@ The goal is to enable operational, analytical, and accounting-friendly data flow
 
 ### 1. Odoo is read-only
 
-This pipeline does **not** update Odoo to fix or normalize catalog issues.
+This pipeline does not update Odoo to fix or normalize catalog issues.
 
 ### 2. MySQL is the governance layer
 
 MySQL stores:
 
-- mapping dictionaries
-- scope classification
-- lifecycle results
-- ETL snapshots
-- ETL backlogs
-- bridge tables for controlled dictionary expansion
-- company migration policies
+```text
+mapping dictionaries
+scope classification
+lifecycle results
+ETL snapshots
+canonical tables
+ETL backlogs
+bridge tables for controlled dictionary expansion
+company migration policies
+```
 
 ### 3. Scope must be resolved before mapping
 
@@ -56,7 +409,18 @@ Different business scopes must be separated before dictionary matching.
 
 Catalog matching is performed through controlled dictionaries stored in MySQL.
 
-### 5. Wansoft SOAP access is centralized
+### 5. Source systems remain traceable
+
+Canonical tables preserve:
+
+```text
+source_system
+source_domain
+company_source_key
+final_purchase_source_status
+```
+
+### 6. Wansoft SOAP access is centralized
 
 Wansoft SOAP client initialization should be centralized in:
 
@@ -71,17 +435,21 @@ ETL scripts should not instantiate Zeep clients directly with a remote WSDL URL.
 ## High-Level Architecture
 
 ```text
-Odoo (read-only)
-    ↓
-Extraction
-    ↓
-Scope classification / migration policy
-    ↓
-Dictionary lookup
-    ↓
-Scope-aware ETL
-    ↓
-Snapshot + Backlog in MySQL
+Odoo read-only snapshots
+        ↓
+Wansoft operational tables and SOAP sources
+        ↓
+MySQL governance layer
+        ↓
+Source governance through COMPANY_SOURCE
+        ↓
+Domain ETLs
+        ↓
+Snapshot tables
+        ↓
+Backlogs and dictionaries
+        ↓
+Canonical BI-ready tables
 ```
 
 ---
@@ -91,14 +459,17 @@ Snapshot + Backlog in MySQL
 ```text
 .
 ├── analysis/
+│   ├── build_purchase_backlog_product_reference_report.py
+│   ├── build_purchase_company_source_eligibility_report.py
+│   ├── build_purchase_inventory_mapping_backlog.py
 │   ├── build_sales_product_mapping.py
-│   ├── build_inventory_bridge_report.py
-│   ├── build_inventory_not_found_priority_backlog.py
-│   ├── build_inventory_not_found_p1_bridge.py
-│   ├── build_inventory_not_found_p2_bridge.py
-│   ├── build_inventory_not_found_residual_bridge.py
+│   ├── build_wansoft_purchase_subsidiary_mapping_report.py
 │   ├── inventory_not_found_analyzer.py
 │   ├── odoo_inventory_scope_classifier.py
+│   ├── promote_inventory_bridge_to_dictionary.py
+│   ├── promote_inventory_not_found_p1_to_dictionary.py
+│   ├── promote_inventory_not_found_p2_to_dictionary.py
+│   ├── promote_inventory_not_found_residual_to_dictionary.py
 │   ├── review_scope_refiner.py
 │   ├── review_scope_refiner_v2.py
 │   ├── save_inventory_bridge_report.py
@@ -107,14 +478,11 @@ Snapshot + Backlog in MySQL
 │   ├── save_inventory_not_found_priority_backlog.py
 │   ├── save_inventory_not_found_residual_bridge.py
 │   ├── save_odoo_inventory_scope_classification.py
+│   ├── save_purchase_inventory_mapping_backlog.py
 │   ├── save_refined_odoo_inventory_scope.py
 │   ├── save_review_scope_refiner.py
 │   ├── save_review_scope_refiner_v2.py
-│   ├── save_wansoft_inventory_operational_lifecycle.py
-│   ├── promote_inventory_bridge_to_dictionary.py
-│   ├── promote_inventory_not_found_p1_to_dictionary.py
-│   ├── promote_inventory_not_found_p2_to_dictionary.py
-│   └── promote_inventory_not_found_residual_to_dictionary.py
+│   └── save_wansoft_inventory_operational_lifecycle.py
 │
 ├── core/
 │   ├── clients/
@@ -122,16 +490,20 @@ Snapshot + Backlog in MySQL
 │   │   └── wansoft_client.py
 │   ├── config/
 │   │   ├── .env.example
+│   │   ├── companies.py
 │   │   ├── env_loader.py
 │   │   └── inventory_env.py
-│   ├── database/
-│   │   ├── mysql.py
-│   │   └── odoo.py
+│   └── database/
+│       ├── mysql.py
+│       └── odoo.py
 │
 ├── docs/
 │   ├── inventory-domain-closeout.md
 │   ├── inventory-runbook.md
+│   ├── project-technical-guide.md
+│   ├── purchases-canonical-layer.md
 │   ├── purchases-company-migration-policy.md
+│   ├── purchases-product-mapping-policy.md
 │   └── wansoft-local-wsdl.md
 │
 ├── extract/
@@ -141,10 +513,11 @@ Snapshot + Backlog in MySQL
 │   ├── products/
 │   │   └── odoo_products.py
 │   ├── purchases/
-│   │   ├── odoo_purchase_orders.py
+│   │   ├── canonical_purchase_etl.py
+│   │   ├── odoo_purchase_etl.py
 │   │   ├── odoo_purchase_order_lines.py
-│   │   ├── odoo_purchase_receipts.py
-│   │   └── odoo_purchase_etl.py
+│   │   ├── odoo_purchase_orders.py
+│   │   └── odoo_purchase_receipts.py
 │   └── utils/
 │       ├── inventory_dictionary_lookup.py
 │       ├── inventory_dictionary_wrapper.py
@@ -155,31 +528,39 @@ Snapshot + Backlog in MySQL
 │       └── wansoft.wsdl
 │
 ├── scripts/
-│   ├── test_inventory_dictionary_lookup.py
 │   ├── test_apply_inventory_dictionary.py
+│   ├── test_canonical_purchase_odoo_etl.py
+│   ├── test_canonical_purchase_wansoft_etl.py
+│   ├── test_company_source_governance.py
+│   ├── test_extract_odoo_purchase_receipts.py
+│   ├── test_extract_odoo_purchases.py
+│   ├── test_inventory_dictionary_lookup.py
 │   ├── test_inventory_not_found_analyzer.py
-│   ├── test_inventory_not_found_priority_backlog.py
 │   ├── test_inventory_not_found_p1_bridge.py
 │   ├── test_inventory_not_found_p2_bridge.py
+│   ├── test_inventory_not_found_priority_backlog.py
 │   ├── test_inventory_not_found_residual_bridge.py
 │   ├── test_odoo_inventory_etl.py
 │   ├── test_odoo_inventory_scope_classification.py
+│   ├── test_odoo_purchase_etl.py
+│   ├── test_odoo_purchase_receipt_etl.py
 │   ├── test_promote_inventory_bridge_to_dictionary.py
 │   ├── test_promote_inventory_not_found_p1_to_dictionary.py
 │   ├── test_promote_inventory_not_found_p2_to_dictionary.py
 │   ├── test_promote_inventory_not_found_residual_to_dictionary.py
+│   ├── test_purchase_backlog_product_reference_report.py
+│   ├── test_purchase_company_source_eligibility.py
+│   ├── test_purchase_inventory_mapping_backlog.py
 │   ├── test_refine_odoo_inventory_scope.py
 │   ├── test_review_scope_refiner_v2.py
-│   ├── test_extract_odoo_purchases.py
-│   ├── test_odoo_purchase_etl.py
-│   ├── test_extract_odoo_purchase_receipts.py
+│   ├── test_wansoft_purchase_subsidiary_mapping_report.py
 │   └── test_wansoft_wsdl_client.py
 │
 ├── sql/
-│   ├── seeds/
-│   │   └── seed_odoo_company_migration_policy.sql
-│   └── maintenance/
-│       └── update_odoo_company_migration_policy.sql
+│   ├── maintenance/
+│   │   └── update_odoo_company_migration_policy.sql
+│   └── seeds/
+│       └── seed_odoo_company_migration_policy.sql
 │
 ├── wansoft.sql
 └── README.md
@@ -241,20 +622,74 @@ WANSOFT_SERVICE_URL=https://www.wansoft.net/wansoft.web/API/IntegrationService.a
 
 ---
 
+# Key ETL Entrypoints
+
+## Inventory
+
+```bash
+python -m scripts.test_odoo_inventory_etl
+```
+
+## Odoo purchases snapshot load
+
+```bash
+python -m scripts.test_odoo_purchase_etl
+```
+
+## Odoo purchase receipts load
+
+```bash
+python -m scripts.test_odoo_purchase_receipt_etl
+```
+
+## Odoo canonical purchase load
+
+```bash
+python -m scripts.test_canonical_purchase_odoo_etl
+```
+
+## Wansoft purchase subsidiary mapping report
+
+```bash
+python -m scripts.test_wansoft_purchase_subsidiary_mapping_report
+```
+
+## Wansoft canonical purchase load
+
+```bash
+python -m scripts.test_canonical_purchase_wansoft_etl
+```
+
+## Wansoft local WSDL validation
+
+```bash
+python -m scripts.test_wansoft_wsdl_client
+```
+
+---
+
 # Sales Domain
 
 ## Current Role
 
 The Sales domain is responsible for:
 
-- homologating public-sale products between Odoo and Wansoft
-- building a stable sales dictionary
-- detecting replacements and catalog issues
-- preparing the commercial product layer for analytical use
+```text
+homologating public-sale products between Odoo and Wansoft
+building a stable sales dictionary
+detecting replacements and catalog issues
+preparing the commercial product layer for analytical use
+```
 
 ## Status
 
 Sales baseline is already considered functionally established.
+
+Important rule:
+
+```text
+Sales always remain Wansoft.
+```
 
 ---
 
@@ -266,14 +701,17 @@ Enable a scope-aware, dictionary-governed inventory ETL from Odoo into MySQL wit
 
 ## Core Rules
 
-- Odoo stays read-only
-- Inventory scope must be classified before mapping
-- Public-sale products are excluded from raw inventory matching
-- Matching is resolved in MySQL dictionaries
+```text
+Odoo stays read-only
+Inventory scope must be classified before mapping
+Public-sale products are excluded from raw inventory matching
+Matching is resolved in MySQL dictionaries
+Inventory source follows COMPANY_SOURCE
+```
 
 ## Scope Model
 
-### Final refined buckets
+Final refined buckets:
 
 ```text
 restaurantes
@@ -282,25 +720,6 @@ empanadas
 shared_cross_company
 review_scope
 operational_non_inventory
-```
-
-## Current Inclusion Logic
-
-The inventory ETL currently applies dictionary lookup only to:
-
-```text
-shared_cross_company
-```
-
-The ETL sends these buckets straight to backlog:
-
-```text
-scope_restaurantes_sales_reference
-scope_bodegon
-scope_bodegon_candidate
-scope_empanadas
-scope_review_scope
-scope_operational_non_inventory
 ```
 
 ## Main Inventory Tables
@@ -313,18 +732,7 @@ odoo_inventory_snapshot
 odoo_inventory_backlog
 ```
 
-## Dictionary Sources Currently Used
-
-```text
-bridge_report
-p1_bridge
-p2_bridge
-residual_bridge
-```
-
 ## Validated Promotion Pattern
-
-The following pattern is already validated:
 
 ```text
 not_found backlog
@@ -347,50 +755,10 @@ residual functional pending_review: 5 unique products
 
 This means the inventory phase is:
 
-- technically stable
-- functionally advanced
-- good enough to support the next domain
-
----
-
-# Inventory ETL Execution Flow
-
 ```text
-1. Extract Odoo inventory
-2. Consolidate snapshot by product + location
-3. Merge scope classification
-4. Split scope universes
-5. Apply inventory dictionary only to allowed scope
-6. Save:
-   - odoo_inventory_snapshot
-   - odoo_inventory_backlog
-7. Export diagnostics if required
-```
-
----
-
-# Inventory Backlog Types
-
-## Scope Backlog
-
-Products excluded from the main ETL because of business scope:
-
-```text
-Bodegón
-Empanadas
-restaurant sales-reference products
-review scope
-operational non-inventory
-```
-
-## Functional Backlog
-
-Products eligible for dictionary lookup but still unresolved:
-
-```text
-not_found
-pending_review
-historical_only
+technically stable
+functionally advanced
+good enough to support the next domain
 ```
 
 ---
@@ -399,49 +767,60 @@ historical_only
 
 ## Goal
 
-Build a purchases domain that can analyze Odoo purchase activity while remaining aligned with Wansoft product governance and the inventory dictionary.
+Build a Purchases domain that can analyze Odoo and Wansoft purchase activity while remaining aligned with source governance, product mapping rules, and inventory dictionary logic.
 
 ## Current Status
 
-The purchases domain is in progress.
+Purchases domain is now functionally advanced.
 
 Currently implemented:
 
-- purchase order extraction
-- purchase order line extraction
-- purchase ETL to MySQL
-- line type classification
-- product mapping against `inventory_mapping_dictionary`
-- company migration policy table
-- company migration policy seed and documentation
+```text
+Odoo purchase order extraction
+Odoo purchase order line extraction
+Odoo purchase receipt extraction
+Odoo purchase receipt move extraction
+Odoo purchase ETL to MySQL
+Odoo purchase product mapping
+Purchase line classification
+Purchase inventory mapping backlog
+Company migration policy
+COMPANY_SOURCE governance
+Odoo canonical purchase load
+Wansoft canonical purchase load
+Canonical purchase layer with source_system
+```
 
 ## Main Purchases Tables
+
+### Odoo snapshots
 
 ```text
 odoo_purchase_order_snapshot
 odoo_purchase_order_line_snapshot
+odoo_purchase_receipt_snapshot
+odoo_purchase_receipt_move_snapshot
+```
+
+### Backlog and policy tables
+
+```text
 odoo_company_migration_policy
+odoo_purchase_inventory_mapping_backlog
 ```
 
-## Purchase Line Classification
-
-Purchase lines are classified into:
+### Canonical tables
 
 ```text
-product_line
-empty_line
-review_line
+canonical_purchase_order_snapshot
+canonical_purchase_order_line_snapshot
+canonical_purchase_receipt_snapshot
+canonical_purchase_receipt_move_snapshot
 ```
 
-### Meaning
+---
 
-```text
-product_line = real product line
-empty_line = administrative / empty line with no product, no quantity and no amount
-review_line = unusual line requiring review
-```
-
-## Product Mapping in Purchases
+## Purchase Product Mapping Policy
 
 Purchase lines are enriched using:
 
@@ -453,118 +832,110 @@ purchase.order.line.product_id
 → wansoft_department
 ```
 
-This allows Odoo purchases to remain aligned with Wansoft product codes during the transition.
+The Purchases domain does not create automatic product aliases.
 
-### Product Mapping Policy
-
-The Purchases domain does not create automatic product aliases. A product is mapped only when it has an approved reference in `inventory_mapping_dictionary`. Similar names without an approved reference remain as new products in the purchase inventory mapping backlog.
-
-## Current Purchases ETL Behaviour
-
-The ETL currently:
+Key rule:
 
 ```text
-1. Extracts purchase.order
-2. Extracts purchase.order.line
-3. Applies migration cutoff
-4. Classifies purchase lines
-5. Applies product mapping using inventory_mapping_dictionary
-6. Saves:
-   - odoo_purchase_order_snapshot
-   - odoo_purchase_order_line_snapshot
+Explicit reference beats name similarity.
 ```
 
-## Company Migration Policy
-
-The company migration policy controls which date each company starts contributing Odoo purchase data to the pipeline.
-
-This is required because there are two company scenarios:
+If a product has no explicit Wansoft/Odoo reference mapping:
 
 ```text
-1. Companies migrated from Wansoft to Odoo
-2. New branches that start directly in Odoo
+it remains a new product or backlog candidate
+it is not automatically mapped by similar name
 ```
 
-### Migrated companies
+---
+
+## Purchase Canonical Flow
 
 ```text
-company_migration_type = migrated_from_wansoft
-history_source = wansoft
-include_odoo_history = 0
+Odoo purchase snapshots
+        ↓
+Odoo eligibility by COMPANY_SOURCE
+        ↓
+source_system = odoo
+        ↓
+canonical_purchase_*
+
+Wansoft getinputinventory_entrada
+        ↓
+TipoEntrada = 'Factura'
+        ↓
+Wansoft subsidiary mapping
+        ↓
+COMPANY_SOURCE
+        ↓
+source_system = wansoft
+        ↓
+canonical_purchase_*
 ```
 
-For these companies:
+---
+
+## Wansoft Purchase Source
+
+Wansoft purchase-like data is loaded from:
 
 ```text
-Wansoft remains the historical source.
-Odoo data starts only at operational_start_date.
+getinputinventory_entrada
 ```
 
-### New Odoo branches
+Filter:
 
-```text
-company_migration_type = new_odoo_branch
-history_source = odoo
-include_odoo_history = 1
+```sql
+WHERE TipoEntrada = 'Factura'
 ```
 
-For these companies:
+Main fields used:
 
 ```text
-Odoo is the historical source from operational_start_date.
+id
+subsidiary_name
+IdEntrada
+CodigoProducto
+NombreProducto
+Departamento
+UnidadDeMedida
+Cantidad
+CostoUnitario
+FechaEntrada
+Factura
+FechaFactura
+RFCProveedor
+ClaveProveedor
+NombreProveedor
+FechaReal
 ```
 
-## Company Migration Policy Files
+`FechaEntrada` is used as operational purchase/input date.
+
+`FechaReal` is preserved as Wansoft upload or capture reference date.
+
+---
+
+## Wansoft Technical Keys
+
+Wansoft canonical technical keys use stable hashed identifiers to avoid issues caused by:
 
 ```text
-wansoft.sql
-sql/seeds/seed_odoo_company_migration_policy.sql
-sql/maintenance/update_odoo_company_migration_policy.sql
-docs/purchases-company-migration-policy.md
+case-insensitive MySQL collation
+trailing spaces
+long natural keys
+inconsistent invoice casing
+duplicate invoice references
 ```
 
-## Current Next Step in Purchases
-
-The next implementation step is:
+Example shape:
 
 ```text
-Integrate odoo_company_migration_policy directly into the Purchases ETL.
+source_order_id = wansoft_order:{company_key}:{fecha_key}:{hash}
+source_receipt_id = wansoft_receipt:{company_key}:{fecha_key}:{hash}
+source_order_line_id = wansoft_line:{id}
+source_stock_move_id = wansoft_move:{id}
 ```
-
-Expected result:
-
-```text
-Purchases ETL no longer relies only on PURCHASE_ETL_MIN_ORDER_DATE.
-Each company uses its configured operational_start_date.
-```
-
-### Company Source Governance
-
-`COMPANY_SOURCE` in `core/config/companies.py` is the authoritative selector for source systems.
-
-Rules:
-
-- Sales always use Wansoft for operating branches.
-- Purchases use `COMPANY_SOURCE`.
-- Inventory uses `COMPANY_SOURCE`.
-- `odoo_company_migration_policy.operational_start_date` only applies when `COMPANY_SOURCE` marks the company as `odoo`.
-- `.env` dates are fallback values, not the main business rule.
-
-Special mappings:
-
-```text
-FONDA ARGENTINA MAQ -> Tepeyac
-FONDA COSTA NERA -> Acoxpa
-
-### Internal Provider Companies
-
-Some Odoo companies are used for intercompany/provider workflows but should not be treated as final operating branches in Grupo Fonda Argentina BI tables.
-
-Current internal provider companies:
-
-```text
-EL BODEGON DE FITO
-LAS EMPANADAS DE MARIA EVA
 
 ---
 
@@ -623,15 +994,6 @@ PORTS / OPERATIONS
 DONE
 ```
 
-## WSDL Files
-
-```text
-core/clients/wansoft_client.py
-scripts/test_wansoft_wsdl_client.py
-resources/wsdl/wansoft.wsdl
-docs/wansoft-local-wsdl.md
-```
-
 ---
 
 # SQL Folder
@@ -640,10 +1002,10 @@ The `sql/` folder is located at the repository root.
 
 ```text
 sql/
-├── seeds/
-│   └── seed_odoo_company_migration_policy.sql
-└── maintenance/
-    └── update_odoo_company_migration_policy.sql
+├── maintenance/
+│   └── update_odoo_company_migration_policy.sql
+└── seeds/
+    └── seed_odoo_company_migration_policy.sql
 ```
 
 ## Purpose
@@ -662,7 +1024,7 @@ These scripts are versioned because they represent configuration or operational 
 
 # What Is Safe to Automate
 
-## Safe to Automate
+## Safe to automate
 
 ```text
 Odoo read-only extraction
@@ -672,10 +1034,11 @@ dictionary lookup
 ETL execution
 backlog generation
 diagnostics export
-Wansoft SOAP client initialization via local WSDL
+Wansoft SOAP client initialization through local WSDL
+canonical layer refresh by source_system
 ```
 
-## Keep Controlled at First
+## Keep controlled at first
 
 ```text
 dictionary promotions
@@ -684,19 +1047,7 @@ scope rule changes
 heuristic changes
 catalog-governance decisions
 company migration policy changes
-```
-
----
-
-# Documentation
-
-Detailed documentation is available in:
-
-```text
-docs/inventory-domain-closeout.md
-docs/inventory-runbook.md
-docs/purchases-company-migration-policy.md
-docs/wansoft-local-wsdl.md
+COMPANY_SOURCE changes
 ```
 
 ---
@@ -722,7 +1073,7 @@ Most workflows are currently executed through `scripts/test_*.py` files to valid
 
 # Recommended Workflow For Future Development
 
-## 1. Build Domain Baseline
+## 1. Build domain baseline
 
 ```text
 isolate source universe
@@ -731,7 +1082,7 @@ classify scope
 define snapshot and backlog
 ```
 
-## 2. Add Governance Layer
+## 2. Add governance layer
 
 ```text
 dictionary
@@ -739,14 +1090,26 @@ bridges
 prioritization
 controlled promotion
 company policy
+source governance
 ```
 
-## 3. Validate Through ETL Reruns
+## 3. Validate through ETL reruns
 
 ```text
 measure snapshot growth
 measure backlog reduction
+confirm source-system isolation
 keep Odoo untouched
+```
+
+## 4. Promote to canonical layer
+
+```text
+apply COMPANY_SOURCE
+apply operational start dates when relevant
+load source_system-specific canonical rows
+validate source split
+validate provider handling
 ```
 
 ---
@@ -762,41 +1125,61 @@ ETL telemetry cleanup
 company migration policy review
 final residual backlog handling policy
 Wansoft local WSDL validation
+canonical purchases refresh orchestration
+project-technical-guide.md
 ```
 
 ---
 
 # Suggested Commit Patterns
 
-## Inventory Documentation Only
+## Technical documentation index and purchases canonical layer
 
 ```bash
-git add .
-git commit -m "docs(inventory): add inventory phase closeout and operational runbook"
+git add README.md docs/
+
+git commit -m "docs(project): add documentation index and canonical purchases guide"
+
 git push
 ```
 
-## Inventory Code + Docs Baseline Closeout
+## Purchases canonical Odoo and Wansoft load
 
 ```bash
 git add .
-git commit -m "feat(inventory): finalize baseline and add GitHub documentation for scope-aware ETL and dictionary governance"
+
+git commit -m "feat(purchases): load Odoo and Wansoft purchases into canonical layer"
+
 git push
 ```
 
-## Purchases Company Migration Policy
+## Purchases product mapping policy
+
+```bash
+git add docs/purchases-product-mapping-policy.md
+
+git commit -m "docs(purchases): document product mapping policy without automatic aliases"
+
+git push
+```
+
+## Purchases company migration policy
 
 ```bash
 git add .
+
 git commit -m "feat(purchases): add per-company migration policy for Odoo-Wansoft transition"
+
 git push
 ```
 
-## Wansoft Local WSDL
+## Wansoft local WSDL
 
 ```bash
 git add .
+
 git commit -m "fix(wansoft): use local WSDL for SOAP client initialization"
+
 git push
 ```
 
@@ -804,8 +1187,10 @@ git push
 
 # Current Next Step
 
-After validating the Wansoft local WSDL client, continue with:
+The next recommended step is:
 
 ```text
-Step 12.12 — Integrate company migration policy into Purchases ETL
+Create or update docs/project-technical-guide.md
 ```
+
+This document should become the umbrella technical guide for the full project and should reference all domain-specific documentation.
