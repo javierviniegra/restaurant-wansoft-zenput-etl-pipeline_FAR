@@ -65,12 +65,15 @@ Use this document when you need to understand the project end-to-end.
 ### Domain and Policy Documents
 
 ```text
-docs/inventory-domain-closeout.md
-docs/inventory-runbook.md
+docs/project-technical-guide.md
+docs/project-status-and-todo.md
+docs/production-orchestration-plan.md
 docs/purchases-company-migration-policy.md
 docs/purchases-product-mapping-policy.md
 docs/purchases-canonical-layer.md
 docs/purchases-runbook.md
+docs/inventory-domain-closeout.md
+docs/inventory-runbook.md
 docs/wansoft-local-wsdl.md
 ```
 
@@ -143,13 +146,15 @@ For a full project review, read the documentation in this order:
 
 ```text
 1. docs/project-technical-guide.md
-2. docs/purchases-company-migration-policy.md
-3. docs/purchases-product-mapping-policy.md
-4. docs/purchases-canonical-layer.md
-5. docs/purchases-runbook.md
-6. docs/inventory-domain-closeout.md
-7. docs/inventory-runbook.md
-8. docs/wansoft-local-wsdl.md
+2. docs/project-status-and-todo.md
+3. docs/production-orchestration-plan.md
+4. docs/purchases-company-migration-policy.md
+5. docs/purchases-product-mapping-policy.md
+6. docs/purchases-canonical-layer.md
+7. docs/purchases-runbook.md
+8. docs/inventory-domain-closeout.md
+9. docs/inventory-runbook.md
+10. docs/wansoft-local-wsdl.md
 ```
 
 ---
