@@ -68,9 +68,9 @@ COMPANY_SOURCE = {
     "Napoles": "wansoft",
     "Metepec": "wansoft",
     "Versalles": "wansoft",
-    "La Esquina Coyoacán": "wansoft",
-    "CentroMyJ": "wansoft",
-    "Puebla": "wansoft"
+    "La Esquina Coyoacán": "odoo",
+    "CentroMyJ": "odoo",
+    "Puebla": "odoo"
 }
 
 # =====================================================

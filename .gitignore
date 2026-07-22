@@ -27,3 +27,6 @@ automaticos/getAllOrdersByDay/
 
 # XML temporary files
 ~$*.xml
+
+# Pipeline run logs
+logs/

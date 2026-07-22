@@ -2,60 +2,63 @@
 
 ## Purpose
 
-This document describes the canonical purchase layer used to combine Wansoft and Odoo purchase data into a single BI-ready structure.
+This document describes the canonical Purchases layer for the Wansoft + Odoo Data Warehouse and ETL Pipeline project.
 
-The canonical layer is designed to keep both systems traceable during the Odoo transition while avoiding duplicated or premature source replacement.
+The purpose of the canonical layer is to provide final BI-ready Purchases tables that can safely combine Odoo and Wansoft data while preserving source traceability.
 
-The core objective is:
+This document explains:
 
 ```text
-technical source snapshots
-→ source governance
-→ canonical purchase layer
-→ BI / reporting / analysis
+canonical purchase tables
+source_system strategy
+source_domain strategy
+COMPANY_SOURCE governance
+Odoo canonical load
+Wansoft canonical load
+rollout company patterns
+internal provider handling
+Antenas source split
+La Esquina Coyoacán rollout validation
+CentroMyJ new branch validation
+Puebla future rollout handling
+Wansoft technical keys
+validation queries
+pipeline validation
 ```
 
 ---
 
-## Business Context
+## Core Principle
 
-During the Odoo transition, purchases and inventory operations may exist in both Wansoft and Odoo.
+The canonical Purchases layer must answer:
 
-However, not all Odoo activity should immediately replace Wansoft in final reporting. Some companies may still use Wansoft as the official source, while specific companies may already use Odoo as their official source.
+```text
+Which system is the final source for this purchase row?
+```
 
-Because of this, the project uses a controlled source selector:
+The answer is controlled by:
 
 ```text
 core/config/companies.py
-```
-
-The canonical purchase layer applies that source governance consistently.
-
----
-
-## Source Systems
-
-The canonical purchase layer currently supports:
-
-```text
-source_system = 'odoo'
-source_system = 'wansoft'
-```
-
-Each source is loaded separately and remains traceable through:
-
-```text
+COMPANY_SOURCE
+odoo_company_migration_policy
 source_system
-source_domain
-company_source_key
 final_purchase_source_status
+```
+
+Main source governance rules:
+
+```text
+Sales      -> always Wansoft
+Purchases  -> COMPANY_SOURCE
+Inventory  -> COMPANY_SOURCE
 ```
 
 ---
 
 ## Canonical Tables
 
-The canonical purchase layer is stored in four tables:
+The canonical Purchases layer contains these tables:
 
 ```text
 canonical_purchase_order_snapshot
@@ -64,15 +67,234 @@ canonical_purchase_receipt_snapshot
 canonical_purchase_receipt_move_snapshot
 ```
 
-These tables are final BI-ready structures, not raw extraction tables.
+These tables are final analytical tables, not raw source tables.
+
+They combine:
+
+```text
+Odoo final purchase data
+Wansoft final purchase data
+Wansoft historical purchase data before Odoo rollout
+```
 
 ---
 
-## Source Snapshots vs Canonical Tables
+## Source Systems
 
-### Odoo technical snapshots
+The canonical Purchases layer supports:
 
-Odoo purchase data is first loaded into technical snapshot tables:
+```text
+source_system = odoo
+source_system = wansoft
+```
+
+Meaning:
+
+```text
+odoo:
+    Row came from Odoo purchase, receipt, or stock movement snapshots.
+
+wansoft:
+    Row came from persisted Wansoft purchase-like inventory input data.
+```
+
+---
+
+## Source Domain
+
+The canonical Purchases layer uses:
+
+```text
+source_domain = purchases
+```
+
+This allows future canonical layers to use the same source-system strategy across other domains such as:
+
+```text
+inventory
+sales
+```
+
+---
+
+## Main Governance Fields
+
+Canonical purchase tables include fields such as:
+
+```text
+source_system
+source_domain
+company_source_key
+final_purchase_source_status
+company_name
+vendor_name
+order_date
+product_mapping_status
+product_mapping_source
+purchase_mapping_bucket
+```
+
+---
+
+## final_purchase_source_status
+
+The field:
+
+```text
+final_purchase_source_status
+```
+
+explains why a row is included in the canonical layer and how it should be interpreted.
+
+Current expected values:
+
+```text
+final_odoo_enabled
+final_wansoft_enabled
+wansoft_history_before_odoo
+exclude_internal_provider
+exclude_after_odoo_start
+unknown_source_review
+```
+
+---
+
+## Status Meaning
+
+### final_odoo_enabled
+
+Used when:
+
+```text
+source_system = odoo
+COMPANY_SOURCE = odoo
+company is final-eligible
+row is on or after operational_start_date
+```
+
+Example:
+
+```text
+Antenas Odoo purchases from 2026-06-01 onward.
+La Esquina Coyoacán Odoo purchases from operational_start_date onward.
+CentroMyJ Odoo purchases as a new Odoo branch.
+```
+
+---
+
+### final_wansoft_enabled
+
+Used when:
+
+```text
+source_system = wansoft
+COMPANY_SOURCE = wansoft
+company is final-eligible
+```
+
+Example:
+
+```text
+Acoxpa
+Aeropuerto
+Isabel La Católica
+Oceanía
+Tepeyac
+Cancun
+Metepec
+Napoles
+San Jeronimo
+```
+
+---
+
+### wansoft_history_before_odoo
+
+Used when:
+
+```text
+source_system = wansoft
+COMPANY_SOURCE = odoo
+row date is before operational_start_date
+```
+
+Example:
+
+```text
+Antenas Wansoft purchases before 2026-06-01.
+La Esquina Coyoacán Wansoft purchases before its operational_start_date.
+```
+
+This status preserves historical Wansoft data without allowing Wansoft to remain the final source after the Odoo rollout.
+
+---
+
+### exclude_after_odoo_start
+
+Used when:
+
+```text
+source_system = wansoft
+COMPANY_SOURCE = odoo
+row date is greater than or equal to operational_start_date
+```
+
+These rows should not be loaded into final canonical facts.
+
+---
+
+### exclude_internal_provider
+
+Used when:
+
+```text
+company_name is an internal provider company
+```
+
+These rows are excluded from final branch-level facts.
+
+Current internal provider companies:
+
+```text
+EL BODEGON DE FITO
+LAS EMPANADAS DE MARIA EVA
+```
+
+---
+
+### unknown_source_review
+
+Used when:
+
+```text
+company_source_key cannot be resolved
+```
+
+Rows with this status should not be treated as final until mapping is corrected.
+
+---
+
+# Odoo Canonical Load
+
+## Entrypoint
+
+Run:
+
+```bash
+python -m scripts.test_canonical_purchase_odoo_etl
+```
+
+Function:
+
+```python
+run_canonical_purchase_odoo_etl()
+```
+
+---
+
+## Source Tables
+
+Odoo canonical Purchases are loaded from:
 
 ```text
 odoo_purchase_order_snapshot
@@ -81,161 +303,596 @@ odoo_purchase_receipt_snapshot
 odoo_purchase_receipt_move_snapshot
 ```
 
-These tables preserve the technical Odoo extraction and migration-policy metadata.
+---
 
-### Canonical purchase tables
+## Odoo Eligibility
 
-The canonical layer receives only the rows that are allowed to feed final reporting.
+Odoo rows are eligible when:
 
 ```text
-canonical_purchase_order_snapshot
-canonical_purchase_order_line_snapshot
-canonical_purchase_receipt_snapshot
-canonical_purchase_receipt_move_snapshot
+COMPANY_SOURCE = odoo
+include_final_company = True
+final_purchase_source_status = final_odoo_enabled
 ```
 
-The canonical layer should be consumed by Power BI and downstream analytics.
+Current active Odoo final companies:
+
+```text
+Antenas
+La Esquina Coyoacán
+CentroMyJ
+```
 
 ---
 
-## Source Governance
+## Current Odoo Canonical Counts
 
-The source selector is defined in:
+Current validated Odoo canonical counts after rollout validation:
 
 ```text
-core/config/companies.py
+canonical_purchase_order_snapshot:
+    source_system = odoo
+    total_rows = 882
+
+canonical_purchase_order_line_snapshot:
+    source_system = odoo
+    total_rows = 4771
+
+canonical_purchase_receipt_snapshot:
+    source_system = odoo
+    total_rows = 876
+
+canonical_purchase_receipt_move_snapshot:
+    source_system = odoo
+    total_rows = 4763
 ```
 
-The key configuration is:
+These counts include active Odoo rollout companies such as:
+
+```text
+Antenas
+La Esquina Coyoacán
+CentroMyJ
+```
+
+---
+
+# Wansoft Canonical Load
+
+## Entrypoint
+
+Run:
+
+```bash
+python -m scripts.test_canonical_purchase_wansoft_etl
+```
+
+Function:
 
 ```python
-COMPANY_SOURCE = {
-    "Acoxpa": "wansoft",
-    "Aeropuerto": "wansoft",
-    "Isabel La Católica": "wansoft",
-    "Antenas": "odoo",
-    "Taquería parroquia": "wansoft",
-    "Vía Vallejo": "wansoft",
-    "Viaducto": "wansoft",
-    "Taquería Viaducto": "wansoft",
-    "San Jeronimo": "wansoft",
-    "Tepeyac": "wansoft",
-    "Playa del Carmen": "wansoft",
-    "Oceanía": "wansoft",
-    "Cancun": "wansoft",
-    "Napoles": "wansoft",
-    "Metepec": "wansoft",
-    "Versalles": "wansoft",
-    "La Esquina Coyoacán": "wansoft",
-    "CentroMyJ": "wansoft",
-    "Puebla": "wansoft",
-}
+run_canonical_purchase_wansoft_etl()
 ```
 
 ---
 
-## Domain Source Rules
+## Source Table
 
-The project uses these source rules:
+Wansoft canonical Purchases are loaded from:
 
 ```text
-sales      → always Wansoft
-purchases  → COMPANY_SOURCE
-inventory  → COMPANY_SOURCE
+getinputinventory_entrada
 ```
 
-This means:
+Filtering rule:
 
-```text
-Sales does not switch to Odoo.
-Purchases switch by company according to COMPANY_SOURCE.
-Inventory switches by company according to COMPANY_SOURCE.
+```sql
+WHERE TipoEntrada = 'Factura'
 ```
 
 ---
 
-## Operational Start Date Rule
+## Relevant Wansoft Fields
 
-The `operational_start_date` from `odoo_company_migration_policy` does not override `COMPANY_SOURCE`.
-
-The correct rule is:
+Main Wansoft fields include:
 
 ```text
-COMPANY_SOURCE determines whether the company officially uses Odoo or Wansoft.
-operational_start_date only applies when COMPANY_SOURCE = 'odoo'.
+id
+subsidiary_name
+IdEntrada
+CodigoProducto
+NombreProducto
+Departamento
+UnidadDeMedida
+Cantidad
+CostoUnitario
+FechaEntrada
+Factura
+FechaFactura
+RFCProveedor
+ClaveProveedor
+NombreProveedor
+FechaReal
 ```
 
-Example:
+---
+
+## Wansoft Eligibility
+
+Wansoft rows are eligible as final when:
+
+```text
+COMPANY_SOURCE = wansoft
+include_final_company = True
+```
+
+Wansoft rows are eligible as historical when:
+
+```text
+COMPANY_SOURCE = odoo
+row date is before operational_start_date
+```
+
+Wansoft rows are not final after Odoo rollout for migrated branches.
+
+---
+
+## Current Wansoft Canonical Counts
+
+Current validated Wansoft canonical counts after rollout validation:
+
+```text
+canonical_purchase_order_snapshot:
+    source_system = wansoft
+    total_rows = 145015
+
+canonical_purchase_order_line_snapshot:
+    source_system = wansoft
+    total_rows = 745161
+
+canonical_purchase_receipt_snapshot:
+    source_system = wansoft
+    total_rows = 145015
+
+canonical_purchase_receipt_move_snapshot:
+    source_system = wansoft
+    total_rows = 745161
+```
+
+---
+
+## Current Wansoft Final Status Summary
+
+Current validated Wansoft status distribution:
+
+```text
+final_wansoft_enabled        690000
+wansoft_history_before_odoo   55161
+```
+
+Interpretation:
+
+```text
+Most Wansoft rows remain final for Wansoft-source companies.
+Rows from migrated Odoo-source companies before their cutoff remain as Wansoft history.
+```
+
+---
+
+# Current Canonical Table Counts
+
+Current validated canonical table counts:
+
+```text
+canonical_purchase_order_snapshot:
+    odoo:      882
+    wansoft: 145015
+
+canonical_purchase_order_line_snapshot:
+    odoo:      4771
+    wansoft: 745161
+
+canonical_purchase_receipt_snapshot:
+    odoo:      876
+    wansoft: 145015
+
+canonical_purchase_receipt_move_snapshot:
+    odoo:      4763
+    wansoft: 745161
+```
+
+These counts were validated through:
+
+```bash
+python -m scripts.validate_purchases_canonical_layer
+```
+
+Expected validation result:
+
+```text
+VALIDATION RESULT: PASSED
+```
+
+---
+
+# Rollout Company Pattern Validation
+
+The canonical validation layer now includes rollout-specific expectations.
+
+Implemented in:
+
+```text
+scripts/validate_purchases_canonical_layer.py
+```
+
+Constant:
+
+```python
+ROLLOUT_COMPANY_EXPECTATIONS
+```
+
+Current validation name:
+
+```text
+rollout_company_patterns
+```
+
+---
+
+## Supported Rollout Types
+
+Current rollout types:
+
+```text
+migrated_from_wansoft
+new_odoo_branch
+```
+
+---
+
+## migrated_from_wansoft
+
+Use this pattern when the branch previously operated in Wansoft and later starts operating in Odoo.
+
+Expected canonical pattern:
+
+```text
+source_system = odoo
+final_purchase_source_status = final_odoo_enabled
+
+source_system = wansoft
+final_purchase_source_status = wansoft_history_before_odoo
+```
+
+Not allowed after activation:
+
+```text
+source_system = wansoft
+final_purchase_source_status = final_wansoft_enabled
+```
+
+Current validated migrated branches:
+
+```text
+Antenas
+La Esquina Coyoacán
+```
+
+---
+
+## new_odoo_branch
+
+Use this pattern when the branch starts directly as an Odoo branch.
+
+Expected canonical pattern:
+
+```text
+source_system = odoo
+final_purchase_source_status = final_odoo_enabled
+```
+
+Not allowed after activation:
+
+```text
+source_system = wansoft
+final_purchase_source_status = final_wansoft_enabled
+```
+
+Current validated new Odoo branch:
+
+```text
+CentroMyJ
+```
+
+Current future inactive rollout:
+
+```text
+Puebla
+```
+
+---
+
+## Active and Inactive Rollout Expectations
+
+Each rollout expectation may use:
+
+```text
+active = True
+active = False
+```
+
+Meaning:
+
+```text
+active = True:
+    validation is enforced and can fail the pipeline.
+
+active = False:
+    rollout is documented as future work but does not fail current validation.
+```
+
+Current rollout expectation state:
 
 ```text
 Antenas:
-    COMPANY_SOURCE = odoo
-    Wansoft before operational_start_date is historical
-    Odoo from operational_start_date onward is final
+    rollout_type = migrated_from_wansoft
+    active = True
 
-Oceanía:
-    COMPANY_SOURCE = wansoft
-    Odoo activity remains technical snapshot only
-    Wansoft remains final source
+La Esquina Coyoacán:
+    rollout_type = migrated_from_wansoft
+    active = True
+
+CentroMyJ:
+    rollout_type = new_odoo_branch
+    active = True
+
+Puebla:
+    rollout_type = new_odoo_branch
+    active = False
 ```
 
 ---
 
-## Odoo Company Mapping
+## Current Validated Rollout Output
 
-Odoo company names are mapped to operational source keys.
-
-Examples:
+Current validated rollout output:
 
 ```text
-FONDA ARGENTINA LAS ANTENAS -> Antenas
-FONDA ARGENTINA ENCUENTRO OCEANIA -> Oceanía
-FONDA ARGENTINA SAN JERONIMO -> San Jeronimo
-FONDA ARGENTINA PUEBLA -> Puebla
-FONDA ARGENTINA COYOACAN -> La Esquina Coyoacán
-FONDA ARGENTINA MAQ -> Tepeyac
-FONDA COSTA NERA -> Acoxpa
-FONDA ARGENTINA -> Isabel La Católica
-MARIO Y JULY -> CentroMyJ
+Antenas:
+    odoo    -> final_odoo_enabled
+    wansoft -> wansoft_history_before_odoo
+
+La Esquina Coyoacán:
+    odoo    -> final_odoo_enabled
+    wansoft -> wansoft_history_before_odoo
+
+CentroMyJ:
+    odoo    -> final_odoo_enabled
+
+Puebla:
+    skipped because active = False
 ```
 
 ---
 
-## Wansoft Subsidiary Mapping
+# Branch-Specific Current State
 
-Wansoft company mapping is derived from:
+## Antenas
 
-```python
-CUENTAS_SUCURSALES
-```
-
-The derived dictionary is:
-
-```python
-WANSOFT_SUBSIDIARY_SOURCE_KEY = {
-    str(subsidiary_id): company_name
-    for subsidiary_id, company_name, _password in CUENTAS_SUCURSALES
-}
-```
-
-Examples:
+Current status:
 
 ```text
-4960 -> Antenas
-6175 -> Cancun
-5320 -> Acoxpa
-6560 -> Tepeyac
-5943 -> Oceanía
-12806 -> Puebla
+migration pattern = migrated_from_wansoft
+rollout active = True
+canonical validation = PASS
 ```
 
-This prevents maintaining two separate sources of truth for Wansoft subsidiary ids.
+Expected canonical behaviour:
+
+```text
+Odoo:
+    final_odoo_enabled from 2026-06-01 onward
+
+Wansoft:
+    wansoft_history_before_odoo before 2026-06-01
+```
+
+Current validated output:
+
+```text
+source_system = odoo
+company_source_key = Antenas
+final_purchase_source_status = final_odoo_enabled
+
+source_system = wansoft
+company_source_key = Antenas
+final_purchase_source_status = wansoft_history_before_odoo
+```
 
 ---
 
-## Internal Provider Companies
+## La Esquina Coyoacán
 
-Some Odoo companies exist because of intercompany or provider workflows, but they should not be treated as final operating branches.
+Current status:
+
+```text
+migration pattern = migrated_from_wansoft
+rollout active = True
+canonical validation = PASS
+```
+
+Expected canonical behaviour:
+
+```text
+Odoo:
+    final_odoo_enabled from operational_start_date onward
+
+Wansoft:
+    wansoft_history_before_odoo before operational_start_date
+```
+
+Current validated output:
+
+```text
+source_system = odoo
+company_source_key = La Esquina Coyoacán
+final_purchase_source_status = final_odoo_enabled
+
+source_system = wansoft
+company_source_key = La Esquina Coyoacán
+final_purchase_source_status = wansoft_history_before_odoo
+```
+
+Important note:
+
+```text
+If min_order_date does not match operational_start_date, this is not automatically an error.
+MIN(order_date) shows the first actual order present in the canonical table.
+```
+
+---
+
+## CentroMyJ
+
+Current status:
+
+```text
+migration pattern = new_odoo_branch
+rollout active = True
+canonical validation = PASS
+```
+
+Expected canonical behaviour:
+
+```text
+Odoo:
+    final_odoo_enabled
+```
+
+Current validated output:
+
+```text
+source_system = odoo
+company_source_key = CentroMyJ
+final_purchase_source_status = final_odoo_enabled
+```
+
+---
+
+## Puebla
+
+Current status:
+
+```text
+migration pattern = new_odoo_branch
+rollout active = False
+canonical validation = skipped
+```
+
+Puebla is documented as a future rollout.
+
+Current expected behaviour:
+
+```text
+Puebla does not fail validation while active = False.
+```
+
+When Puebla becomes active:
+
+```text
+Change active = False to active = True.
+Update COMPANY_SOURCE.
+Update seed SQL.
+Update maintenance SQL.
+Apply policy in MySQL.
+Run validation.
+```
+
+Expected future canonical behaviour:
+
+```text
+source_system = odoo
+company_source_key = Puebla
+final_purchase_source_status = final_odoo_enabled
+```
+
+Not allowed after activation:
+
+```text
+source_system = wansoft
+company_source_key = Puebla
+final_purchase_source_status = final_wansoft_enabled
+```
+
+---
+
+# Product Mapping Behaviour
+
+## Odoo Product Mapping
+
+Odoo purchase lines are enriched through:
+
+```text
+purchase.order.line.product_id
+→ inventory_mapping_dictionary.odoo_product_id
+→ wansoft_code
+→ wansoft_product_name
+→ wansoft_department
+```
+
+Odoo rows depend on controlled dictionary mapping.
+
+The project does not create automatic product aliases.
+
+Key rule:
+
+```text
+Explicit reference beats name similarity.
+```
+
+---
+
+## Wansoft Product Mapping
+
+Wansoft rows already contain native Wansoft product identifiers.
+
+For Wansoft canonical rows:
+
+```text
+product_mapping_status = native_wansoft
+product_mapping_source = getinputinventory_entrada
+purchase_mapping_bucket = mapped_wansoft_native
+```
+
+---
+
+## Current Mapping Distribution
+
+Current validated mapping distribution includes:
+
+```text
+Odoo mapped rows through p1_bridge
+Odoo mapped rows through p2_bridge
+Odoo mapped rows through residual_bridge
+Odoo unmapped inventory candidates
+Odoo unmapped Bodegón candidates
+Odoo unmapped Empanadas candidates
+Odoo unmapped sales references
+Odoo empty lines
+Wansoft native rows
+```
+
+Current Wansoft mapping status:
+
+```text
+source_system = wansoft
+product_mapping_status = native_wansoft
+product_mapping_source = getinputinventory_entrada
+purchase_mapping_bucket = mapped_wansoft_native
+```
+
+---
+
+# Internal Provider Handling
 
 Current internal provider companies:
 
@@ -248,10 +905,10 @@ Rules:
 
 ```text
 If company_name is an internal provider:
-    exclude from final canonical branch-level facts
+    exclude from final canonical branch-level facts.
 
 If vendor_name is an internal provider:
-    keep the row if the buying company is a valid final company
+    keep the row if the buying company is final-eligible.
 ```
 
 Correct example:
@@ -259,150 +916,38 @@ Correct example:
 ```text
 company_name = FONDA ARGENTINA LAS ANTENAS
 vendor_name  = EL BODEGON DE FITO
+```
 
-Result:
-    keep row
+Expected result:
+
+```text
+Keep row.
 ```
 
 Incorrect example:
 
 ```text
 company_name = EL BODEGON DE FITO
+```
 
-Result:
-    exclude row from final branch-level canonical facts
+Expected result:
+
+```text
+Exclude row from final branch-level canonical facts.
+```
+
+Validator check:
+
+```text
+internal_providers_as_vendors
+internal_providers_not_as_companies
 ```
 
 ---
 
-## Odoo Canonical Load
+# Wansoft Technical Key Strategy
 
-Odoo canonical load is implemented in:
-
-```text
-extract/purchases/canonical_purchase_etl.py
-```
-
-Main entrypoint:
-
-```python
-run_canonical_purchase_odoo_etl()
-```
-
-The Odoo canonical load reads from:
-
-```text
-odoo_purchase_order_snapshot
-odoo_purchase_order_line_snapshot
-odoo_purchase_receipt_snapshot
-odoo_purchase_receipt_move_snapshot
-```
-
-It applies company source governance and keeps only rows where:
-
-```text
-final_purchase_source_status = 'final_odoo_enabled'
-```
-
-For the current configuration, Odoo eligible rows belong to:
-
-```text
-company_source_key = Antenas
-source_system = odoo
-final_purchase_source_status = final_odoo_enabled
-```
-
----
-
-## Wansoft Canonical Load
-
-Wansoft canonical load is implemented in:
-
-```text
-extract/purchases/canonical_purchase_etl.py
-```
-
-Main entrypoint:
-
-```python
-run_canonical_purchase_wansoft_etl()
-```
-
-The Wansoft source table is:
-
-```text
-getinputinventory_entrada
-```
-
-The source filter is:
-
-```sql
-WHERE TipoEntrada = 'Factura'
-```
-
-This table is treated as the reliable Wansoft purchase-like source because it represents inventory inputs related to invoices or supplier entries.
-
----
-
-## Wansoft Date Fields
-
-The load uses:
-
-```text
-FechaEntrada
-```
-
-as the operational purchase/input date.
-
-The field:
-
-```text
-FechaReal
-```
-
-is preserved as the Wansoft upload or capture reference date when available.
-
----
-
-## Wansoft Load Status Values
-
-The Wansoft load classifies rows into source-status categories.
-
-### final_wansoft_enabled
-
-Used when the company remains a Wansoft final-source company.
-
-```text
-domain_source = wansoft
-```
-
-### wansoft_history_before_odoo
-
-Used when the company is now Odoo-source, but the Wansoft row belongs to the historical period before the Odoo operational start date.
-
-Example:
-
-```text
-Antenas Wansoft rows before 2026-06-01
-```
-
-### exclude_after_odoo_start
-
-Used when the company is Odoo-source and the Wansoft row belongs to or after the Odoo operational start date.
-
-These rows are not loaded to the canonical layer.
-
-### unknown_source_review
-
-Used when the company cannot be resolved to a known source key.
-
-These rows are excluded from final load until mapping is corrected.
-
----
-
-## Wansoft Technical Keys
-
-Wansoft rows may contain invoice, provider and date values that are not safe as direct unique database keys because of:
+Wansoft natural invoice keys are not used directly as unique canonical IDs because of:
 
 ```text
 case-insensitive MySQL collation
@@ -412,43 +957,18 @@ inconsistent invoice casing
 duplicate invoice references
 ```
 
-Therefore, Wansoft canonical technical keys use stable hashed identifiers.
+Instead, stable hashed technical keys are used.
 
-### Order key
+Examples:
 
 ```text
 source_order_id = wansoft_order:{company_key}:{fecha_key}:{hash}
-```
-
-Example shape:
-
-```text
-wansoft_order:acoxpa:2023-03-29:4f7c2a9b8d0e12aa
-```
-
-### Receipt key
-
-```text
 source_receipt_id = wansoft_receipt:{company_key}:{fecha_key}:{hash}
-```
-
-### Line key
-
-```text
 source_order_line_id = wansoft_line:{id}
-```
-
-If the row id is not available, a stable hash is used.
-
-### Receipt movement key
-
-```text
 source_stock_move_id = wansoft_move:{id}
 ```
 
-If the row id is not available, a stable hash is used.
-
-Natural business values remain available in business columns such as:
+Natural values remain available in business columns such as:
 
 ```text
 purchase_order_name
@@ -461,487 +981,21 @@ order_date
 
 ---
 
-## Canonical Table Mapping
+# Source-System Reload Strategy
 
-### Wansoft to canonical_purchase_order_snapshot
+Canonical purchase tables should be refreshed by `source_system`.
 
-Wansoft does not provide a complete native historical purchase-order header equivalent to Odoo `purchase.order`.
-
-Therefore, Wansoft order headers are derived from inventory invoice input documents.
-
-| Wansoft field | Canonical field |
-|---|---|
-| Derived hash key | source_order_id |
-| Factura | purchase_order_name |
-| RFCProveedor or ClaveProveedor | vendor_id |
-| NombreProveedor | vendor_name |
-| subsidiary_name | company_id |
-| company_source_key | company_source_key |
-| FechaEntrada | order_date |
-| FechaReal | approval_date |
-| SUM(Cantidad * CostoUnitario) | amount_total |
-| fixed value `wansoft` | source_system |
+This allows the project to reload one source without deleting validated data from the other source.
 
 ---
 
-### Wansoft to canonical_purchase_order_line_snapshot
+## Odoo Refresh
 
-Each Wansoft `getinputinventory_entrada` row is treated as a purchase line.
-
-| Wansoft field | Canonical field |
-|---|---|
-| id | source_order_line_id |
-| Derived document key | source_order_id |
-| Factura | purchase_order_name |
-| RFCProveedor or ClaveProveedor | vendor_id |
-| NombreProveedor | vendor_name |
-| subsidiary_name | company_id |
-| company_source_key | company_source_key |
-| IdProducto | product_id |
-| NombreProducto | product_name |
-| CodigoProducto | wansoft_code |
-| NombreProducto | wansoft_product_name |
-| Departamento | wansoft_department |
-| Cantidad | product_qty |
-| Cantidad | qty_received |
-| CostoUnitario | price_unit |
-| Cantidad * CostoUnitario | price_total |
-| FechaEntrada | order_date |
-
----
-
-### Wansoft to canonical_purchase_receipt_snapshot
-
-Derived receipt headers are created from the same Wansoft invoice/input document identity.
-
-| Wansoft field | Canonical field |
-|---|---|
-| Derived receipt key | source_receipt_id |
-| Factura | receipt_name |
-| Derived order key | origin |
-| RFCProveedor or ClaveProveedor | vendor_id |
-| NombreProveedor | vendor_name |
-| subsidiary_name | company_id |
-| company_source_key | company_source_key |
-| FechaEntrada | scheduled_date |
-| FechaReal | date_done |
-| fixed value `done` | state |
-
----
-
-### Wansoft to canonical_purchase_receipt_move_snapshot
-
-Each Wansoft `getinputinventory_entrada` row is also treated as a receipt movement.
-
-| Wansoft field | Canonical field |
-|---|---|
-| id | source_stock_move_id |
-| Factura | reference |
-| Derived order key | origin |
-| Derived receipt key | source_receipt_id |
-| id or hash | source_order_line_id |
-| IdProducto | product_id |
-| NombreProducto | product_name |
-| CodigoProducto | wansoft_code |
-| NombreProducto | wansoft_product_name |
-| Departamento | wansoft_department |
-| Cantidad | product_uom_qty |
-| Cantidad | quantity |
-| IdUnidadDeMedida | product_uom_id |
-| UnidadDeMedida | product_uom_name |
-| FechaEntrada | move_date |
-| FechaReal | date_deadline |
-
----
-
-## Odoo Canonical Validation Results
-
-The Odoo canonical load produced:
+Rules:
 
 ```text
-orders_inserted: 282
-lines_inserted: 1381
-receipts_inserted: 268
-receipt_moves_inserted: 1184
+Delete only source_system = 'odoo'
+Reload eligible Odoo rows
+Preserve source_system = 'wansoft'
 ```
 
-Current Odoo final status:
-
-```text
-source_system = odoo
-company_source_key = Antenas
-final_purchase_source_status = final_odoo_enabled
-```
-
----
-
-## Wansoft Canonical Validation Results
-
-The Wansoft canonical load produced:
-
-```text
-orders_inserted: 145047
-lines_inserted: 745344
-receipts_inserted: 145047
-receipt_moves_inserted: 745344
-```
-
-Wansoft source status summary:
-
-```text
-final_wansoft_enabled        693059
-wansoft_history_before_odoo   52285
-```
-
-Antenas validation:
-
-```text
-Wansoft Antenas:
-    min_order_date = 2021-09-04 14:19:30
-    max_order_date = 2026-05-31 22:51:54
-    total_lines = 52285
-
-Odoo Antenas:
-    min_order_date = 2026-06-01 16:10:54
-    max_order_date = 2026-07-07 20:16:46
-    total_lines = 1381
-```
-
-This confirms that Wansoft does not overlap the Odoo period for Antenas.
-
----
-
-## Final Source Behaviour
-
-The canonical layer now supports both systems:
-
-```text
-source_system = odoo
-source_system = wansoft
-```
-
-Current behaviour:
-
-```text
-Antenas:
-    Wansoft before Odoo operational start date
-    Odoo from Odoo operational start date onward
-
-All other configured Wansoft companies:
-    Wansoft remains final source
-
-Internal providers:
-    excluded as company_name
-    allowed as vendor_name
-```
-
----
-
-## Validation Queries
-
-### 1. Source-system coexistence
-
-```sql
-SELECT
-    'orders' AS canonical_table,
-    source_system,
-    company_source_key,
-    final_purchase_source_status,
-    COUNT(*) AS total_rows
-FROM canonical_purchase_order_snapshot
-GROUP BY
-    source_system,
-    company_source_key,
-    final_purchase_source_status
-
-UNION ALL
-
-SELECT
-    'lines' AS canonical_table,
-    source_system,
-    company_source_key,
-    final_purchase_source_status,
-    COUNT(*) AS total_rows
-FROM canonical_purchase_order_line_snapshot
-GROUP BY
-    source_system,
-    company_source_key,
-    final_purchase_source_status
-
-UNION ALL
-
-SELECT
-    'receipts' AS canonical_table,
-    source_system,
-    company_source_key,
-    final_purchase_source_status,
-    COUNT(*) AS total_rows
-FROM canonical_purchase_receipt_snapshot
-GROUP BY
-    source_system,
-    company_source_key,
-    final_purchase_source_status
-
-UNION ALL
-
-SELECT
-    'receipt_moves' AS canonical_table,
-    source_system,
-    company_source_key,
-    final_purchase_source_status,
-    COUNT(*) AS total_rows
-FROM canonical_purchase_receipt_move_snapshot
-GROUP BY
-    source_system,
-    company_source_key,
-    final_purchase_source_status
-ORDER BY
-    canonical_table,
-    source_system,
-    company_source_key;
-```
-
----
-
-### 2. Antenas source split
-
-```sql
-SELECT
-    source_system,
-    company_source_key,
-    final_purchase_source_status,
-    MIN(order_date) AS min_order_date,
-    MAX(order_date) AS max_order_date,
-    COUNT(*) AS total_lines,
-    SUM(COALESCE(price_total, 0)) AS total_amount
-FROM canonical_purchase_order_line_snapshot
-WHERE company_source_key = 'Antenas'
-GROUP BY
-    source_system,
-    company_source_key,
-    final_purchase_source_status
-ORDER BY
-    source_system,
-    final_purchase_source_status;
-```
-
----
-
-### 3. Wansoft final-source companies
-
-```sql
-SELECT
-    source_system,
-    company_source_key,
-    final_purchase_source_status,
-    COUNT(*) AS total_lines,
-    SUM(COALESCE(price_total, 0)) AS total_amount
-FROM canonical_purchase_order_line_snapshot
-WHERE source_system = 'wansoft'
-GROUP BY
-    source_system,
-    company_source_key,
-    final_purchase_source_status
-ORDER BY
-    total_lines DESC;
-```
-
----
-
-### 4. Internal providers as vendors
-
-```sql
-SELECT
-    source_system,
-    vendor_name,
-    company_name,
-    company_source_key,
-    COUNT(*) AS total_lines,
-    SUM(COALESCE(price_total, 0)) AS total_amount
-FROM canonical_purchase_order_line_snapshot
-WHERE vendor_name IN (
-    'EL BODEGON DE FITO',
-    'LAS EMPANADAS DE MARIA EVA'
-)
-GROUP BY
-    source_system,
-    vendor_name,
-    company_name,
-    company_source_key
-ORDER BY
-    total_lines DESC;
-```
-
----
-
-### 5. Internal providers not as final companies
-
-```sql
-SELECT
-    source_system,
-    company_name,
-    COUNT(*) AS total_lines
-FROM canonical_purchase_order_line_snapshot
-WHERE company_name IN (
-    'EL BODEGON DE FITO',
-    'LAS EMPANADAS DE MARIA EVA'
-)
-GROUP BY
-    source_system,
-    company_name;
-```
-
-Expected result:
-
-```text
-0 rows
-```
-
----
-
-### 6. Wansoft Antenas cutoff validation
-
-```sql
-SELECT
-    source_system,
-    company_source_key,
-    final_purchase_source_status,
-    MIN(order_date) AS min_order_date,
-    MAX(order_date) AS max_order_date,
-    COUNT(*) AS total_lines
-FROM canonical_purchase_order_line_snapshot
-WHERE source_system = 'wansoft'
-  AND company_source_key = 'Antenas'
-GROUP BY
-    source_system,
-    company_source_key,
-    final_purchase_source_status;
-```
-
-Expected result:
-
-```text
-max_order_date < Odoo operational start date
-```
-
----
-
-## ETL Entrypoints
-
-### Odoo canonical load
-
-```bash
-python -m scripts.test_canonical_purchase_odoo_etl
-```
-
-Entrypoint:
-
-```python
-run_canonical_purchase_odoo_etl()
-```
-
----
-
-### Wansoft canonical load
-
-```bash
-python -m scripts.test_canonical_purchase_wansoft_etl
-```
-
-Entrypoint:
-
-```python
-run_canonical_purchase_wansoft_etl()
-```
-
----
-
-## Known Design Decisions
-
-### 1. Wansoft purchase headers are derived
-
-Wansoft does not provide the same historical purchase-order structure that Odoo provides.
-
-Therefore, the canonical Wansoft purchase order table is derived from `getinputinventory_entrada` invoice input rows.
-
-### 2. Wansoft uses hashed technical keys
-
-Natural invoice keys are not used directly as database unique identifiers because of possible text inconsistencies and MySQL collation behaviour.
-
-### 3. Odoo and Wansoft are loaded independently
-
-Odoo rows and Wansoft rows are deleted and reloaded independently by `source_system`.
-
-When Wansoft is reloaded:
-
-```text
-source_system = odoo
-```
-
-rows are preserved.
-
-When Odoo is reloaded:
-
-```text
-source_system = wansoft
-```
-
-rows are preserved.
-
-### 4. Internal providers are excluded only as final companies
-
-Internal providers remain valid vendors.
-
-They are excluded only when they appear as the buying or operating company.
-
-### 5. Antenas is the first active Odoo purchase source
-
-Current canonical logic validates:
-
-```text
-Antenas Wansoft history before 2026-06-01
-Antenas Odoo final source from 2026-06-01
-```
-
----
-
-## Current Status
-
-The canonical purchase layer is active and validated.
-
-Completed:
-
-```text
-Odoo canonical load
-Wansoft canonical load
-COMPANY_SOURCE governance
-Antenas source split
-Internal provider handling
-Wansoft technical key collision fix
-Validation SQL
-```
-
----
-
-## Related Documentation
-
-```text
-docs/project-technical-guide.md
-docs/purchases-company-migration-policy.md
-docs/purchases-product-mapping-policy.md
-docs/inventory-domain-closeout.md
-docs/inventory-runbook.md
-docs/wansoft-local-wsdl.md
-```
-
----
-
-## Recommended Commit
-
-```bash
-git add docs/purchases-canonical-layer.md
-
-git commit -m "docs(purchases): document canonical purchase layer"
-
-git push
-```

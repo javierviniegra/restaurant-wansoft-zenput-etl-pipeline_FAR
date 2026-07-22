@@ -173,6 +173,402 @@ All other configured companies:
 
 ---
 
+---
+
+## Branch Rollout Policy
+
+The Purchases domain supports controlled branch rollout from Wansoft to Odoo.
+
+There are two supported rollout patterns:
+
+```text
+migrated_from_wansoft
+new_odoo_branch
+```
+
+These patterns are validated in:
+
+```text
+scripts/validate_purchases_canonical_layer.py
+```
+
+through:
+
+```text
+ROLLOUT_COMPANY_EXPECTATIONS
+```
+
+---
+
+## Standard Fonda Migration Pattern
+
+The standard migration pattern for Fonda branches is the same pattern validated for Antenas.
+
+Expected behaviour:
+
+```text
+Odoo:
+    final_odoo_enabled from operational_start_date onward
+
+Wansoft:
+    wansoft_history_before_odoo before operational_start_date
+```
+
+Not allowed after activation:
+
+```text
+Wansoft:
+    final_wansoft_enabled
+```
+
+for the migrated branch.
+
+This pattern applies to migrated Fonda branches unless explicitly documented otherwise.
+
+---
+
+## Reference Migration Pattern: Antenas
+
+Antenas is the reference branch for the normal migrated Fonda pattern.
+
+Current behaviour:
+
+```text
+Antenas:
+    COMPANY_SOURCE = odoo
+    company_migration_type = migrated_from_wansoft
+    history_source = wansoft
+    include_odoo_history = 0
+```
+
+Expected canonical output:
+
+```text
+source_system = odoo
+final_purchase_source_status = final_odoo_enabled
+
+source_system = wansoft
+final_purchase_source_status = wansoft_history_before_odoo
+```
+
+---
+
+## La Esquina Coyoacán Rollout
+
+La Esquina Coyoacán is treated as a migrated branch from Wansoft to Odoo.
+
+It should replicate the Antenas pattern.
+
+Expected configuration:
+
+```text
+company_source_key = La Esquina Coyoacán
+company_name = FONDA ARGENTINA COYOACAN
+company_migration_type = migrated_from_wansoft
+history_source = wansoft
+include_odoo_history = 0
+COMPANY_SOURCE = odoo
+```
+
+Expected canonical output:
+
+```text
+source_system = odoo
+company_source_key = La Esquina Coyoacán
+final_purchase_source_status = final_odoo_enabled
+
+source_system = wansoft
+company_source_key = La Esquina Coyoacán
+final_purchase_source_status = wansoft_history_before_odoo
+```
+
+This branch should not remain as:
+
+```text
+source_system = wansoft
+final_purchase_source_status = final_wansoft_enabled
+```
+
+after rollout activation.
+
+---
+
+## CentroMyJ Rollout
+
+CentroMyJ is treated as a new Odoo branch.
+
+Expected configuration:
+
+```text
+company_source_key = CentroMyJ
+company_name = MARIO Y JULY
+company_migration_type = new_odoo_branch
+history_source = odoo
+include_odoo_history = 1
+COMPANY_SOURCE = odoo
+```
+
+Expected canonical output:
+
+```text
+source_system = odoo
+company_source_key = CentroMyJ
+final_purchase_source_status = final_odoo_enabled
+```
+
+Not expected after activation:
+
+```text
+source_system = wansoft
+company_source_key = CentroMyJ
+final_purchase_source_status = final_wansoft_enabled
+```
+
+---
+
+## Puebla Future Rollout
+
+Puebla is currently documented as a future Odoo rollout.
+
+Current validation state:
+
+```text
+rollout_type = new_odoo_branch
+active = False
+```
+
+Meaning:
+
+```text
+Puebla is documented in rollout expectations.
+Puebla does not fail current validation while inactive.
+```
+
+When Puebla becomes active, the rollout should be explicitly activated by changing:
+
+```text
+active = False
+```
+
+to:
+
+```text
+active = True
+```
+
+in:
+
+```text
+scripts/validate_purchases_canonical_layer.py
+```
+
+Expected future configuration:
+
+```text
+company_source_key = Puebla
+company_name = FONDA ARGENTINA PUEBLA
+company_migration_type = new_odoo_branch
+history_source = odoo
+include_odoo_history = 1
+COMPANY_SOURCE = odoo
+```
+
+Expected future canonical output:
+
+```text
+source_system = odoo
+company_source_key = Puebla
+final_purchase_source_status = final_odoo_enabled
+```
+
+Not expected after activation:
+
+```text
+source_system = wansoft
+company_source_key = Puebla
+final_purchase_source_status = final_wansoft_enabled
+```
+
+---
+
+## Active and Inactive Rollout Expectations
+
+Rollout expectations can be active or inactive.
+
+```text
+active = True:
+    validation is enforced and can fail the pipeline.
+
+active = False:
+    rollout is documented as future work but does not fail current validation.
+```
+
+This allows future branch rollouts to be prepared without breaking current production validation.
+
+---
+
+## Rollout Configuration Sources
+
+A rollout must be reflected consistently in all relevant configuration layers.
+
+Required files and tables:
+
+```text
+core/config/companies.py
+sql/seeds/seed_odoo_company_migration_policy.sql
+sql/maintenance/update_odoo_company_migration_policy.sql
+odoo_company_migration_policy
+scripts/validate_purchases_canonical_layer.py
+```
+
+Manual edits in MySQL or phpMyAdmin are acceptable for local testing, but the final rollout configuration must also be reflected in SQL files.
+
+Reason:
+
+```text
+MySQL changes affect the current environment.
+Seed and maintenance SQL files make the configuration reproducible.
+companies.py controls source governance used by the ETL.
+validate_purchases_canonical_layer.py enforces rollout expectations.
+```
+
+---
+
+## Rollout Update Sequence
+
+Use this sequence when activating a branch rollout:
+
+```text
+1. Update COMPANY_SOURCE in core/config/companies.py.
+2. Update seed SQL.
+3. Update maintenance SQL.
+4. Apply the policy update in MySQL.
+5. Update ROLLOUT_COMPANY_EXPECTATIONS.
+6. Run company source governance test.
+7. Run Odoo purchase ETL.
+8. Run Odoo receipt ETL.
+9. Run Odoo canonical ETL.
+10. Reload Wansoft canonical rows if the branch has Wansoft history.
+11. Run canonical validation.
+12. Run full purchases pipeline.
+```
+
+---
+
+## Canonical Reload After Rollout Policy Changes
+
+If source governance changed for a branch with Wansoft history, reload Wansoft canonical rows.
+
+Use source-specific cleanup:
+
+```sql
+DELETE FROM canonical_purchase_order_snapshot
+WHERE source_system = 'wansoft';
+
+DELETE FROM canonical_purchase_order_line_snapshot
+WHERE source_system = 'wansoft';
+
+DELETE FROM canonical_purchase_receipt_snapshot
+WHERE source_system = 'wansoft';
+
+DELETE FROM canonical_purchase_receipt_move_snapshot
+WHERE source_system = 'wansoft';
+```
+
+Then reload:
+
+```bash
+python -m scripts.test_canonical_purchase_wansoft_etl
+```
+
+Then validate:
+
+```bash
+python -m scripts.validate_purchases_canonical_layer
+```
+
+Do not use `DROP TABLE` for normal rollout testing.
+
+---
+
+## Rollout Validation Query
+
+Use this query to validate rollout behaviour manually:
+
+```sql
+SELECT
+    source_system,
+    company_source_key,
+    final_purchase_source_status,
+    COUNT(*) AS total_lines,
+    MIN(order_date) AS min_order_date,
+    MAX(order_date) AS max_order_date
+FROM canonical_purchase_order_line_snapshot
+WHERE company_source_key IN (
+    'Antenas',
+    'La Esquina Coyoacán',
+    'CentroMyJ',
+    'Puebla'
+)
+GROUP BY
+    source_system,
+    company_source_key,
+    final_purchase_source_status
+ORDER BY
+    company_source_key,
+    source_system,
+    final_purchase_source_status;
+```
+
+Expected currently:
+
+```text
+Antenas:
+    odoo / final_odoo_enabled
+    wansoft / wansoft_history_before_odoo
+
+La Esquina Coyoacán:
+    odoo / final_odoo_enabled
+    wansoft / wansoft_history_before_odoo
+
+CentroMyJ:
+    odoo / final_odoo_enabled
+
+Puebla:
+    skipped while active = False
+```
+
+---
+
+## Important Note About MIN(order_date)
+
+The field:
+
+```text
+MIN(order_date)
+```
+
+shows the first real transaction found in the canonical table.
+
+It does not necessarily equal:
+
+```text
+operational_start_date
+```
+
+Example:
+
+```text
+operational_start_date = 2026-06-01
+first actual Odoo order = 2026-06-02
+```
+
+This can still be valid.
+
+The policy allows Odoo rows from the operational start date onward, but it does not create rows for dates with no transactions.
+
+---
+
 ## Antenas Source Split
 
 Antenas is currently the active Odoo-source company for Purchases.
