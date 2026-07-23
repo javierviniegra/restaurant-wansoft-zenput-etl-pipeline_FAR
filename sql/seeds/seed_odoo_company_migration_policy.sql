@@ -55,7 +55,7 @@ VALUES
     'migrated_from_wansoft',
     'wansoft',
     0,
-    '2026-06-02',
+    '2026-06-01',
     1,
     'Initial policy seed from current purchase snapshot. Review company type before production.'
 ),
@@ -92,11 +92,11 @@ VALUES
 (
     34,
     'FONDA ARGENTINA PUEBLA',
-    'migrated_from_wansoft',
-    'wansoft',
-    0,
-    '2026-06-10',
+    'new_odoo_branch',
+    'odoo',
     1,
+    '2026-07-22',
+    0,
     'Initial policy seed from current purchase snapshot. Review company type before production.'
 ),
 (
@@ -132,10 +132,10 @@ VALUES
 (
     35,
     'MARIO Y JULY',
-    'migrated_from_wansoft',
-    'wansoft',
-    0,
-    '2026-06-09',
+    'new_odoo_branch',
+    'odoo',
+    1,
+    '2026-06-01',
     1,
     'Initial policy seed from current purchase snapshot. Review company type before production.'
 )

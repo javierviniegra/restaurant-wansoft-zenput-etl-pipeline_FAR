@@ -13,7 +13,9 @@ source governance
 domain architecture
 ETL layers
 canonical tables
-validation strategy
+pipeline orchestration
+JSON run logging
+rollout validation
 documentation structure
 future work
 ```
@@ -33,7 +35,7 @@ MySQL
 future external operational sources
 ```
 
-The goal is to create a reliable analytical environment where business data can be extracted, governed, mapped, validated, and consumed without modifying Odoo directly.
+The goal is to create a reliable analytical environment where business data can be extracted, governed, mapped, validated, orchestrated, logged, and consumed without modifying Odoo directly.
 
 The project follows these principles:
 
@@ -44,6 +46,8 @@ MySQL is the governance and analytical layer.
 Catalog governance is handled outside Odoo.
 Source-system transitions are controlled by company-level rules.
 Canonical tables preserve source traceability.
+Pipeline execution must be auditable.
+Rollout behaviour must be validated before production use.
 ```
 
 ---
@@ -67,6 +71,10 @@ Company source governance
         ↓
 Canonical BI-ready tables
         ↓
+Pipeline validation
+        ↓
+JSON run logs
+        ↓
 Power BI / analysis / reporting
 ```
 
@@ -88,9 +96,12 @@ Current state:
 Sales domain is functionally established.
 Inventory domain is technically stable and functionally advanced.
 Purchases domain has a validated canonical layer with Odoo and Wansoft.
-Documentation package is complete.
-Production orchestration is pending.
-Power BI semantic modelling is pending.
+Purchases orchestration pipeline is implemented.
+Purchases JSON logging is implemented.
+Purchases rollout validation is implemented.
+Documentation package is being updated for Section 13.
+Inventory orchestration remains pending.
+Power BI semantic modelling remains pending.
 ```
 
 The next major phase is:
@@ -113,7 +124,7 @@ keep governance decisions controlled
 
 ## Production Orchestration Plan
 
-The initial production orchestration strategy is documented in:
+The production orchestration strategy is documented in:
 
 ```text
 docs/production-orchestration-plan.md
@@ -128,6 +139,20 @@ validation gates
 failure handling
 logging requirements
 future orchestration scripts
+rollout validation
+inventory pipeline pending work
+```
+
+Current orchestration status:
+
+```text
+Purchases pipeline: implemented
+Purchases validation: implemented
+Purchases JSON logging: implemented
+Purchases rollout validation: implemented
+Inventory pipeline: pending
+Inventory validation: pending
+Production scheduling: pending
 ```
 
 Recommended priority:
@@ -159,6 +184,8 @@ Current documentation files:
 docs/project-technical-guide.md
 docs/project-status-and-todo.md
 docs/production-orchestration-plan.md
+docs/pipeline-logging-and-run-interpretation.md
+docs/branch-rollout-playbook.md
 docs/inventory-domain-closeout.md
 docs/inventory-runbook.md
 docs/purchases-company-migration-policy.md
@@ -172,12 +199,57 @@ Recommended reading order:
 
 ```text
 1. docs/project-technical-guide.md
-2. docs/purchases-company-migration-policy.md
-3. docs/purchases-product-mapping-policy.md
-4. docs/purchases-canonical-layer.md
-5. docs/inventory-domain-closeout.md
-6. docs/inventory-runbook.md
-7. docs/wansoft-local-wsdl.md
+2. docs/project-status-and-todo.md
+3. docs/production-orchestration-plan.md
+4. docs/pipeline-logging-and-run-interpretation.md
+5. docs/branch-rollout-playbook.md
+6. docs/purchases-company-migration-policy.md
+7. docs/purchases-product-mapping-policy.md
+8. docs/purchases-canonical-layer.md
+9. docs/purchases-runbook.md
+10. docs/inventory-domain-closeout.md
+11. docs/inventory-runbook.md
+12. docs/wansoft-local-wsdl.md
+```
+
+Document roles:
+
+```text
+docs/project-technical-guide.md
+    Umbrella technical guide for the full project.
+
+docs/project-status-and-todo.md
+    Current project checkpoint, completed work, pending work, and TODO list.
+
+docs/production-orchestration-plan.md
+    Production-style orchestration plan, validation gates, logging needs, automation boundaries, and pending inventory orchestration.
+
+docs/pipeline-logging-and-run-interpretation.md
+    Explains how to read JSON pipeline logs, run_id, status, duration, step results, and failure signals.
+
+docs/branch-rollout-playbook.md
+    Defines the controlled rollout process for branches moving from Wansoft to Odoo.
+
+docs/purchases-company-migration-policy.md
+    Company source governance, migration policy, rollout patterns, and source rules for Purchases.
+
+docs/purchases-product-mapping-policy.md
+    Product mapping policy for Purchases. Defines why explicit reference beats name similarity.
+
+docs/purchases-canonical-layer.md
+    Technical design and validation of the canonical Purchases layer, including rollout_company_patterns.
+
+docs/purchases-runbook.md
+    Operational runbook for running and validating the Purchases domain.
+
+docs/inventory-domain-closeout.md
+    Technical closeout of the Inventory domain baseline.
+
+docs/inventory-runbook.md
+    Operational runbook for running and validating the Inventory domain.
+
+docs/wansoft-local-wsdl.md
+    Technical documentation for the local Wansoft SOAP/WSDL setup.
 ```
 
 ---
@@ -262,6 +334,8 @@ backlogs
 bridge reports
 company migration policies
 source governance outputs
+pipeline outputs
+validation results
 ```
 
 Odoo is not modified by the ETL. Any correction or mapping decision is stored in MySQL.
@@ -281,6 +355,8 @@ The key configuration is:
 ```python
 COMPANY_SOURCE = {
     "Antenas": "odoo",
+    "La Esquina Coyoacán": "odoo",
+    "CentroMyJ": "odoo",
     "Acoxpa": "wansoft",
     "Oceanía": "wansoft",
 }
@@ -315,6 +391,15 @@ Antenas:
     COMPANY_SOURCE = odoo
     Wansoft is preserved before operational_start_date
     Odoo is final from operational_start_date onward
+
+La Esquina Coyoacán:
+    COMPANY_SOURCE = odoo
+    Wansoft is preserved before operational_start_date
+    Odoo is final from operational_start_date onward
+
+CentroMyJ:
+    COMPANY_SOURCE = odoo
+    New Odoo branch pattern
 
 Oceanía:
     COMPANY_SOURCE = wansoft
@@ -479,6 +564,38 @@ docs/inventory-runbook.md
 
 ---
 
+## Inventory Orchestration Status
+
+Inventory does not yet have a full pipeline equivalent to Purchases.
+
+Pending future files:
+
+```text
+scripts/run_inventory_pipeline.py
+scripts/test_run_inventory_pipeline.py
+scripts/validate_inventory_outputs.py
+logs/inventory_pipeline_runs/
+```
+
+Future Inventory pipeline should follow the same principles as Purchases:
+
+```text
+dry-run support
+required and optional steps
+JSON logging
+validation as final required step
+safe automation only
+manual approval for dictionary promotions
+```
+
+Important rule:
+
+```text
+Inventory dictionary promotions must not run automatically unless explicitly approved.
+```
+
+---
+
 ## Purchases Domain
 
 The Purchases domain now supports both Odoo and Wansoft in a canonical layer.
@@ -497,6 +614,155 @@ company source governance
 Odoo canonical load
 Wansoft canonical load
 canonical purchase tables with source_system
+controlled pipeline orchestration
+JSON run logging
+canonical validation
+rollout company pattern validation
+```
+
+---
+
+# Purchases Pipeline Orchestration
+
+## Implemented Scripts
+
+Purchases orchestration is implemented in:
+
+```text
+scripts/run_purchases_pipeline.py
+```
+
+Smoke test:
+
+```text
+scripts/test_run_purchases_pipeline.py
+```
+
+Final canonical validator:
+
+```text
+scripts/validate_purchases_canonical_layer.py
+```
+
+Run logs:
+
+```text
+logs/purchases_pipeline_runs/
+```
+
+---
+
+## Purchases Pipeline Execution Order
+
+Current pipeline order:
+
+```text
+01. Company source governance
+02. Odoo purchase order and line ETL
+03. Odoo purchase receipt ETL
+04. Purchase inventory mapping backlog
+05. Purchase backlog product reference report
+06. Purchase company source eligibility
+07. Odoo canonical purchase load
+08. Wansoft purchase subsidiary mapping report
+09. Wansoft canonical purchase load
+10. Purchases canonical layer validation
+```
+
+Current modules:
+
+```text
+01. scripts.test_company_source_governance
+02. scripts.test_odoo_purchase_etl
+03. scripts.test_odoo_purchase_receipt_etl
+04. scripts.test_purchase_inventory_mapping_backlog
+05. scripts.test_purchase_backlog_product_reference_report
+06. scripts.test_purchase_company_source_eligibility
+07. scripts.test_canonical_purchase_odoo_etl
+08. scripts.test_wansoft_purchase_subsidiary_mapping_report
+09. scripts.test_canonical_purchase_wansoft_etl
+10. scripts.validate_purchases_canonical_layer
+```
+
+---
+
+## Purchases Pipeline Current Status
+
+Current status:
+
+```text
+dry-run validated
+real execution validated
+JSON logging validated
+canonical validation integrated as required step
+rollout company pattern validation integrated
+```
+
+Expected dry-run summary:
+
+```text
+total_steps: 10
+success: 0
+dry_run: 10
+failed_or_error: 0
+required_failed_or_error: 0
+PIPELINE RESULT: COMPLETED
+```
+
+Expected real-run summary:
+
+```text
+total_steps: 10
+success: 10
+dry_run: 0
+failed_or_error: 0
+required_failed_or_error: 0
+PIPELINE RESULT: COMPLETED
+```
+
+---
+
+# Purchases JSON Logging
+
+The Purchases pipeline writes local JSON logs to:
+
+```text
+logs/purchases_pipeline_runs/
+```
+
+Each log includes:
+
+```text
+run_id
+pipeline_name
+status
+dry_run
+started_at
+finished_at
+duration_seconds
+total_steps
+success
+dry_run_steps
+failed_or_error
+required_failed_or_error
+step-level results
+return codes
+error messages
+```
+
+Logs are local execution artefacts and should not be committed.
+
+Recommended `.gitignore` entry:
+
+```gitignore
+# Pipeline run logs
+logs/
+```
+
+Detailed documentation:
+
+```text
+docs/pipeline-logging-and-run-interpretation.md
 ```
 
 ---
@@ -568,7 +834,211 @@ source_system = wansoft
 
 ---
 
-## Odoo Purchases Canonical Load
+## Current Canonical Counts
+
+Current validated canonical counts:
+
+```text
+canonical_purchase_order_snapshot:
+    odoo:      882
+    wansoft: 145015
+
+canonical_purchase_order_line_snapshot:
+    odoo:      4771
+    wansoft: 745161
+
+canonical_purchase_receipt_snapshot:
+    odoo:      876
+    wansoft: 145015
+
+canonical_purchase_receipt_move_snapshot:
+    odoo:      4763
+    wansoft: 745161
+```
+
+These counts are validated by:
+
+```bash
+python -m scripts.validate_purchases_canonical_layer
+```
+
+---
+
+# Purchases Canonical Validation
+
+Canonical validation is implemented in:
+
+```text
+scripts/validate_purchases_canonical_layer.py
+```
+
+Current validation checks:
+
+```text
+1. source_system_coexistence
+2. antenas_source_split
+3. wansoft_final_source_companies
+4. internal_providers_as_vendors
+5. internal_providers_not_as_companies
+6. mapping_distribution_available
+7. table_counts_available
+8. rollout_company_patterns
+```
+
+Expected result:
+
+```text
+total_validations: 8
+passed: 8
+failed: 0
+VALIDATION RESULT: PASSED
+```
+
+The validator is now integrated as the final required step of:
+
+```text
+scripts/run_purchases_pipeline.py
+```
+
+If validation fails:
+
+```text
+The Purchases pipeline fails.
+```
+
+---
+
+# Branch Rollout Validation
+
+Branch rollout validation is implemented through:
+
+```text
+ROLLOUT_COMPANY_EXPECTATIONS
+```
+
+in:
+
+```text
+scripts/validate_purchases_canonical_layer.py
+```
+
+Supported rollout types:
+
+```text
+migrated_from_wansoft
+new_odoo_branch
+```
+
+---
+
+## migrated_from_wansoft
+
+Expected pattern:
+
+```text
+Odoo:
+    final_odoo_enabled from operational_start_date onward
+
+Wansoft:
+    wansoft_history_before_odoo before operational_start_date
+```
+
+Not allowed after activation:
+
+```text
+wansoft / final_wansoft_enabled
+```
+
+Current active migrated branches:
+
+```text
+Antenas
+La Esquina Coyoacán
+```
+
+---
+
+## new_odoo_branch
+
+Expected pattern:
+
+```text
+Odoo:
+    final_odoo_enabled
+```
+
+Not allowed after activation:
+
+```text
+wansoft / final_wansoft_enabled
+```
+
+Current active new branch:
+
+```text
+CentroMyJ
+```
+
+Current inactive future branch:
+
+```text
+Puebla
+```
+
+---
+
+## Active and Inactive Rollout Expectations
+
+Rollout expectations can be configured as:
+
+```text
+active = True
+active = False
+```
+
+Meaning:
+
+```text
+active = True:
+    validation is enforced and can fail the pipeline.
+
+active = False:
+    rollout is documented as future work but does not fail current validation.
+```
+
+Current rollout state:
+
+```text
+Antenas:
+    migrated_from_wansoft
+    active = True
+    validation = PASS
+
+La Esquina Coyoacán:
+    migrated_from_wansoft
+    active = True
+    validation = PASS
+
+CentroMyJ:
+    new_odoo_branch
+    active = True
+    validation = PASS
+
+Puebla:
+    new_odoo_branch
+    active = False
+    validation = skipped
+```
+
+Detailed rollout documentation:
+
+```text
+docs/branch-rollout-playbook.md
+```
+
+---
+
+# Odoo Purchases Canonical Load
 
 Entrypoint:
 
@@ -582,25 +1052,26 @@ Function:
 run_canonical_purchase_odoo_etl()
 ```
 
+Current active Odoo final companies:
+
+```text
+Antenas
+La Esquina Coyoacán
+CentroMyJ
+```
+
 Current validated Odoo canonical counts:
 
 ```text
-orders_inserted: 282
-lines_inserted: 1381
-receipts_inserted: 268
-receipt_moves_inserted: 1184
-```
-
-Current Odoo final company:
-
-```text
-company_source_key = Antenas
-final_purchase_source_status = final_odoo_enabled
+orders:        882
+lines:         4771
+receipts:      876
+receipt_moves: 4763
 ```
 
 ---
 
-## Wansoft Purchases Canonical Load
+# Wansoft Purchases Canonical Load
 
 Entrypoint:
 
@@ -629,45 +1100,22 @@ WHERE TipoEntrada = 'Factura'
 Current validated Wansoft canonical counts:
 
 ```text
-orders_inserted: 145047
-lines_inserted: 745344
-receipts_inserted: 145047
-receipt_moves_inserted: 745344
+orders:        145015
+lines:         745161
+receipts:      145015
+receipt_moves: 745161
 ```
 
 Wansoft status summary:
 
 ```text
-final_wansoft_enabled        693059
-wansoft_history_before_odoo   52285
+final_wansoft_enabled        690000
+wansoft_history_before_odoo   55161
 ```
 
 ---
 
-## Antenas Source Split
-
-Validated behaviour:
-
-```text
-Wansoft Antenas:
-    historical purchases before 2026-06-01
-
-Odoo Antenas:
-    final purchases from 2026-06-01 onward
-```
-
-Validated ranges:
-
-```text
-Wansoft Antenas max_order_date: 2026-05-31 22:51:54
-Odoo Antenas min_order_date: 2026-06-01 16:10:54
-```
-
-This confirms that Wansoft does not invade the Odoo period for Antenas.
-
----
-
-## Wansoft Technical Key Strategy
+# Wansoft Technical Key Strategy
 
 Wansoft natural invoice keys are not used directly as unique database IDs because of:
 
@@ -690,10 +1138,81 @@ source_order_line_id = wansoft_line:{id}
 source_stock_move_id = wansoft_move:{id}
 ```
 
+Natural values remain available in business columns such as:
+
+```text
+purchase_order_name
+vendor_id
+vendor_name
+wansoft_code
+wansoft_product_name
+order_date
+```
+
 Detailed documentation:
 
 ```text
 docs/purchases-canonical-layer.md
+```
+
+---
+
+# Source-System Reload Strategy
+
+Canonical tables are refreshed by:
+
+```text
+source_system
+```
+
+Odoo refresh:
+
+```text
+Delete only source_system = 'odoo'
+Reload eligible Odoo rows
+Preserve source_system = 'wansoft'
+```
+
+Wansoft refresh:
+
+```text
+Delete only source_system = 'wansoft'
+Reload eligible Wansoft rows
+Preserve source_system = 'odoo'
+```
+
+For normal rollout testing, avoid:
+
+```sql
+DROP TABLE
+```
+
+Use source-specific cleanup:
+
+```sql
+DELETE FROM canonical_purchase_order_snapshot
+WHERE source_system = 'wansoft';
+
+DELETE FROM canonical_purchase_order_line_snapshot
+WHERE source_system = 'wansoft';
+
+DELETE FROM canonical_purchase_receipt_snapshot
+WHERE source_system = 'wansoft';
+
+DELETE FROM canonical_purchase_receipt_move_snapshot
+WHERE source_system = 'wansoft';
+```
+
+Then reload:
+
+```bash
+python -m scripts.test_canonical_purchase_wansoft_etl
+```
+
+and validate:
+
+```bash
+python -m scripts.validate_purchases_canonical_layer
 ```
 
 ---
@@ -741,6 +1260,24 @@ docs/wansoft-local-wsdl.md
 ---
 
 # Key ETL Entrypoints
+
+## Purchases pipeline
+
+```bash
+python -m scripts.run_purchases_pipeline
+```
+
+## Purchases pipeline dry run
+
+```bash
+python -m scripts.run_purchases_pipeline --dry-run
+```
+
+## Purchases canonical validation
+
+```bash
+python -m scripts.validate_purchases_canonical_layer
+```
 
 ## Inventory
 
@@ -792,27 +1329,6 @@ python -m scripts.test_wansoft_wsdl_client
 
 ---
 
-# Validation Queries
-
-The complete validation queries for Purchases canonical layer are documented in:
-
-```text
-docs/purchases-canonical-layer.md
-```
-
-Core validations include:
-
-```text
-source-system coexistence
-Antenas source split
-Wansoft final-source companies
-internal providers as vendors
-internal providers not as final companies
-Wansoft Antenas cutoff validation
-```
-
----
-
 # Environment Configuration
 
 Configuration is driven through `.env`.
@@ -845,6 +1361,29 @@ WANSOFT_SERVICE_URL=https://www.wansoft.net/wansoft.web/API/IntegrationService.a
 
 ---
 
+# SQL Folder
+
+The `sql/` folder contains seed and maintenance scripts.
+
+```text
+sql/
+├── maintenance/
+│   └── update_odoo_company_migration_policy.sql
+└── seeds/
+    └── seed_odoo_company_migration_policy.sql
+```
+
+Use cases:
+
+```text
+initial controlled seed data
+company migration policy updates
+operational governance examples
+rollout reproducibility
+```
+
+---
+
 # What Is Safe to Automate
 
 ## Safe to automate
@@ -859,6 +1398,9 @@ backlog generation
 diagnostics export
 Wansoft SOAP client initialization through local WSDL
 canonical layer refresh by source_system
+JSON run logging
+canonical validation
+rollout pattern validation
 ```
 
 ## Keep controlled at first
@@ -871,6 +1413,7 @@ heuristic changes
 catalog-governance decisions
 company migration policy changes
 COMPANY_SOURCE changes
+rollout activation
 ```
 
 ---
@@ -887,55 +1430,78 @@ company migration policy review
 final residual backlog handling policy
 Wansoft local WSDL validation
 canonical purchases refresh orchestration
+inventory pipeline orchestration
+inventory validation script
 ```
 
 ---
 
 # Current Next Step
 
-The documentation package is now ready for final commit.
+The Section 13 documentation package is being updated.
 
 Recommended immediate action:
 
 ```text
-Run git status.
-Confirm README.md and docs/ include the final documentation set.
-Commit the documentation package.
+Finish Section 13 documentation consistency.
+Commit the Purchases pipeline, logging and rollout validation changes.
 ```
 
-After the documentation package is committed, the next technical options are:
+After Section 13 is committed, the next technical options are:
 
 ```text
-1. production orchestration implementation
-2. purchases refresh orchestration
-3. ETL run logging
-4. Power BI integration layer
-5. inventory source governance alignment
+1. Inventory pipeline orchestration
+2. Inventory output validation
+3. Inventory JSON logging
+4. Wansoft canonical performance optimisation
+5. Puebla rollout activation when operationally ready
+6. Power BI integration layer
 ```
 
 Recommended technical priority:
 
 ```text
-production orchestration first
+Inventory pipeline orchestration first
 Power BI modelling second
 ```
 
 Reason:
 
 ```text
-Power BI should consume stable, repeatable, validated outputs.
+Power BI should consume stable, repeatable, validated outputs from all required domains.
 ```
 
 ---
 
-# Current Next Step
-
-Recommended next step:
+# Related Documentation
 
 ```text
-Review repository documentation consistency and then decide whether to continue with:
-1. production orchestration planning
-2. purchases runbook
-3. inventory source governance alignment
-4. Power BI integration layer
+docs/project-technical-guide.md
+docs/project-status-and-todo.md
+docs/production-orchestration-plan.md
+docs/pipeline-logging-and-run-interpretation.md
+docs/branch-rollout-playbook.md
+docs/inventory-domain-closeout.md
+docs/inventory-runbook.md
+docs/purchases-company-migration-policy.md
+docs/purchases-product-mapping-policy.md
+docs/purchases-canonical-layer.md
+docs/purchases-runbook.md
+docs/wansoft-local-wsdl.md
+```
+
+---
+
+# Recommended Commit
+
+This document should be committed as part of the Section 13 documentation update.
+
+Recommended commit when Section 13 is closed:
+
+```bash
+git add README.md docs/ scripts/ sql/ core/
+
+git commit -m "docs(project): update technical guide for purchases orchestration and rollout validation"
+
+git push
 ```
