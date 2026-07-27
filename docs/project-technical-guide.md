@@ -16,6 +16,7 @@ canonical tables
 pipeline orchestration
 JSON run logging
 rollout validation
+inventory output validation
 documentation structure
 future work
 ```
@@ -48,6 +49,7 @@ Source-system transitions are controlled by company-level rules.
 Canonical tables preserve source traceability.
 Pipeline execution must be auditable.
 Rollout behaviour must be validated before production use.
+Inventory dictionary promotions must remain controlled.
 ```
 
 ---
@@ -94,29 +96,53 @@ Current state:
 
 ```text
 Sales domain is functionally established.
-Inventory domain is technically stable and functionally advanced.
+Inventory domain is technically stable, functionally advanced, orchestrated and validated.
 Purchases domain has a validated canonical layer with Odoo and Wansoft.
 Purchases orchestration pipeline is implemented.
 Purchases JSON logging is implemented.
 Purchases rollout validation is implemented.
-Documentation package is being updated for Section 13.
-Inventory orchestration remains pending.
+Inventory orchestration pipeline is implemented.
+Inventory JSON logging is implemented.
+Inventory output validation is implemented.
+Inventory optional bridge reports are validated.
+Documentation package is being updated for Section 14.
 Power BI semantic modelling remains pending.
+Production scheduling remains pending.
+```
+
+The project now has controlled orchestration for:
+
+```text
+Purchases
+Inventory
+```
+
+Both domains now support:
+
+```text
+dry-run execution
+real controlled execution
+JSON run logging
+required final validation
+pipeline summary output
+failure detection
+governance guardrails
 ```
 
 The next major phase is:
 
 ```text
-controlled orchestration and consumption
+validated consumption and production readiness
 ```
 
 This means:
 
 ```text
-turn validated scripts into repeatable execution flows
-define validation gates
-add run logging
+keep Purchases pipeline stable
+keep Inventory pipeline stable
 prepare Power BI consumption
+decide whether database run-log tables are needed
+decide whether validation results should be persisted
 keep governance decisions controlled
 ```
 
@@ -140,7 +166,8 @@ failure handling
 logging requirements
 future orchestration scripts
 rollout validation
-inventory pipeline pending work
+inventory pipeline execution
+purchases pipeline execution
 ```
 
 Current orchestration status:
@@ -150,22 +177,33 @@ Purchases pipeline: implemented
 Purchases validation: implemented
 Purchases JSON logging: implemented
 Purchases rollout validation: implemented
-Inventory pipeline: pending
-Inventory validation: pending
+
+Inventory pipeline: implemented
+Inventory validation: implemented
+Inventory JSON logging: implemented
+Inventory bridge reports: implemented as optional diagnostics
+Inventory dictionary promotions: intentionally excluded from default automation
+
 Production scheduling: pending
+Power BI semantic layer: pending
+Database run-log persistence: pending
+Validation result persistence: pending
 ```
 
-Recommended priority:
+Recommended priority after Section 14:
 
 ```text
-production orchestration first
-Power BI modelling second
+finish Section 14 documentation consistency
+commit Inventory pipeline package
+prepare Power BI consumption layer
+review database run-log persistence
 ```
 
 Reason:
 
 ```text
-Power BI should consume stable, repeatable, validated outputs.
+Purchases and Inventory now both produce repeatable, validated outputs.
+Power BI should consume stable pipeline outputs, not manually refreshed intermediate tables.
 ```
 
 ---
@@ -222,7 +260,7 @@ docs/project-status-and-todo.md
     Current project checkpoint, completed work, pending work, and TODO list.
 
 docs/production-orchestration-plan.md
-    Production-style orchestration plan, validation gates, logging needs, automation boundaries, and pending inventory orchestration.
+    Production-style orchestration plan, validation gates, logging needs, automation boundaries, Inventory pipeline and Purchases pipeline status.
 
 docs/pipeline-logging-and-run-interpretation.md
     Explains how to read JSON pipeline logs, run_id, status, duration, step results, and failure signals.
@@ -246,7 +284,7 @@ docs/inventory-domain-closeout.md
     Technical closeout of the Inventory domain baseline.
 
 docs/inventory-runbook.md
-    Operational runbook for running and validating the Inventory domain.
+    Operational runbook for running and validating the Inventory domain, including pipeline, logging, validator and bridge reports.
 
 docs/wansoft-local-wsdl.md
     Technical documentation for the local Wansoft SOAP/WSDL setup.
@@ -353,13 +391,7 @@ core/config/companies.py
 The key configuration is:
 
 ```python
-COMPANY_SOURCE = {
-    "Antenas": "odoo",
-    "La Esquina Coyoacán": "odoo",
-    "CentroMyJ": "odoo",
-    "Acoxpa": "wansoft",
-    "Oceanía": "wansoft",
-}
+COMPANY_SOURCE
 ```
 
 The domain source rules are:
@@ -522,6 +554,9 @@ separate business universes
 apply dictionary only where appropriate
 send unresolved products to backlog
 support controlled promotions
+validate outputs
+orchestrate execution
+log pipeline runs
 ```
 
 Main inventory tables:
@@ -545,7 +580,7 @@ review_scope
 operational_non_inventory
 ```
 
-Current inventory baseline:
+Previously validated baseline:
 
 ```text
 snapshot rows: 1660
@@ -553,7 +588,17 @@ residual functional not_found: 98 unique products
 residual functional pending_review: 5 unique products
 ```
 
-The Inventory domain is technically stable and functionally advanced.
+Current state:
+
+```text
+Inventory is technically stable.
+Inventory is functionally advanced.
+Inventory pipeline is implemented.
+Inventory output validation is implemented.
+Inventory JSON logging is implemented.
+Inventory bridge reports are available as optional diagnostics.
+Inventory dictionary promotions remain manual and explicitly approved.
+```
 
 Detailed documentation:
 
@@ -566,39 +611,222 @@ docs/inventory-runbook.md
 
 ## Inventory Orchestration Status
 
-Inventory does not yet have a full pipeline equivalent to Purchases.
+Inventory now has a full orchestration pipeline equivalent in structure to Purchases.
 
-Pending future files:
+Implemented files:
 
 ```text
 scripts/run_inventory_pipeline.py
 scripts/test_run_inventory_pipeline.py
 scripts/validate_inventory_outputs.py
+```
+
+Inventory run logs:
+
+```text
 logs/inventory_pipeline_runs/
 ```
 
-Future Inventory pipeline should follow the same principles as Purchases:
+The logs are local execution artefacts and should not be committed.
 
-```text
-dry-run support
-required and optional steps
-JSON logging
-validation as final required step
-safe automation only
-manual approval for dictionary promotions
+Required `.gitignore` rule:
+
+```gitignore
+# Pipeline run logs
+logs/
 ```
 
-Important rule:
+Current Inventory pipeline base execution order:
+
+```text
+01. Odoo inventory scope classification
+02. Odoo inventory ETL
+03. Inventory dictionary lookup validation
+04. Inventory dictionary application validation
+05. Inventory not_found analyzer
+06. Inventory not_found priority backlog
+07. Inventory output validation
+```
+
+Current base modules:
+
+```text
+01. scripts.test_odoo_inventory_scope_classification
+02. scripts.test_odoo_inventory_etl
+03. scripts.test_inventory_dictionary_lookup
+04. scripts.test_apply_inventory_dictionary
+05. scripts.test_inventory_not_found_analyzer
+06. scripts.test_inventory_not_found_priority_backlog
+07. scripts.validate_inventory_outputs
+```
+
+Current optional extended execution with bridge reports:
+
+```bash
+python -m scripts.run_inventory_pipeline --include-bridge-reports
+```
+
+Extended execution order:
+
+```text
+01. Odoo inventory scope classification
+02. Odoo inventory ETL
+03. Inventory dictionary lookup validation
+04. Inventory dictionary application validation
+05. Inventory not_found analyzer
+06. Inventory not_found priority backlog
+07. Inventory not_found P1 bridge report
+08. Inventory not_found P2 bridge report
+09. Inventory not_found residual bridge report
+10. Inventory output validation
+```
+
+Optional bridge modules:
+
+```text
+scripts.test_inventory_not_found_p1_bridge
+scripts.test_inventory_not_found_p2_bridge
+scripts.test_inventory_not_found_residual_bridge
+```
+
+Current validated status:
+
+```text
+Inventory pipeline dry-run: passing
+Inventory smoke test: passing
+Inventory real base execution: passing
+Inventory extended bridge execution: passing
+Inventory output validation: passing
+Inventory JSON logging: implemented
+Inventory promotions: excluded from default automation
+```
+
+Validated base pipeline result:
+
+```text
+total_steps: 7
+success: 7
+dry_run: 0
+skipped: 0
+failed_or_error: 0
+required_failed_or_error: 0
+
+PIPELINE RESULT: COMPLETED
+```
+
+Validated extended pipeline result:
+
+```text
+total_steps: 10
+success: 10
+dry_run: 0
+skipped: 0
+failed_or_error: 0
+required_failed_or_error: 0
+
+PIPELINE RESULT: COMPLETED
+```
+
+Important governance rule:
 
 ```text
 Inventory dictionary promotions must not run automatically unless explicitly approved.
+```
+
+Promotion scripts intentionally excluded from default orchestration:
+
+```text
+scripts.test_promote_inventory_bridge_to_dictionary
+scripts.test_promote_inventory_not_found_p1_to_dictionary
+scripts.test_promote_inventory_not_found_p2_to_dictionary
+scripts.test_promote_inventory_not_found_residual_to_dictionary
+```
+
+---
+
+## Inventory Output Validation
+
+Inventory output validation is implemented in:
+
+```text
+scripts/validate_inventory_outputs.py
+```
+
+Run manually:
+
+```bash
+python -m scripts.validate_inventory_outputs
+```
+
+This validator is integrated as the final required step of:
+
+```text
+scripts/run_inventory_pipeline.py
+```
+
+Current validation checks:
+
+```text
+1. required_inventory_tables_exist
+2. inventory_table_counts_available
+3. inventory_scope_distribution_available
+4. inventory_snapshot_mapping_distribution_available
+5. inventory_backlog_distribution_available
+6. inventory_residual_visibility_available
+7. inventory_dictionary_coverage_available
+8. inventory_promotions_controlled
+```
+
+Expected result:
+
+```text
+total_validations: 8
+passed: 8
+failed: 0
+
+VALIDATION RESULT: PASSED
+```
+
+If validation fails:
+
+```text
+Inventory pipeline fails.
+```
+
+This is intentional because the Inventory pipeline should not be considered successful unless the output validation passes.
+
+Important backlog rule:
+
+```text
+odoo_inventory_backlog does not exist -> FAIL
+odoo_inventory_backlog exists and has 0 rows -> PASS with note
+odoo_inventory_backlog exists and has rows -> PASS if distribution is available
+```
+
+Reason:
+
+```text
+An empty backlog may mean the current inventory ETL produced no unresolved backlog rows.
+```
+
+Important promotion rule:
+
+```text
+inventory_promotions_controlled: PASS
+```
+
+Meaning:
+
+```text
+Promotion scripts are intentionally excluded from default automation.
+Dictionary changes require manual review and explicit approval.
 ```
 
 ---
 
 ## Purchases Domain
 
-The Purchases domain now supports both Odoo and Wansoft in a canonical layer.
+The Purchases domain supports both Odoo and Wansoft in a canonical layer.
 
 Implemented:
 
@@ -894,7 +1122,7 @@ failed: 0
 VALIDATION RESULT: PASSED
 ```
 
-The validator is now integrated as the final required step of:
+The validator is integrated as the final required step of:
 
 ```text
 scripts/run_purchases_pipeline.py
@@ -1159,7 +1387,7 @@ docs/purchases-canonical-layer.md
 
 # Source-System Reload Strategy
 
-Canonical tables are refreshed by:
+Canonical purchase tables are refreshed by:
 
 ```text
 source_system
@@ -1267,7 +1495,7 @@ docs/wansoft-local-wsdl.md
 python -m scripts.run_purchases_pipeline
 ```
 
-## Purchases pipeline dry run
+## Purchases pipeline dry-run
 
 ```bash
 python -m scripts.run_purchases_pipeline --dry-run
@@ -1279,10 +1507,78 @@ python -m scripts.run_purchases_pipeline --dry-run
 python -m scripts.validate_purchases_canonical_layer
 ```
 
-## Inventory
+## Inventory pipeline
+
+```bash
+python -m scripts.run_inventory_pipeline
+```
+
+## Inventory pipeline dry-run
+
+```bash
+python -m scripts.run_inventory_pipeline --dry-run
+```
+
+## Inventory pipeline with optional bridge reports
+
+```bash
+python -m scripts.run_inventory_pipeline --include-bridge-reports
+```
+
+## Inventory pipeline smoke test
+
+```bash
+python -m scripts.test_run_inventory_pipeline
+```
+
+## Inventory output validation
+
+```bash
+python -m scripts.validate_inventory_outputs
+```
+
+## Inventory scope classification
+
+```bash
+python -m scripts.test_odoo_inventory_scope_classification
+```
+
+## Inventory ETL
 
 ```bash
 python -m scripts.test_odoo_inventory_etl
+```
+
+## Inventory dictionary lookup
+
+```bash
+python -m scripts.test_inventory_dictionary_lookup
+```
+
+## Inventory dictionary application
+
+```bash
+python -m scripts.test_apply_inventory_dictionary
+```
+
+## Inventory not_found analyser
+
+```bash
+python -m scripts.test_inventory_not_found_analyzer
+```
+
+## Inventory not_found priority backlog
+
+```bash
+python -m scripts.test_inventory_not_found_priority_backlog
+```
+
+## Inventory optional bridge reports
+
+```bash
+python -m scripts.test_inventory_not_found_p1_bridge
+python -m scripts.test_inventory_not_found_p2_bridge
+python -m scripts.test_inventory_not_found_residual_bridge
 ```
 
 ## Odoo purchases snapshot load
@@ -1396,10 +1692,12 @@ dictionary lookup
 ETL execution
 backlog generation
 diagnostics export
+bridge report generation
 Wansoft SOAP client initialization through local WSDL
 canonical layer refresh by source_system
 JSON run logging
 canonical validation
+inventory output validation
 rollout pattern validation
 ```
 
@@ -1420,7 +1718,7 @@ rollout activation
 
 # Production Rollout Notes
 
-Before production automation, complete:
+Before production scheduling, review:
 
 ```text
 runbook for automatic vs controlled jobs
@@ -1432,43 +1730,73 @@ Wansoft local WSDL validation
 canonical purchases refresh orchestration
 inventory pipeline orchestration
 inventory validation script
+JSON run logs
+future database run-log persistence
+future validation result persistence
 ```
 
 ---
 
 # Current Next Step
 
-The Section 13 documentation package is being updated.
+The Section 14 documentation package is being updated.
 
 Recommended immediate action:
 
 ```text
-Finish Section 13 documentation consistency.
-Commit the Purchases pipeline, logging and rollout validation changes.
+Finish Section 14 documentation consistency.
+Commit the Inventory pipeline, logging and output validation package.
 ```
 
-After Section 13 is committed, the next technical options are:
+Section 14 completed or in progress:
 
 ```text
-1. Inventory pipeline orchestration
-2. Inventory output validation
-3. Inventory JSON logging
+Inventory pipeline implemented
+Inventory smoke test implemented
+Inventory real execution validated
+Inventory bridge reports validated
+Inventory output validator implemented
+Inventory output validator integrated as required final step
+Inventory JSON logging implemented
+Inventory runbook updated
+Production orchestration plan updated
+Project status and TODO updated
+Project technical guide updated
+```
+
+Remaining Section 14 documentation tasks:
+
+```text
+Update README.md with Inventory pipeline status.
+Review pipeline logging documentation for Inventory-specific additions if needed.
+Review git status.
+Commit Section 14 package.
+```
+
+After Section 14 is committed, the next technical options are:
+
+```text
+1. Power BI consumption layer
+2. Database run-log persistence
+3. Database validation result persistence
 4. Wansoft canonical performance optimisation
 5. Puebla rollout activation when operationally ready
-6. Power BI integration layer
+6. Full data warehouse refresh orchestrator
 ```
 
 Recommended technical priority:
 
 ```text
-Inventory pipeline orchestration first
-Power BI modelling second
+Power BI consumption layer first
+database logging persistence second
 ```
 
 Reason:
 
 ```text
-Power BI should consume stable, repeatable, validated outputs from all required domains.
+Purchases and Inventory now both produce repeatable, validated outputs.
+Power BI can begin consuming validated pipeline outputs.
+Database logging persistence can be added when operational scheduling is closer.
 ```
 
 ---
@@ -1494,14 +1822,14 @@ docs/wansoft-local-wsdl.md
 
 # Recommended Commit
 
-This document should be committed as part of the Section 13 documentation update.
+This document should be committed as part of the Section 14 documentation update.
 
-Recommended commit when Section 13 is closed:
+Recommended commit when Section 14 is ready to checkpoint:
 
 ```bash
-git add README.md docs/ scripts/ sql/ core/
+git add docs/project-technical-guide.md docs/project-status-and-todo.md docs/production-orchestration-plan.md docs/inventory-runbook.md scripts/run_inventory_pipeline.py scripts/test_run_inventory_pipeline.py scripts/validate_inventory_outputs.py
 
-git commit -m "docs(project): update technical guide for purchases orchestration and rollout validation"
+git commit -m "feat(inventory): add pipeline orchestration and output validation"
 
 git push
 ```

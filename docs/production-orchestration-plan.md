@@ -18,7 +18,8 @@ logging requirements
 failure handling
 future orchestration structure
 rollout validation
-inventory pipeline pending work
+inventory pipeline orchestration
+purchases pipeline orchestration
 ```
 
 ---
@@ -33,7 +34,12 @@ scripts/
 
 That approach was useful for discovery and step-by-step validation.
 
-The project has now moved into the first orchestration phase.
+The project has now moved into controlled orchestration for two major domains:
+
+```text
+Purchases
+Inventory
+```
 
 Current orchestration status:
 
@@ -42,9 +48,15 @@ Purchases pipeline: implemented
 Purchases canonical validation: implemented
 Purchases JSON logging: implemented
 Purchases rollout validation: implemented
-Inventory pipeline: pending
-Inventory validation: pending
+
+Inventory pipeline: implemented
+Inventory output validation: implemented
+Inventory JSON logging: implemented
+Inventory optional bridge reports: implemented
+Inventory promotion automation: intentionally excluded
+
 Production scheduling: pending
+Power BI semantic layer: pending
 ```
 
 ---
@@ -63,7 +75,9 @@ This means:
 ```text
 ETL refreshes can be automated.
 Canonical validations can be automated.
+Output validations can be automated.
 JSON logging can be automated.
+Bridge reports can be automated as diagnostics.
 Dictionary promotions should remain manual or approval-based.
 COMPANY_SOURCE changes should remain controlled.
 Odoo writeback should not happen.
@@ -83,13 +97,18 @@ Odoo read-only extraction
 Wansoft persisted-source refresh
 snapshot loading
 canonical table refresh by source_system
-backlog generation
+inventory scope classification
+inventory snapshot refresh
+inventory backlog generation
+purchase backlog generation
 validation query execution
 row-count logging
 source-system count logging
 diagnostic export
+bridge report generation
 JSON run-log generation
 canonical layer validation
+inventory output validation
 rollout pattern validation
 ```
 
@@ -130,9 +149,9 @@ automatic accounting adjustments
 
 ---
 
-# Current Implemented Pipeline: Purchases
+# Implemented Pipeline: Purchases
 
-## Implemented File
+## Implemented Files
 
 The Purchases orchestration script is:
 
@@ -215,7 +234,7 @@ canonical validation integrated as required step
 rollout company pattern validation integrated
 ```
 
-Current expected successful summary:
+Expected successful summary:
 
 ```text
 total_steps: 10
@@ -226,7 +245,7 @@ required_failed_or_error: 0
 PIPELINE RESULT: COMPLETED
 ```
 
-Dry-run expected summary:
+Expected dry-run summary:
 
 ```text
 total_steps: 10
@@ -413,26 +432,297 @@ Puebla
 
 ---
 
-## Active vs Inactive Rollout Expectations
+# Implemented Pipeline: Inventory
 
-Rollout expectations may be configured as:
+## Implemented Files
 
-```text
-active = True
-active = False
-```
-
-Meaning:
+The Inventory orchestration script is:
 
 ```text
-active = True:
-    validation is enforced and can fail the pipeline.
-
-active = False:
-    rollout is documented as future work but does not fail current validation.
+scripts/run_inventory_pipeline.py
 ```
 
-This allows future branch rollouts to be documented before activation.
+Smoke test:
+
+```text
+scripts/test_run_inventory_pipeline.py
+```
+
+Final output validator:
+
+```text
+scripts/validate_inventory_outputs.py
+```
+
+Run logs:
+
+```text
+logs/inventory_pipeline_runs/
+```
+
+The logs are local execution artefacts and should not be committed.
+
+Recommended `.gitignore` entry:
+
+```gitignore
+# Pipeline run logs
+logs/
+```
+
+---
+
+## Inventory Pipeline Execution Order
+
+Current base Inventory pipeline order:
+
+```text
+01. Odoo inventory scope classification
+02. Odoo inventory ETL
+03. Inventory dictionary lookup validation
+04. Inventory dictionary application validation
+05. Inventory not_found analyzer
+06. Inventory not_found priority backlog
+07. Inventory output validation
+```
+
+Current base modules:
+
+```text
+01. scripts.test_odoo_inventory_scope_classification
+02. scripts.test_odoo_inventory_etl
+03. scripts.test_inventory_dictionary_lookup
+04. scripts.test_apply_inventory_dictionary
+05. scripts.test_inventory_not_found_analyzer
+06. scripts.test_inventory_not_found_priority_backlog
+07. scripts.validate_inventory_outputs
+```
+
+---
+
+## Inventory Extended Pipeline With Bridge Reports
+
+Inventory bridge reports are optional diagnostics.
+
+Run:
+
+```bash
+python -m scripts.run_inventory_pipeline --include-bridge-reports
+```
+
+Extended execution order:
+
+```text
+01. Odoo inventory scope classification
+02. Odoo inventory ETL
+03. Inventory dictionary lookup validation
+04. Inventory dictionary application validation
+05. Inventory not_found analyzer
+06. Inventory not_found priority backlog
+07. Inventory not_found P1 bridge report
+08. Inventory not_found P2 bridge report
+09. Inventory not_found residual bridge report
+10. Inventory output validation
+```
+
+Optional bridge modules:
+
+```text
+scripts.test_inventory_not_found_p1_bridge
+scripts.test_inventory_not_found_p2_bridge
+scripts.test_inventory_not_found_residual_bridge
+```
+
+These bridge reports are diagnostic only.
+
+They do not promote dictionary mappings.
+
+---
+
+## Inventory Pipeline Current Status
+
+Current Inventory orchestration status:
+
+```text
+dry-run validated
+smoke test validated
+real execution validated
+optional bridge reports validated
+JSON logging validated
+inventory output validation integrated as required step
+dictionary promotions excluded from default automation
+```
+
+Expected base successful summary:
+
+```text
+total_steps: 7
+success: 7
+dry_run: 0
+skipped: 0
+failed_or_error: 0
+required_failed_or_error: 0
+PIPELINE RESULT: COMPLETED
+```
+
+Expected base dry-run summary:
+
+```text
+total_steps: 7
+success: 0
+dry_run: 7
+skipped: 0
+failed_or_error: 0
+required_failed_or_error: 0
+PIPELINE RESULT: COMPLETED
+```
+
+Expected extended successful summary:
+
+```text
+total_steps: 10
+success: 10
+dry_run: 0
+skipped: 0
+failed_or_error: 0
+required_failed_or_error: 0
+PIPELINE RESULT: COMPLETED
+```
+
+---
+
+## Inventory JSON Logging
+
+The Inventory pipeline generates a local JSON log for each run.
+
+Log folder:
+
+```text
+logs/inventory_pipeline_runs/
+```
+
+Each log includes:
+
+```text
+run_id
+pipeline_name
+status
+dry_run
+started_at
+finished_at
+duration_seconds
+total_steps
+success
+dry_run_steps
+skipped
+failed_or_error
+required_failed_or_error
+step-level results
+return codes
+error messages
+```
+
+Related documentation:
+
+```text
+docs/pipeline-logging-and-run-interpretation.md
+```
+
+---
+
+# Inventory Output Validation
+
+The final Inventory pipeline step validates Inventory outputs.
+
+Validator:
+
+```text
+scripts/validate_inventory_outputs.py
+```
+
+The validation currently checks:
+
+```text
+required inventory tables exist
+inventory table counts are available
+inventory scope distribution is available
+inventory snapshot mapping distribution is available
+inventory backlog distribution is available
+residual not_found / pending_review visibility is available
+inventory dictionary coverage is available
+promotion scripts remain controlled and outside default automation
+```
+
+Current validation count:
+
+```text
+total_validations: 8
+```
+
+Expected result:
+
+```text
+VALIDATION RESULT: PASSED
+```
+
+If the validator fails, the Inventory pipeline should fail because this step is required.
+
+---
+
+## Inventory Validation Rules
+
+The current validator uses these validation names:
+
+```text
+required_inventory_tables_exist
+inventory_table_counts_available
+inventory_scope_distribution_available
+inventory_snapshot_mapping_distribution_available
+inventory_backlog_distribution_available
+inventory_residual_visibility_available
+inventory_dictionary_coverage_available
+inventory_promotions_controlled
+```
+
+Important backlog rule:
+
+```text
+If odoo_inventory_backlog exists and has 0 rows, this is valid.
+```
+
+Reason:
+
+```text
+An empty backlog may mean the current ETL produced no unresolved backlog rows.
+```
+
+Important promotion rule:
+
+```text
+Inventory dictionary promotions must remain manual and explicitly approved.
+```
+
+---
+
+# Controlled Promotion Policy
+
+Inventory dictionary promotion scripts are intentionally not part of the default pipeline.
+
+Excluded from default automation:
+
+```text
+scripts.test_promote_inventory_bridge_to_dictionary
+scripts.test_promote_inventory_not_found_p1_to_dictionary
+scripts.test_promote_inventory_not_found_p2_to_dictionary
+scripts.test_promote_inventory_not_found_residual_to_dictionary
+```
+
+Reason:
+
+```text
+Promotion changes dictionary governance.
+Dictionary governance changes analytical interpretation.
+Therefore, promotions require manual review and explicit approval.
+```
 
 ---
 
@@ -481,35 +771,47 @@ Refresh Odoo inventory snapshots and backlogs using controlled dictionary logic.
 Current status:
 
 ```text
-Pending orchestration
+Implemented
 ```
 
-Inventory currently has individual scripts and documentation, but no full pipeline equivalent to Purchases.
-
-Recommended future tasks:
+Implemented in Inventory pipeline:
 
 ```bash
-python -m scripts.test_odoo_inventory_scope_classification
-python -m scripts.test_odoo_inventory_etl
-python -m scripts.test_inventory_dictionary_lookup
-python -m scripts.test_apply_inventory_dictionary
-python -m scripts.test_inventory_not_found_analyzer
-python -m scripts.test_inventory_not_found_priority_backlog
+python -m scripts.run_inventory_pipeline
+```
+
+Base steps:
+
+```text
+scope classification
+inventory ETL
+dictionary lookup validation
+dictionary application validation
+not_found analysis
+priority backlog diagnostics
+inventory output validation
+```
+
+Optional extended diagnostics:
+
+```bash
+python -m scripts.run_inventory_pipeline --include-bridge-reports
 ```
 
 Important:
 
 ```text
-Inventory dictionary promotions should not run automatically unless explicitly approved.
+Inventory dictionary promotions do not run automatically.
 ```
 
-Pending future files:
+Failure handling:
 
 ```text
-scripts/run_inventory_pipeline.py
-scripts/test_run_inventory_pipeline.py
-scripts/validate_inventory_outputs.py
-logs/inventory_pipeline_runs/
+Stop if scope classification fails.
+Stop if inventory ETL fails.
+Stop if dictionary lookup or dictionary application validation fails.
+Stop if inventory output validation fails.
+Optional bridge reports may be handled with continue-on-optional-failure if needed.
 ```
 
 ---
@@ -623,21 +925,27 @@ Stop if rollout company pattern validation fails.
 
 ---
 
-## Layer 6: Canonical Validation
+## Layer 6: Output and Canonical Validation
 
 Purpose:
 
 ```text
-Validate canonical and inventory outputs after refresh.
+Validate final outputs after refresh.
 ```
 
-Purchases implemented validator:
+Implemented Purchases validator:
 
 ```bash
 python -m scripts.validate_purchases_canonical_layer
 ```
 
-Current Purchases validation areas:
+Implemented Inventory validator:
+
+```bash
+python -m scripts.validate_inventory_outputs
+```
+
+Purchases validation areas:
 
 ```text
 source-system coexistence
@@ -650,85 +958,54 @@ canonical table counts
 rollout company patterns
 ```
 
-Inventory validation is still pending.
-
-Possible future Inventory validator:
+Inventory validation areas:
 
 ```text
-scripts/validate_inventory_outputs.py
+required tables
+table counts
+scope distribution
+snapshot mapping distribution
+backlog distribution
+residual visibility
+dictionary coverage
+controlled promotion policy
 ```
 
 ---
 
-# Proposed Orchestration Script Structure
+# Current Orchestration Script Structure
 
-Current implemented script:
+Current implemented scripts:
 
 ```text
 scripts/run_purchases_pipeline.py
+scripts/run_inventory_pipeline.py
 ```
 
-Future orchestration scripts:
+Current smoke tests:
 
 ```text
-scripts/run_inventory_pipeline.py
-scripts/run_full_datawarehouse_refresh.py
+scripts/test_run_purchases_pipeline.py
+scripts/test_run_inventory_pipeline.py
 ```
 
 Current validators:
 
 ```text
 scripts/validate_purchases_canonical_layer.py
-```
-
-Future validators:
-
-```text
 scripts/validate_inventory_outputs.py
+```
+
+Future orchestration scripts:
+
+```text
+scripts/run_full_datawarehouse_refresh.py
+```
+
+Future consolidated validators:
+
+```text
 scripts/validate_canonical_outputs.py
-```
-
----
-
-# Proposed Inventory Orchestration
-
-Suggested future script:
-
-```text
-scripts/run_inventory_pipeline.py
-```
-
-Suggested execution order:
-
-```text
-01. Odoo inventory scope classification
-02. Odoo inventory ETL
-03. Inventory dictionary lookup validation
-04. Inventory dictionary application validation
-05. Inventory backlog validation
-06. Inventory not_found analysis
-07. Optional bridge report generation
-08. Optional controlled promotion
-09. Rerun inventory ETL after approved promotion
-10. Inventory output validation
-```
-
-Important:
-
-```text
-Promotion scripts should not run automatically unless explicitly approved.
-```
-
-Expected future logging:
-
-```text
-logs/inventory_pipeline_runs/
-```
-
-Expected future pipeline name:
-
-```text
-inventory_pipeline
 ```
 
 ---
@@ -757,6 +1034,7 @@ Current implemented local logging:
 
 ```text
 Purchases JSON logs
+Inventory JSON logs
 ```
 
 Pending future database logging:
@@ -786,6 +1064,12 @@ dry_run_steps
 failed_or_error
 required_failed_or_error
 steps
+```
+
+Inventory logs also include:
+
+```text
+skipped
 ```
 
 Step-level fields:
@@ -847,6 +1131,7 @@ internal_providers_not_as_companies
 wansoft_final_source_companies
 inventory_snapshot_count
 inventory_backlog_distribution
+inventory_promotions_controlled
 ```
 
 ---
@@ -863,6 +1148,9 @@ Odoo extraction fails
 Wansoft source mapping critical failure occurs
 company source governance fails
 canonical load fails
+inventory scope classification fails
+inventory ETL fails
+inventory output validation fails
 duplicate key error occurs
 source-system coexistence validation fails
 rollout company pattern validation fails
@@ -883,6 +1171,7 @@ new company appears but is not final-source
 non-critical diagnostic export fails
 Pandas SQLAlchemy warning appears
 inactive future rollout expectation is skipped
+optional bridge report fails and continue-on-optional-failure is enabled
 ```
 
 ---
@@ -899,6 +1188,7 @@ rollout expectation should become active
 internal provider appears in unexpected context
 inventory valuation differences persist
 Odoo operational errors affect data completeness
+inventory dictionary promotion is required
 ```
 
 ---
@@ -907,7 +1197,7 @@ Odoo operational errors affect data completeness
 
 ## Source-System Isolation
 
-Canonical tables should be refreshed by `source_system`.
+Canonical purchase tables should be refreshed by `source_system`.
 
 Example:
 
@@ -1043,19 +1333,18 @@ logs/ is ignored by Git
 # Post-Run Checklist
 
 ```text
-[ ] Purchases pipeline summary reviewed
+[ ] Purchases pipeline summary reviewed, if Purchases ran
+[ ] Inventory pipeline summary reviewed, if Inventory ran
 [ ] JSON log file created
 [ ] required_failed_or_error = 0
 [ ] Final validation passed
-[ ] Odoo purchase snapshot counts reviewed
-[ ] Odoo receipt snapshot counts reviewed
-[ ] Odoo canonical counts reviewed
-[ ] Wansoft canonical counts reviewed
-[ ] Source-system coexistence validated
-[ ] Rollout company patterns validated
-[ ] Internal providers validated
+[ ] Source-system coexistence validated, if Purchases ran
+[ ] Rollout company patterns validated, if Purchases ran
+[ ] Inventory output validation passed, if Inventory ran
+[ ] Internal providers validated, if Purchases ran
 [ ] New unmapped products reviewed
 [ ] Slowest step reviewed
+[ ] Logs kept out of Git
 ```
 
 ---
@@ -1065,31 +1354,21 @@ logs/ is ignored by Git
 Current recommendation:
 
 ```text
-Purchases pipeline can remain the first automation candidate.
+Purchases pipeline and Inventory pipeline can remain the first automation candidates.
 ```
 
 Reason:
 
 ```text
 Purchases canonical layer is validated.
-Odoo and Wansoft source split is working.
-Validation queries are implemented.
-JSON logging is implemented.
-Rollout validation is implemented.
-Refresh by source_system is implemented.
+Purchases rollout validation is implemented.
+Inventory pipeline is validated.
+Inventory output validation is implemented.
+Both pipelines generate JSON logs.
+Required validation gates are integrated.
 ```
 
-Second automation target:
-
-```text
-Inventory pipeline orchestration
-```
-
-Reason:
-
-```text
-Inventory has validated scripts but lacks a unified orchestrator and validator.
-```
+Scheduling should not be added until operational cadence and monitoring are defined.
 
 ---
 
@@ -1133,7 +1412,7 @@ Pending improvements:
 [ ] Evaluate incremental Wansoft loading
 [ ] Add database run-log table if needed
 [ ] Add validation result persistence if needed
-[ ] Finalise Section 13 documentation consistency
+[ ] Keep rollout playbook updated during future branch activations
 ```
 
 ---
@@ -1143,19 +1422,30 @@ Pending improvements:
 Current status:
 
 ```text
-Pending orchestration
+Implemented and passing
 ```
 
-Pending work:
+Completed:
 
 ```text
-[ ] Create scripts/run_inventory_pipeline.py
-[ ] Create scripts/test_run_inventory_pipeline.py
-[ ] Create scripts/validate_inventory_outputs.py
-[ ] Add JSON logging for inventory pipeline
-[ ] Add logs/inventory_pipeline_runs/
-[ ] Add inventory pipeline instructions to docs/inventory-runbook.md
-[ ] Add inventory pipeline strategy to this document
+[x] Create scripts/run_inventory_pipeline.py
+[x] Create scripts/test_run_inventory_pipeline.py
+[x] Create scripts/validate_inventory_outputs.py
+[x] Add JSON logging for inventory pipeline
+[x] Add logs/inventory_pipeline_runs/
+[x] Integrate inventory validation as required final step
+[x] Validate base pipeline real execution
+[x] Validate extended pipeline with bridge reports
+[x] Keep dictionary promotions excluded from automation
+```
+
+Pending improvements:
+
+```text
+[ ] Review whether validation results should be persisted to database
+[ ] Review whether inventory bridge report performance needs optimisation as volume grows
+[ ] Review whether catalog maintenance should remain standalone or become a read-only pre-check
+[ ] Update project-level documentation after Section 14 closeout
 ```
 
 ---
@@ -1206,14 +1496,14 @@ docs/wansoft-local-wsdl.md
 
 # Recommended Commit
 
-This document should be committed as part of the Section 13 documentation update.
+This document should be committed as part of the Section 14 documentation update.
 
-Recommended commit when Section 13 is closed:
+Recommended commit when Section 14 is ready to checkpoint:
 
 ```bash
-git add README.md docs/ scripts/ sql/ core/
+git add docs/production-orchestration-plan.md docs/inventory-runbook.md scripts/run_inventory_pipeline.py scripts/test_run_inventory_pipeline.py scripts/validate_inventory_outputs.py
 
-git commit -m "docs(project): update orchestration plan for purchases pipeline and rollout validation"
+git commit -m "feat(inventory): add pipeline orchestration and output validation"
 
 git push
 ```

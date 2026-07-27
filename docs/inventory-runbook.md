@@ -7,15 +7,16 @@ This runbook explains how to operate, validate, and troubleshoot the Inventory d
 It is intended for day-to-day execution and technical validation of:
 
 ```text
-Odoo inventory extraction
-inventory scope classification
+Odoo inventory scope classification
+Odoo inventory ETL
 inventory dictionary lookup
-inventory snapshot load
-inventory backlog generation
-inventory lifecycle analysis
+inventory dictionary application
+inventory backlog outputs
+not_found diagnostics
 bridge reports
-controlled dictionary promotion
-source governance alignment
+inventory output validation
+pipeline JSON logging
+controlled promotion policy
 ```
 
 This document is operational.
@@ -25,36 +26,79 @@ For architecture and design context, refer to:
 ```text
 docs/project-technical-guide.md
 docs/inventory-domain-closeout.md
-docs/purchases-company-migration-policy.md
-docs/purchases-product-mapping-policy.md
-docs/purchases-canonical-layer.md
-docs/wansoft-local-wsdl.md
+docs/production-orchestration-plan.md
+docs/pipeline-logging-and-run-interpretation.md
+docs/branch-rollout-playbook.md
 ```
 
 ---
 
-## Inventory Domain Principles
+## Current Status
 
-The Inventory domain follows these principles:
+The Inventory domain now has a controlled orchestration pipeline.
+
+Implemented:
 
 ```text
-Odoo is read-only.
-MySQL is the governance layer.
-Inventory scope must be resolved before mapping.
-Dictionary lookup must be controlled.
-Backlogs must remain visible.
-Promotions to dictionary must be reviewed.
-Sales remain Wansoft.
-Inventory source follows COMPANY_SOURCE.
+scripts/run_inventory_pipeline.py
+scripts/test_run_inventory_pipeline.py
+scripts/validate_inventory_outputs.py
 ```
 
-The ETL must not update Odoo product records, inventory records, or catalog references.
+Current status:
+
+```text
+dry-run validated
+real pipeline execution validated
+optional bridge reports validated
+inventory output validation integrated as required final step
+JSON run logging implemented
+dictionary promotions excluded from default automation
+```
+
+Current pipeline result expectation:
+
+```text
+PIPELINE RESULT: COMPLETED
+```
+
+Current validator result expectation:
+
+```text
+VALIDATION RESULT: PASSED
+```
 
 ---
 
-## Source Governance
+## Inventory Architecture
 
-Inventory follows the company-level source governance defined in:
+The Inventory domain is built in layers:
+
+```text
+Odoo product and inventory data
+    ↓
+scope classification
+    ↓
+dictionary lookup
+    ↓
+inventory ETL
+    ↓
+snapshot and backlog outputs
+    ↓
+not_found diagnostics
+    ↓
+optional bridge reports
+    ↓
+inventory output validation
+    ↓
+JSON pipeline log
+```
+
+---
+
+## Source Governance Rules
+
+Inventory follows company-level source governance from:
 
 ```text
 core/config/companies.py
@@ -68,107 +112,612 @@ Purchases  -> COMPANY_SOURCE
 Inventory  -> COMPANY_SOURCE
 ```
 
-This means:
+For Inventory:
 
 ```text
-Sales does not switch to Odoo.
-Inventory can use Odoo or Wansoft depending on COMPANY_SOURCE.
-Purchases can use Odoo or Wansoft depending on COMPANY_SOURCE.
+If COMPANY_SOURCE = 'odoo':
+    Odoo is the final operational source for inventory.
+
+If COMPANY_SOURCE = 'wansoft':
+    Wansoft remains the final operational source for inventory.
+
+If company_name is an internal provider:
+    treat according to internal-provider governance.
 ```
 
-Current important rule:
+Important:
 
 ```text
-COMPANY_SOURCE is authoritative.
-operational_start_date only applies when COMPANY_SOURCE = 'odoo'.
+Inventory orchestration does not change COMPANY_SOURCE.
+Inventory orchestration does not update Odoo.
+Inventory orchestration does not promote dictionary mappings automatically.
 ```
 
 ---
 
-## Odoo Read-Only Rule
+## Current Inventory Scope Model
 
-Odoo is treated as a read-only source.
+The Inventory domain uses scope-aware classification.
 
-The ETL must not:
+Current refined inventory scopes include:
 
 ```text
-modify Odoo products
-modify Odoo inventory quantities
-modify Odoo locations
-modify Odoo categories
-modify Odoo references
-create Odoo product aliases
-write resolved mappings back to Odoo
+restaurantes
+bodegon
+empanadas
+shared_cross_company
+review_scope
+operational_non_inventory
 ```
 
-All governance outputs should be stored in MySQL.
+The purpose of scope classification is to prevent all products from being treated as one single universe.
+
+Different product families require different governance behaviour.
 
 ---
 
-## MySQL Governance Role
+## Main Inventory Tables
 
-MySQL stores the operational governance layer.
-
-Main governance objects:
+The key Inventory tables are:
 
 ```text
-inventory_mapping_dictionary
-inventory_product_lifecycle
 odoo_inventory_scope_classification
 odoo_inventory_snapshot
 odoo_inventory_backlog
-bridge reports
-promotion outputs
+inventory_mapping_dictionary
+inventory_product_lifecycle
 ```
 
-MySQL is where the project tracks:
+These tables are validated by:
 
 ```text
-approved mappings
-scope classification
-mapping failures
-dictionary candidates
-historical product activity
-manual review status
+scripts/validate_inventory_outputs.py
 ```
 
 ---
 
-## Core Inventory Tables
+## Current Inventory Baseline
 
-### Main tables
+Previously validated baseline:
 
 ```text
-inventory_mapping_dictionary
-inventory_product_lifecycle
+snapshot rows: 1660
+residual functional not_found: 98 unique products
+residual functional pending_review: 5 unique products
+```
+
+Current values may change after each ETL execution.
+
+Use the current validator to review live output state:
+
+```bash
+python -m scripts.validate_inventory_outputs
+```
+
+---
+
+# Recommended Execution Method
+
+The recommended way to run the Inventory domain is now:
+
+```bash
+python -m scripts.run_inventory_pipeline
+```
+
+This executes the controlled base pipeline.
+
+Before running the real pipeline, validate the orchestration structure with:
+
+```bash
+python -m scripts.run_inventory_pipeline --dry-run
+```
+
+---
+
+# Inventory Pipeline Execution Order
+
+The current base pipeline executes these steps:
+
+```text
+01. Odoo inventory scope classification
+02. Odoo inventory ETL
+03. Inventory dictionary lookup validation
+04. Inventory dictionary application validation
+05. Inventory not_found analyzer
+06. Inventory not_found priority backlog
+07. Inventory output validation
+```
+
+Modules executed:
+
+```text
+01. scripts.test_odoo_inventory_scope_classification
+02. scripts.test_odoo_inventory_etl
+03. scripts.test_inventory_dictionary_lookup
+04. scripts.test_apply_inventory_dictionary
+05. scripts.test_inventory_not_found_analyzer
+06. scripts.test_inventory_not_found_priority_backlog
+07. scripts.validate_inventory_outputs
+```
+
+---
+
+## Dry Run
+
+Run:
+
+```bash
+python -m scripts.run_inventory_pipeline --dry-run
+```
+
+Expected result:
+
+```text
+total_steps: 7
+success: 0
+dry_run: 7
+skipped: 0
+failed_or_error: 0
+required_failed_or_error: 0
+
+PIPELINE RESULT: COMPLETED
+```
+
+A dry run does not execute ETLs.
+
+It validates:
+
+```text
+pipeline structure
+step order
+required or optional flags
+summary generation
+JSON log generation
+```
+
+---
+
+## Real Pipeline Run
+
+Run:
+
+```bash
+python -m scripts.run_inventory_pipeline
+```
+
+Expected result:
+
+```text
+total_steps: 7
+success: 7
+dry_run: 0
+skipped: 0
+failed_or_error: 0
+required_failed_or_error: 0
+
+PIPELINE RESULT: COMPLETED
+```
+
+If any required step fails, the pipeline should stop and return a failed result.
+
+---
+
+# Optional Bridge Reports
+
+The Inventory pipeline can include optional bridge reports.
+
+Run:
+
+```bash
+python -m scripts.run_inventory_pipeline --include-bridge-reports
+```
+
+This executes:
+
+```text
+01. Odoo inventory scope classification
+02. Odoo inventory ETL
+03. Inventory dictionary lookup validation
+04. Inventory dictionary application validation
+05. Inventory not_found analyzer
+06. Inventory not_found priority backlog
+07. Inventory not_found P1 bridge report
+08. Inventory not_found P2 bridge report
+09. Inventory not_found residual bridge report
+10. Inventory output validation
+```
+
+Expected result:
+
+```text
+total_steps: 10
+success: 10
+dry_run: 0
+skipped: 0
+failed_or_error: 0
+required_failed_or_error: 0
+
+PIPELINE RESULT: COMPLETED
+```
+
+Optional bridge modules:
+
+```text
+scripts.test_inventory_not_found_p1_bridge
+scripts.test_inventory_not_found_p2_bridge
+scripts.test_inventory_not_found_residual_bridge
+```
+
+These bridge reports are diagnostic.
+
+They do not promote dictionary rows.
+
+---
+
+## Optional Failure Handling
+
+If an optional diagnostic step fails, the default conservative behaviour may stop the pipeline.
+
+To continue after optional failures, use:
+
+```bash
+python -m scripts.run_inventory_pipeline --include-bridge-reports --continue-on-optional-failure
+```
+
+Use this only when the failure is known to be non-critical.
+
+Required steps should always stop the pipeline when they fail.
+
+---
+
+# Pipeline Logging
+
+The Inventory pipeline generates a local JSON log for every execution.
+
+Log folder:
+
+```text
+logs/inventory_pipeline_runs/
+```
+
+Example:
+
+```text
+logs/inventory_pipeline_runs/20260727_113332_3618c07a-8ec6-4eda-9b0a-1e29598d95f2.json
+```
+
+Each log includes:
+
+```text
+run_id
+pipeline_name
+status
+dry_run
+started_at
+finished_at
+duration_seconds
+total_steps
+success
+dry_run_steps
+skipped
+failed_or_error
+required_failed_or_error
+step-level results
+return codes
+error messages
+```
+
+The logs are local execution artefacts.
+
+They should not be committed.
+
+Recommended `.gitignore` entry:
+
+```gitignore
+# Pipeline run logs
+logs/
+```
+
+For detailed log interpretation, refer to:
+
+```text
+docs/pipeline-logging-and-run-interpretation.md
+```
+
+---
+
+# How to Read a Successful Run
+
+A successful real run should show:
+
+```text
+PIPELINE RESULT: COMPLETED
+required_failed_or_error: 0
+failed_or_error: 0
+```
+
+The JSON log should show:
+
+```text
+status = COMPLETED
+dry_run = false
+required_failed_or_error = 0
+```
+
+Step statuses should show:
+
+```text
+SUCCESS
+```
+
+for all required steps.
+
+---
+
+# How to Identify the Slowest Step
+
+In the console summary or JSON log, review:
+
+```text
+duration_seconds
+```
+
+The slowest current optional step observed in the extended Inventory pipeline was:
+
+```text
+Inventory not_found P1 bridge report
+```
+
+Current observation:
+
+```text
+This is not a blocker.
+It should be monitored if inventory volume grows.
+```
+
+Do not change business logic only to reduce runtime.
+
+---
+
+# Manual Execution Order
+
+If the full pipeline is not needed, run the individual steps in this order.
+
+---
+
+## 1. Run Odoo Inventory Scope Classification
+
+```bash
+python -m scripts.test_odoo_inventory_scope_classification
+```
+
+Purpose:
+
+```text
+Classify Odoo inventory products into the appropriate inventory scopes.
+```
+
+Expected output:
+
+```text
 odoo_inventory_scope_classification
+```
+
+This step is required before interpreting inventory rows by business universe.
+
+---
+
+## 2. Run Odoo Inventory ETL
+
+```bash
+python -m scripts.test_odoo_inventory_etl
+```
+
+Purpose:
+
+```text
+Load Odoo inventory data into MySQL using scope-aware dictionary logic.
+```
+
+Expected outputs:
+
+```text
 odoo_inventory_snapshot
 odoo_inventory_backlog
 ```
 
-### Bridge and backlog-related tables
+---
 
-Depending on current branch state, the project may include bridge/backlog tables such as:
+## 3. Validate Inventory Dictionary Lookup
 
-```text
-inventory_not_found_priority_backlog
-inventory_not_found_p1_bridge
-inventory_not_found_p2_bridge
-inventory_not_found_residual_bridge
-inventory_bridge_report
+```bash
+python -m scripts.test_inventory_dictionary_lookup
 ```
 
-These tables support controlled dictionary expansion.
+Purpose:
+
+```text
+Validate dictionary lookup logic without promoting products.
+```
+
+This step checks dictionary access and mapping logic.
+
+It does not modify dictionary governance.
 
 ---
 
-## Inventory Scope Model
+## 4. Validate Inventory Dictionary Application
 
-The Inventory domain does not treat all products as one universe.
+```bash
+python -m scripts.test_apply_inventory_dictionary
+```
 
-Products are classified into scope buckets before mapping.
+Purpose:
 
-Final refined buckets:
+```text
+Validate how inventory dictionary logic applies to inventory rows.
+```
+
+This step confirms dictionary behaviour but does not perform promotions.
+
+---
+
+## 5. Run Inventory not_found Analyzer
+
+```bash
+python -m scripts.test_inventory_not_found_analyzer
+```
+
+Purpose:
+
+```text
+Analyze residual inventory products with not_found mapping status.
+```
+
+The goal is to preserve visibility of unresolved products.
+
+---
+
+## 6. Run Inventory not_found Priority Backlog
+
+```bash
+python -m scripts.test_inventory_not_found_priority_backlog
+```
+
+Purpose:
+
+```text
+Build or validate priority backlog diagnostics for unresolved inventory products.
+```
+
+This step is diagnostic.
+
+It does not promote products.
+
+---
+
+## 7. Run Inventory Output Validation
+
+```bash
+python -m scripts.validate_inventory_outputs
+```
+
+Expected result:
+
+```text
+VALIDATION RESULT: PASSED
+```
+
+The full inventory pipeline should not be considered successful unless this validation passes.
+
+---
+
+# Optional Manual Bridge Report Execution
+
+Bridge reports can be run individually.
+
+## P1 Bridge Report
+
+```bash
+python -m scripts.test_inventory_not_found_p1_bridge
+```
+
+## P2 Bridge Report
+
+```bash
+python -m scripts.test_inventory_not_found_p2_bridge
+```
+
+## Residual Bridge Report
+
+```bash
+python -m scripts.test_inventory_not_found_residual_bridge
+```
+
+These reports are for diagnostics and review.
+
+They do not promote dictionary mappings.
+
+---
+
+# Inventory Output Validation
+
+The final validator is:
+
+```text
+scripts/validate_inventory_outputs.py
+```
+
+Run:
+
+```bash
+python -m scripts.validate_inventory_outputs
+```
+
+Current validations:
+
+```text
+1. required_inventory_tables_exist
+2. inventory_table_counts_available
+3. inventory_scope_distribution_available
+4. inventory_snapshot_mapping_distribution_available
+5. inventory_backlog_distribution_available
+6. inventory_residual_visibility_available
+7. inventory_dictionary_coverage_available
+8. inventory_promotions_controlled
+```
+
+Expected result:
+
+```text
+total_validations: 8
+passed: 8
+failed: 0
+
+VALIDATION RESULT: PASSED
+```
+
+---
+
+## 1. required_inventory_tables_exist
+
+Validates that the key Inventory tables exist:
+
+```text
+odoo_inventory_scope_classification
+odoo_inventory_snapshot
+odoo_inventory_backlog
+inventory_mapping_dictionary
+inventory_product_lifecycle
+```
+
+If any required table is missing, validation fails.
+
+---
+
+## 2. inventory_table_counts_available
+
+Validates row counts for required Inventory tables.
+
+Core tables expected to have rows:
+
+```text
+odoo_inventory_scope_classification
+odoo_inventory_snapshot
+inventory_mapping_dictionary
+```
+
+The backlog table may be empty and still valid, depending on current ETL output.
+
+---
+
+## 3. inventory_scope_distribution_available
+
+Validates that scope distribution is visible.
+
+This helps confirm that products are classified into business scopes.
+
+Expected scope-like values may include:
 
 ```text
 restaurantes
@@ -181,698 +730,295 @@ operational_non_inventory
 
 ---
 
-## Scope Meaning
+## 4. inventory_snapshot_mapping_distribution_available
 
-### restaurantes
-
-Products associated with the public-sales or restaurant sales universe.
-
-These should not be blindly mapped as inventory candidates.
-
-### bodegon
-
-Products or product flows strongly associated with Bodegón.
-
-### empanadas
-
-Products or product flows strongly associated with Empanadas.
-
-### shared_cross_company
-
-Products used across operating companies and eligible for main inventory dictionary lookup.
-
-### review_scope
-
-Products that require manual review before deciding whether they belong in the main inventory universe.
-
-### operational_non_inventory
-
-Products that appear operational but should not be treated as core inventory mapping candidates.
-
----
-
-## Current Inventory Inclusion Logic
-
-The Inventory ETL currently applies dictionary lookup primarily to:
-
-```text
-shared_cross_company
-```
-
-The ETL sends these buckets to backlog or exclusion handling:
-
-```text
-scope_restaurantes_sales_reference
-scope_bodegon
-scope_bodegon_candidate
-scope_empanadas
-scope_empanadas_candidate
-scope_review_scope
-scope_operational_non_inventory
-```
-
-This prevents sales-reference products, provider-specific products, or operational non-inventory items from polluting the main dictionary.
-
----
-
-## Current Baseline Status
-
-At the current closeout state, the Inventory domain is considered technically stable and functionally advanced.
-
-Validated baseline values:
-
-```text
-snapshot rows: 1660
-residual functional not_found: 98 unique products
-residual functional pending_review: 5 unique products
-```
-
-Interpretation:
-
-```text
-The inventory ETL is stable enough to support downstream work.
-Residual unresolved products remain visible.
-Dictionary expansion must continue through controlled review.
-```
-
----
-
-# Execution Order
-
-Run the Inventory domain in this order.
-
----
-
-## 1. Validate Odoo connection
-
-If needed, validate that Odoo connectivity works through the existing Odoo database connection utilities.
-
-Relevant module:
-
-```text
-core/database/odoo.py
-```
-
-Expected:
-
-```text
-Odoo credentials load correctly.
-Odoo API connection works.
-Odoo inventory extraction can read products and stock data.
-```
-
----
-
-## 2. Run inventory scope classification
-
-```bash
-python -m scripts.test_odoo_inventory_scope_classification
-```
-
-This validates or generates:
-
-```text
-odoo_inventory_scope_classification
-```
-
-Expected behaviour:
-
-```text
-products are classified into scope buckets
-scope classification is saved to MySQL
-unknown cases remain visible for review
-```
-
----
-
-## 3. Run inventory ETL
-
-```bash
-python -m scripts.test_odoo_inventory_etl
-```
-
-This loads:
+Validates that mapping status distribution is visible in:
 
 ```text
 odoo_inventory_snapshot
-odoo_inventory_backlog
 ```
 
-Expected behaviour:
+This confirms the project can inspect mapped, not_found, pending_review, or equivalent inventory mapping states.
+
+---
+
+## 5. inventory_backlog_distribution_available
+
+Validates the inventory backlog output.
+
+Important rule:
 
 ```text
-Odoo inventory is extracted
-inventory is consolidated by product/location
-scope classification is merged
-dictionary lookup is applied to eligible scope
-snapshot rows are saved
-unresolved rows are sent to backlog
+If odoo_inventory_backlog exists and has 0 rows, this is valid.
 ```
 
----
-
-## 4. Validate dictionary lookup
-
-```bash
-python -m scripts.test_inventory_dictionary_lookup
-```
-
-Expected behaviour:
+Reason:
 
 ```text
-inventory_mapping_dictionary can be queried
-approved mappings resolve correctly
-unmapped products remain visible
+An empty backlog may mean the current ETL produced no unresolved backlog rows.
 ```
 
----
-
-## 5. Validate dictionary application
-
-```bash
-python -m scripts.test_apply_inventory_dictionary
-```
-
-Expected behaviour:
+Validation logic:
 
 ```text
-dictionary matching applies only to eligible inventory scope
-mapped products receive Wansoft reference metadata
-unmapped products are not forced into a match
+table does not exist -> FAIL
+table exists and is empty -> PASS with note
+table exists and has rows -> PASS if distribution can be shown
 ```
 
 ---
 
-## 6. Run inventory not-found analyser
+## 6. inventory_residual_visibility_available
 
-```bash
-python -m scripts.test_inventory_not_found_analyzer
-```
-
-Expected behaviour:
+Validates that residual statuses such as:
 
 ```text
-not_found backlog is analysed
-candidate products are prioritised
-diagnostic output is produced
-```
-
----
-
-## 7. Build priority backlog
-
-```bash
-python -m scripts.test_inventory_not_found_priority_backlog
-```
-
-Expected behaviour:
-
-```text
-high-impact unresolved products are identified
-products are ranked for review based on operational relevance
-```
-
----
-
-## 8. Build bridge reports
-
-Depending on the review phase, run:
-
-```bash
-python -m scripts.test_inventory_not_found_p1_bridge
-python -m scripts.test_inventory_not_found_p2_bridge
-python -m scripts.test_inventory_not_found_residual_bridge
-```
-
-Expected behaviour:
-
-```text
-bridge candidates are generated
-candidate mappings remain reviewable before promotion
-no automatic dictionary update occurs without promotion step
-```
-
----
-
-## 9. Promote approved bridge candidates
-
-Promotion should be controlled.
-
-Run only after manual review.
-
-```bash
-python -m scripts.test_promote_inventory_bridge_to_dictionary
-python -m scripts.test_promote_inventory_not_found_p1_to_dictionary
-python -m scripts.test_promote_inventory_not_found_p2_to_dictionary
-python -m scripts.test_promote_inventory_not_found_residual_to_dictionary
-```
-
-Expected behaviour:
-
-```text
-approved candidates are inserted into inventory_mapping_dictionary
-promotion source is traceable
-mapping status is controlled
-```
-
----
-
-## 10. Rerun inventory ETL after promotion
-
-After approved dictionary promotion:
-
-```bash
-python -m scripts.test_odoo_inventory_etl
-```
-
-Expected improvement:
-
-```text
-mapped inventory rows increase
-not_found backlog decreases
-pending_review remains visible if unresolved
-```
-
----
-
-# Validation Queries
-
-Run these SQL checks after inventory ETL execution.
-
----
-
-## 1. Snapshot row count
-
-```sql
-SELECT
-    COUNT(*) AS total_snapshot_rows,
-    COUN*(DISTINCT product_id) AS unique_pr*ducts,
-    COUNT(DISTINCT location*id) AS unique_locations
-FROM odoo_*nventory_snapshot;
-```
-
-Expected:
-*```text
-snapshot table should cont*in inventory rows
-unique product a*d location counts should be reason*ble
-```
-
----
-
-## 2. Snapshot by ma*ping status
-
-```sql
-SELECT
-    map*ing_status,
-    COUNT(*) AS total_*ows,
-    COUNT(DISTINCT product_id* AS unique_products
-FROM odoo_inve*tory_snapshot
-GROUP BY mapping_sta*us
-ORDER BY total_rows DESC;
-```
-
-Use this to monitor how many products are mapped, pending, unresolved, or otherwise classified.
-
----
-
-## 3. Backlog by bucket
-
-```sql
-SELECT
-    backlog_bucket,
-    COUNT(*) AS total_rows,
-    COUNT(DISTINCT product_id) AS unique_products
-FROM odoo_inventory_backlog
-GROUP BY backlog_bucket
-ORDER BY total_rows DESC;
-```
-
-Use this to confirm that excluded scopes and unresolved items are being routed correctly.
-
----
-
-## 4. Backlog by scope
-
-```sql
-SELECT
-    inventory_scope,
-    COUNT(*) AS total_rows,
-    COUNT(DISTINCT product_id) AS unique_products
-FROM odoo_inventory_backlog
-GROUP BY inventory_scope
-ORDER BY total_rows DESC;
-```
-
-Use this to validate that scope classification is controlling backlog routing.
-
----
-
-## 5. Dictionary coverage
-
-```sql
-SELECT
-    mapping_status,
-    COUNT(*) AS total_mappings,
-    COUNT(DISTINCT odoo_product_id) AS unique_odoo_products,
-    COUNT(DISTINCT wansoft_code) AS unique_wansoft_codes
-FROM inventory_mapping_dictionary
-GROUP BY mapping_status
-ORDER BY total_mappings DESC;
-```
-
-Expected:
-
-```text
-approved mappings should be visible
-pending or review mappings should remain controlled
-```
-
----
-
-## 6. Residual unresolved products
-
-```sql
-SELECT
-    product_id,
-    product_name,
-    inventory_scope,
-    backlog_bucket,
-    mapping_status,
-    total_qty,
-    total_value
-FROM odoo_inventory_backlog
-WHERE mapping_status IN ('not_found', 'pending_review')
-ORDER BY total_value DESC
-LIMIT 100;
-```
-
-Use this query to identify high-impact unresolved inventory products.
-
----
-
-## 7. Validate scope classification
-
-```sql
-SELECT
-    refined_scope,
-    COUNT(*) AS total_products
-FROM odoo_inve*tory_scope_classification
-GROUP BY*refined_scope
-ORDER BY total_produ*ts DESC;
-```
-
-Expected:
-
-```text
-p*oducts should be distributed acros* the refined scope model
-shared_cr*ss_company should represent the ma*n dictionary-eligible universe
-```*
----
-
-# Operational Validation in *doo
-
-Inventory behaviour in Odoo s*ould be reviewed carefully when th*re are accounting or valuation dif*erences.
-
-In Odoo - Pridecta Inven*arios y Valoración-20260721_100357*Grabación de la reunión.mp4, the d*scussion explicitly referred to mo*itoring inventory operation states*such as ready/listo, waiting/en es*era, cancelled/cancelado and done/*echo because those states may indi*ate operational anomalies that aff*ct inventory and accounting alignm*nt. 【1-a65706】
-
-Recommended operat*onal checks:
-
-```text
-Review inven*ory operations by state.
-Investiga*e ready/listo records that were no* completed.
-Investigate waiting/en*espera records caused by insuffici*nt stock.
-Review cancelled/cancela*o operations for correction logic.*Confirm done/hecho movements repre*ent validated inventory movement.
-*``
-
-Do not correct production move*ents automatically from the ETL.
-
-*orrections should be handled opera*ionally in Odoo or through the pro*er business process.
-
----
-
-# Inven*ory, Receipts, and Locations Conte*t
-
-Odoo inventory documentation in*ludes inventory configuration, inv*ntory reports, multiple warehouses*locations, replenishment rules, an* receipts. These topics are visibl* in manual_de_usuario.docx and man*al_de_usuario.pdf. 【2-39764c】【3-8918e0】
-
-Relevant Odoo concepts for t*is runbook:
-
-```text
-inventory rep*rts
-multiple warehouses and locati*ns
-internal transfers
-replenishmen* rules
-receipts
-stock movements
-``*
-
-The ETL should treat these Odoo *ecords as source data only.
-
----
-
-* Backlog Types
-
-## Scope backlog
-
-*roducts excluded or separated beca*se of business scope:
-
-```text
-res*aurantes
-bodegon
-empanadas
-review_*cope
-operational_non_inventory
-```*
-These products should not be forc*d into the main inventory dictiona*y.
-
----
-
-## Functional backlog
-
-Pr*ducts that are eligible for mappin* but unresolved:
-
-```text
-not_foun*
+not_found
 pending_review
-historical_only
-``*
-
-These products may require lifec*cle review, bridge reports, or man*al promotion.
-
----
-
-# Dictionary P*omotion Policy
-
-Dictionary promoti*n must be controlled.
-
-Allowed pro*otion flow:
-
-```text
-not_found bac*log
-→ prioritise
-→ build bridge
-→ *anual review
-→ promote approved ca*didate
-→ rerun inventory ETL
-→ mea*ure impact
+open
+review
 ```
 
-Not allowed:
+remain visible when present.
 
-```t*xt
-automatic promotion without rev*ew
-mapping by name only
-mapping by*supplier only
-mapping by scope alo*e
-updating Odoo as part of ETL
-```*
+This is important because residual visibility is part of governance.
+
 ---
 
-# Inventory Lifecycle Analys*s
+## 7. inventory_dictionary_coverage_available
 
-The lifecycle analysis supports*decisions about whether products a*e active, dormant, historical, or *andidates for review.
+Validates that the dictionary table can provide coverage visibility.
 
-Relevant ou*put:
+Table:
 
 ```text
-inventory_product_li*ecycle
+inventory_mapping_dictionary
 ```
 
-Use lifecycle data to *upport decisions such as:
-
-```text*historical-only product
-active pro*uct
-candidate for dictionary promo*ion
-candidate for backlog closure
-*``
+The script attempts to summarise available dictionary status or scope columns.
 
 ---
 
-# Relationship With Purch*ses
+## 8. inventory_promotions_controlled
 
-The Inventory domain provides*product governance for the Purchas*s domain.
+Validates the governance rule that dictionary promotions are excluded from default automation.
 
-Purchases product mappi*g uses:
+Promotion scripts are intentionally not part of the default pipeline:
 
 ```text
-purchase.order.li*e.product_id
-→ inventory_mapping_d*ctionary.odoo_product_id
-→ wansoft*code
-→ wansoft_product_name
-→ wans*ft_department
+scripts.test_promote_inventory_bridge_to_dictionary
+scripts.test_promote_inventory_not_found_p1_to_dictionary
+scripts.test_promote_inventory_not_found_p2_to_dictionary
+scripts.test_promote_inventory_not_found_residual_to_dictionary
 ```
 
-Therefore:
-
-```*ext
-Inventory dictionary quality a*fects Purchases mapping quality.
-`*`
-
-The Purchases domain does not c*eate automatic aliases and relies *n approved dictionary mappings.
-
--*-
-
-# Relationship With Sales
-
-Sale* always remain Wansoft.
-
-Inventory*must not assume that public-sale p*oducts belong to the same universe*as purchase/inventory products.
-
-S*les-reference products should be t*eated carefully and routed through*scope-aware logic.
-
----
-
-# Trouble*hooting
-
-## Odoo connection fails
-*Check:
+Expected validation result:
 
 ```text
-.env credentials
-c*re/config/env_loader.py
-core/datab*se/odoo.py
-network access
-Odoo URL*and database
+inventory_promotions_controlled: PASS
 ```
 
 ---
 
-## MySQL co*nection fails
+# Controlled Promotion Policy
 
-Check:
+Inventory dictionary promotions must remain manual and explicitly approved.
+
+The following scripts must not be included in the default inventory pipeline:
 
 ```text
-.en* credentials
-core/database/mysql.p*
-target database
-user permissions
-*etwork access
+scripts.test_promote_inventory_bridge_to_dictionary
+scripts.test_promote_inventory_not_found_p1_to_dictionary
+scripts.test_promote_inventory_not_found_p2_to_dictionary
+scripts.test_promote_inventory_not_found_residual_to_dictionary
+```
+
+Reason:
+
+```text
+Promotion changes dictionary governance.
+Dictionary governance changes analytical interpretation.
+Therefore, promotions require manual review and explicit approval.
 ```
 
 ---
 
-## Snapsho* is empty
+# What the Pipeline Does Not Do
 
-Check:
+The Inventory pipeline does not:
 
 ```text
-Odoo extraction returned data
-scope classification exists
-date or company filters are not too restrictive
-target table was not truncated after failed load
+promote dictionary mappings
+update Odoo
+change COMPANY_SOURCE
+schedule itself
+modify product categories
+merge products
+write operational corrections
+replace manual governance review
+```
+
+This is intentional.
+
+---
+
+# Troubleshooting
+
+## Syntax or Encoding Issues
+
+If a Python file contains escaped HTML such as:
+
+```text
+-&gt;
+&lt;
+&gt;
+```
+
+replace those values with normal Python syntax or remove the affected return annotation.
+
+Example problem:
+
+```python
+def get_table_columns(table_name: str) -&gt; List"""
+```
+
+Correct pattern:
+
+```python
+def get_table_columns(table_name: str):
+```
+
+or:
+
+```python
+def get_table_columns(table_name: str) -> List```
+
+---
+
+## Backlog Distribution Fails
+
+If:
+
+```text
+inventory_backlog_distribution_available: FAIL
+```
+
+check whether:
+
+```text
+odoo_inventory_backlog exists
+odoo_inventory_backlog has rows
+column names match the validator expectations
+```
+
+An empty backlog should not fail validation if the table exists.
+
+Current intended rule:
+
+```text
+empty backlog table = PASS
+missing backlog table = FAIL
 ```
 
 ---
 
-## Backlog is unexpectedly high
+## Snapshot Mapping Distribution Fails
 
-Check:
+If:
 
 ```text
-inventory_mapping_dictionary coverage
-scope classification output
-recent new Odoo products
-missing Wansoft references
-dictionary promotion status
+inventory_snapshot_mapping_distribution_available: FAIL
+```
+
+check the columns in:
+
+```text
+odoo_inventory_snapshot
+```
+
+The validator searches for status-like columns such as:
+
+```text
+inventory_mapping_status
+mapping_status
+dictionary_status
+match_status
+mapped_status
+```
+
+If the real table uses another column name, update:
+
+```text
+scripts/validate_inventory_outputs.py
 ```
 
 ---
 
-## Products appear in wrong scope
+## Scope Distribution Fails
 
-Check:
+If:
+
+```text
+inventory_scope_distribution_available: FAIL
+```
+
+check the columns in:
 
 ```text
 odoo_inventory_scope_classification
-review_scope_refiner output
-refined scope rules
-manual overrides
 ```
 
----
-
-## Products should map but remain not_found
-
-Check:
+The validator searches for scope-like columns such as:
 
 ```text
-inventory_mapping_dictionary.odoo_product_id
-mapping_status
-wansoft_code
-product lifecycle status
-bridge candidate tables
+inventory_scope
+refined_inventory_scope
+product_scope
+scope
+scope_bucket
 ```
 
----
-
-## Sales-reference products are entering inventory mapping
-
-Check:
+If the real table uses another column name, update:
 
 ```text
-scope classification
-restaurantes bucket
-sales reference exclusion logic
-INVENTORY_ETL_SCOPE_INCLUDE
-INVENTORY_SCOPE_EXCLUDE
+scripts/validate_inventory_outputs.py
 ```
 
 ---
 
-## Bodegón or Empanadas products are polluting shared inventory
+## Dictionary Coverage Fails
 
-Check:
+If:
 
 ```text
-bodegon bucket
-empanadas bucket
-bodegon_candidate
-empanadas_candidate
-scope classifier rules
-review scope output
+inventory_dictionary_coverage_available: FAIL
 ```
+
+check whether:
+
+```text
+inventory_mapping_dictionary exists
+inventory_mapping_dictionary has rows
+dictionary status or scope columns exist
+```
+
+The validator can still pass with a simple total count if detailed status columns are unavailable.
 
 ---
 
-# Environment Variables
+## Optional Bridge Report Fails
 
-Inventory-related `.env` examples:
+Bridge reports are optional diagnostics.
 
-```env
-INVENTORY_ETL_SALES_REFERENCE_SCOPE=restaurantes
-INVENTORY_ETL_SALES_REFERENCE_SOURCE=sales_reference
-INVENTORY_ETL_SCOPE_INCLUDE=shared_cross_company
-INVENTORY_ETL_SCOPE_BACKLOG=bodegon,empanadas,bodegon_candidate,empanadas_candidate,review_scope,operational_non_inventory
+If one fails, review the failing step.
+
+You may rerun the pipeline with:
+
+```bash
+python -m scripts.run_inventory_pipeline --include-bridge-reports --continue-on-optional-failure
 ```
 
-Inventory not-found analyser examples:
-
-```env
-INVENTORY_NOT_FOUND_BUCKET=not_found
-INVENTORY_SCOPE_INCLUDE=shared_cross_company,review_scope
-INVENTORY_SCOPE_EXCLUDE=bodegon,empanadas,restaurantes,operational_non_inventory
-INVENTORY_NOT_FOUND_EXPORT=true
-INVENTORY_NOT_FOUND_EXPORT_FILE=inventory_not_found_analysis.csv
-```
+Use this only when the failure is known to be non-critical.
 
 ---
 
@@ -882,42 +1028,85 @@ Use this checklist when running the Inventory domain.
 
 ```text
 [ ] Confirm .env is loaded
-[ ] Confirm Odoo connection
 [ ] Confirm MySQL connection
-[ ] Run inventory scope classification
-[ ] Run inventory ETL
-[ ] Validate snapshot row count
-[ ] Validate mapping status distribution
-[ ] Validate backlog distribution
-[ ] Run not_found analyser if needed
-[ ] Build bridge reports if needed
-[ ] Review candidates manually
-[ ] Promote approved candidates only
-[ ] Rerun inventory ETL
-[ ] Compare backlog reduction
-[ ] Document findings
+[ ] Confirm Odoo connection
+[ ] Confirm current Git branch
+[ ] Confirm no uncommitted risky changes
+[ ] Confirm logs/ is ignored by Git
+[ ] Run inventory pipeline dry-run
+[ ] Run real inventory pipeline
+[ ] Confirm pipeline summary
+[ ] Confirm JSON log file was generated
+[ ] Confirm final validation passed
+[ ] Review optional bridge reports if included
+[ ] Confirm no promotion script was executed automatically
+[ ] Keep logs out of Git
 ```
 
 ---
 
-# Current Inventory Status
+# Current Inventory Pipeline Status
 
 Current state:
 
 ```text
-Inventory domain is technically stable.
-Inventory dictionary governance is active.
-Scope-aware ETL is active.
-Residual unresolved products remain visible.
-Manual review remains required for dictionary expansion.
+Inventory pipeline is implemented.
+Inventory pipeline dry-run works.
+Inventory pipeline smoke test works.
+Inventory pipeline real execution works.
+Inventory bridge reports work.
+Inventory output validation is integrated as required.
+JSON logging is implemented.
+Promotion scripts remain excluded from default automation.
 ```
 
-Validated baseline:
+Current known pending work:
 
 ```text
-snapshot rows: 1660
-residual functional not_found: 98 unique products
-residual functional pending_review: 5 unique products
+document Section 14 updates in project-level docs
+review whether Inventory validator should persist validation results later
+review whether Inventory logs should be added to future database logging
+review bridge report performance if volume grows
+```
+
+---
+
+# Current Validated Pipeline Results
+
+Base pipeline validated:
+
+```text
+total_steps: 7
+success: 7
+dry_run: 0
+skipped: 0
+failed_or_error: 0
+required_failed_or_error: 0
+
+PIPELINE RESULT: COMPLETED
+```
+
+Extended pipeline with bridge reports validated:
+
+```text
+total_steps: 10
+success: 10
+dry_run: 0
+skipped: 0
+failed_or_error: 0
+required_failed_or_error: 0
+
+PIPELINE RESULT: COMPLETED
+```
+
+Inventory validation validated:
+
+```text
+total_validations: 8
+passed: 8
+failed: 0
+
+VALIDATION RESULT: PASSED
 ```
 
 ---
@@ -926,26 +1115,50 @@ residual functional pending_review: 5 unique products
 
 ```text
 docs/project-technical-guide.md
+docs/project-status-and-todo.md
+docs/production-orchestration-plan.md
+docs/pipeline-logging-and-run-interpretation.md
 docs/inventory-domain-closeout.md
-docs/purchases-product-mapping-policy.md
-docs/purchases-canonical-layer.md
-docs/purchases-company-migration-policy.md
 docs/purchases-runbook.md
-docs/wansoft-local-wsdl.md
+docs/purchases-canonical-layer.md
+docs/branch-rollout-playbook.md
+```
+
+---
+
+# Related Files
+
+```text
+scripts/run_inventory_pipeline.py
+scripts/test_run_inventory_pipeline.py
+scripts/validate_inventory_outputs.py
+scripts/test_odoo_inventory_scope_classification.py
+scripts/test_odoo_inventory_etl.py
+scripts/test_inventory_dictionary_lookup.py
+scripts/test_apply_inventory_dictionary.py
+scripts/test_inventory_not_found_analyzer.py
+scripts/test_inventory_not_found_priority_backlog.py
+scripts/test_inventory_not_found_p1_bridge.py
+scripts/test_inventory_not_found_p2_bridge.py
+scripts/test_inventory_not_found_residual_bridge.py
 ```
 
 ---
 
 # Recommended Commit
 
-This document should be committed together with the rest of the documentation refresh.
+This document should be committed as part of the Section 14 documentation update.
 
-Recommended final commit after all documentation updates:
+Recommended commit when Section 14 is ready to checkpoint:
 
 ```bash
-git add README.md docs/
+git status
 
-git commit -m "docs(project): add technical guide and domain documentation"
+git add docs/inventory-runbook.md scripts/run_inventory_pipeline.py scripts/test_run_inventory_pipeline.py scripts/validate_inventory_outputs.py
+
+git status
+
+git commit -m "feat(inventory): add pipeline orchestration, logging and output validation"
 
 git push
 ```
