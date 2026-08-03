@@ -53,6 +53,8 @@ Which steps were skipped?
 How long did each step take?
 Was the final required validation successful?
 Was a safety gate triggered?
+Did a real legacy execution modify data?
+Did a validator detect a post-execution problem?
 What run_id connects the console output to the JSON file?
 ```
 
@@ -204,7 +206,7 @@ Inventory logs include:
 skipped
 ```
 
-Zenput logs include additional safety and step metadata:
+Zenput logs include additional execution and safety fields:
 
 ```text
 execute
@@ -222,7 +224,7 @@ legacy
 Example:
 
 ```text
-run_id: 6e275bf6-ef2e-4944-a144-da646a9fabe5
+run_id: 67fb593b-2bb4-43cf-94cb-fe319de4c92f
 ```
 
 Purpose:
@@ -285,7 +287,9 @@ Important:
 FAILED is not always bad.
 ```
 
-For Zenput, a failed safety gate can be expected and correct when testing protection behaviour.
+A failed safety gate can be expected and correct when testing protection behaviour.
+
+A failed final validator can also be useful because it may detect that real ETL execution introduced or revealed a data condition that must be corrected before the pipeline is considered clean.
 
 ---
 
@@ -308,6 +312,64 @@ true:
 
 false:
     Steps may have executed for real, depending on the pipeline and flags.
+```
+
+---
+
+## Field: execute
+
+Used by:
+
+```text
+Zenput pipeline
+```
+
+Meaning:
+
+```text
+execute = true:
+    The user requested real execution.
+
+execute = false:
+    The pipeline is running in default dry-run mode.
+```
+
+Important:
+
+```text
+execute = true does not necessarily mean legacy write steps executed.
+```
+
+For Zenput, write-enabled legacy steps require:
+
+```text
+--allow-legacy-writes
+```
+
+unless the run is:
+
+```text
+--execute --validation-only
+```
+
+---
+
+## Field: allow_legacy_writes
+
+Used by:
+
+```text
+Zenput pipeline
+```
+
+Meaning:
+
+```text
+allow_legacy_writes = true:
+    Write-enabled legacy ETLs are allowed to run.
+
+allow_legacy_writes = false:
+    Write-enabled legacy ETLs must be blocked if present in the plan.
 ```
 
 ---
@@ -535,6 +597,12 @@ or:
 
 ```text
 A required safety gate intentionally blocked execution.
+```
+
+or:
+
+```text
+A required validator detected a data condition that prevents the pipeline from being considered clean.
 ```
 
 ---
@@ -1148,7 +1216,7 @@ Meaning:
 ```text
 Only read-only validators executed.
 Legacy write-enabled ETLs were excluded.
-No Zenput API write path was executed.
+No Zenput API write path was executed through legacy ETLs.
 No MySQL write was performed by legacy scripts.
 last_run_timestamp.txt was not modified.
 ```
@@ -1212,25 +1280,30 @@ Command:
 python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
 ```
 
-Current recommendation:
+This command may execute:
 
 ```text
-Do not run casually.
-Requires explicit operational approval.
+legacy.zenput.zenput_mysql_forms
+legacy.zenput.zenput_mysql_tasks
 ```
 
 Potential effects:
 
 ```text
-legacy.zenput.zenput_mysql_forms may run
-legacy.zenput.zenput_mysql_tasks may run
-Zenput API may be called
-MySQL target zenput may be written
-form_templates may be inserted or updated
-submissions may be inserted or updated
-submission_answers may be deleted and reinserted for processed submissions
-zenput_tasks may be inserted or updated
-legacy/zenput/last_run_timestamp.txt may be updated
+Zenput API may be called.
+MySQL target zenput may be written.
+form_templates may be inserted or updated.
+submissions may be inserted or updated.
+submission_answers may be deleted and reinserted for processed submissions.
+zenput_tasks may be inserted or updated.
+legacy/zenput/last_run_timestamp.txt may be updated.
+```
+
+Current status:
+
+```text
+Tested once against development/test database.
+Not recommended for routine production execution without explicit approval.
 ```
 
 Before running this mode, review:
@@ -1241,6 +1314,169 @@ docs/zenput-legacy-assessment.md
 ```
 
 and complete the controlled execution checklist in the Zenput runbook.
+
+---
+
+# Real Zenput Case: Legacy Steps Succeeded but Final Validator Failed
+
+## Context
+
+During the first controlled real legacy execution against the development/test database, the pipeline ran with:
+
+```bash
+python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
+```
+
+Initial result:
+
+```text
+01. Zenput location mapping validation -> SUCCESS
+02. Zenput forms legacy ETL -> SUCCESS
+03. Zenput tasks legacy ETL -> SUCCESS
+04. Zenput output validation -> FAILED
+```
+
+Pipeline result:
+
+```text
+PIPELINE RESULT: FAILED
+```
+
+---
+
+## Interpretation
+
+This result means:
+
+```text
+The legacy ETL steps executed.
+The development/test database was updated.
+The final output validator found a data governance issue.
+The pipeline correctly refused to mark the run as clean.
+```
+
+This is an important pattern:
+
+```text
+SUCCESS in ETL steps does not guarantee that the full pipeline is successful.
+The final validator is the authority for whether the run can be accepted.
+```
+
+---
+
+## Specific Failure
+
+The output validator detected:
+
+```text
+unmapped_locations: ['Fonda Argentina Puebla']
+```
+
+That means:
+
+```text
+A new submissions.location_name value existed in MySQL after the real execution.
+The value was not yet configured in core/config/zenput.py.
+```
+
+The new value was:
+
+```text
+Fonda Argentina Puebla
+```
+
+---
+
+## Corrective Action
+
+The correct action was to update:
+
+```text
+core/config/zenput.py
+```
+
+and add:
+
+```python
+"Fonda Argentina Puebla": "Puebla",
+```
+
+Puebla should not be added to:
+
+```python
+ZENPUT_ONLY_LOCATIONS
+```
+
+Reason:
+
+```text
+Puebla already exists as company_source_key.
+Puebla is modeled as a future Odoo / operational branch.
+Puebla should remain its own canonical key.
+```
+
+---
+
+## Post-Correction Validation
+
+After adding the Puebla mapping, these commands were run:
+
+```bash
+python -m py_compile core\config\zenput.py
+python -m scripts.validate_zenput_location_mapping
+python -m scripts.validate_zenput_outputs
+python -m scripts.run_zenput_pipeline --execute --validation-only
+```
+
+Post-correction result:
+
+```text
+location mapping validator: PASSED
+output validator: PASSED
+validation-only pipeline: COMPLETED
+```
+
+Expected validation-only summary:
+
+```text
+total_steps: 2
+success: 2
+dry_run: 0
+skipped: 0
+failed_or_error: 0
+required_failed_or_error: 0
+
+PIPELINE RESULT: COMPLETED
+```
+
+---
+
+## Operational Lesson
+
+This case proves that the Zenput validation design is working.
+
+The correct interpretation is:
+
+```text
+The first real execution was useful.
+The post-load validator caught a real mapping gap.
+The mapping gap was corrected centrally.
+The corrected state now validates successfully.
+```
+
+The incorrect interpretation would be:
+
+```text
+The legacy ETLs succeeded, so the run is fully successful.
+```
+
+That is not sufficient.
+
+For this project, the rule is:
+
+```text
+A pipeline is only clean when required validators pass.
+```
 
 ---
 
@@ -1350,6 +1586,7 @@ Confirmed special mappings:
 Fonda Argentina Coyoacán -> La Esquina Coyoacán
 Fonda Argentina Tollocan -> Metepec
 Taqueria Exhibimex -> Versalles
+Fonda Argentina Puebla -> Puebla
 ```
 
 Confirmed Zenput-only locations:
@@ -1381,6 +1618,7 @@ then rerun:
 ```bash
 python -m scripts.validate_zenput_location_mapping
 python -m scripts.validate_zenput_outputs
+python -m scripts.run_zenput_pipeline --execute --validation-only
 ```
 
 ---
@@ -1451,6 +1689,13 @@ Review the new location.
 Decide the correct company_source_key.
 Update ZENPUT_LOCATION_SOURCE_KEY.
 Rerun validators.
+Rerun validation-only pipeline.
+```
+
+Real example:
+
+```text
+Fonda Argentina Puebla -> Puebla
 ```
 
 ---
@@ -1552,6 +1797,73 @@ This is correct safety behaviour.
 
 ---
 
+# Current Zenput Technical Findings From Real Execution
+
+## last_run_timestamp.txt did not change
+
+Observed value after controlled execution:
+
+```text
+2025-10-23T18:37:33Z
+```
+
+Interpretation:
+
+```text
+Not currently blocking.
+Requires future review.
+```
+
+Possible explanations:
+
+```text
+tasks script is running full sync
+timestamp is not used by current full-sync path
+timestamp update function is not called
+timestamp file is legacy residue
+```
+
+Future action:
+
+```text
+review timestamp logic in zenput_mysql_tasks.py
+decide whether last_run_timestamp.txt remains active or should be retired or moved
+```
+
+---
+
+## Legacy error propagation should be reviewed
+
+A previous failed attempt showed an environmental database error related to packet size.
+
+The wrapper relies on subprocess return codes.
+
+Future action:
+
+```text
+ensure fatal legacy errors return non-zero exit code
+```
+
+---
+
+## max_allowed_packet issue was environmental
+
+A previous attempt failed due to:
+
+```text
+Got a packet bigger than 'max_allowed_packet' bytes
+```
+
+This was resolved in the local XAMPP / MariaDB development environment.
+
+Future action:
+
+```text
+document recommended max_allowed_packet if issue recurs
+```
+
+---
+
 # How to Identify Slow Steps
 
 Review:
@@ -1588,6 +1900,8 @@ After each run, review:
 [ ] run_id
 [ ] status
 [ ] dry_run
+[ ] execute
+[ ] allow_legacy_writes
 [ ] total_steps
 [ ] success
 [ ] dry_run_steps
@@ -1629,11 +1943,15 @@ After each run, review:
 [ ] If dry-run, all expected steps are DRY_RUN
 [ ] If validation-only, only validators executed
 [ ] If safety gate, failure was expected and controlled
+[ ] If full legacy execution, confirm execution target first
+[ ] If full legacy execution, confirm forms legacy status
+[ ] If full legacy execution, confirm tasks legacy status
 [ ] If validators ran, both validators passed
-[ ] No legacy scripts executed unless explicitly approved
-[ ] last_run_timestamp.txt was not modified unless legacy execution was approved
-[ ] New unmapped location_name values were not introduced
+[ ] No unexpected unmapped location_name values remain
 [ ] Zenput-only locations remain classified
+[ ] last_run_timestamp.txt status is understood
+[ ] Any legacy printed errors are reviewed
+[ ] JSON log is kept out of Git
 ```
 
 ---
@@ -1698,6 +2016,8 @@ run_id
 pipeline_name
 status
 dry_run
+execute
+allow_legacy_writes
 started_at
 finished_at
 duration_seconds
@@ -1727,6 +2047,24 @@ zenput_only_locations_classified
 zenput_timestamp_file_valid
 required_zenput_tables_exist
 zenput_table_counts_available
+zenput_submissions_location_mapping
+```
+
+Possible future Zenput run metrics:
+
+```text
+pre_form_templates_count
+post_form_templates_count
+pre_submissions_count
+post_submissions_count
+pre_submission_answers_count
+post_submission_answers_count
+pre_zenput_tasks_count
+post_zenput_tasks_count
+pre_last_run_timestamp
+post_last_run_timestamp
+new_location_name_count
+unmapped_location_name_count
 ```
 
 ---
@@ -1757,6 +2095,7 @@ python -m scripts.run_zenput_pipeline
 python -m scripts.run_zenput_pipeline --validation-only
 python -m scripts.run_zenput_pipeline --execute --validation-only
 python -m scripts.run_zenput_pipeline --execute
+python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
 python -m scripts.validate_zenput_location_mapping
 python -m scripts.validate_zenput_outputs
 python -m scripts.test_run_zenput_pipeline
@@ -1771,6 +2110,13 @@ python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
 should not be used casually.
 
 It requires explicit operational approval because it can execute write-enabled legacy scripts.
+
+Current status:
+
+```text
+Tested once against development/test database.
+Not approved for routine production scheduling.
+```
 
 ---
 
@@ -1792,10 +2138,16 @@ Inventory pipeline
 Zenput validation-only execution
 ```
 
+Current controlled execution:
+
+```text
+Zenput full legacy real execution against development/test database
+```
+
 Current protected execution:
 
 ```text
-Zenput full legacy real execution
+Zenput production legacy real execution
 ```
 
 Current pending future work:
@@ -1805,4 +2157,7 @@ database run-log table
 database validation-result table
 full data warehouse refresh orchestration
 unified analytical consumption dependencies
+Zenput timestamp behaviour review
+Zenput legacy error propagation review
+Zenput pre/post count logging
 ```

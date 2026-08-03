@@ -87,6 +87,7 @@ Zenput legacy assessment
 Zenput central location mapping
 Zenput safe pipeline wrapper
 Zenput read-only validators
+Zenput first controlled real legacy execution against development/test database
 JSON pipeline logging
 branch rollout validation
 technical documentation package
@@ -103,8 +104,8 @@ This means:
 ```text
 keep Purchases pipeline stable
 keep Inventory pipeline stable
-keep Zenput legacy execution protected
-continue Zenput modernization carefully
+keep Zenput legacy execution controlled
+continue Zenput hardening carefully
 prepare unified analytical consumption
 decide whether database run-log tables are needed
 decide whether validation results should be persisted
@@ -120,7 +121,7 @@ keep manual governance decisions controlled
 | Sales | Functionally established |
 | Purchases | Pipeline implemented, validated and logged |
 | Inventory | Pipeline implemented, validated and logged |
-| Zenput | Legacy assessed, central mapping created, safe wrapper implemented |
+| Zenput | Legacy assessed, safe wrapper implemented, first controlled real execution completed against development/test database |
 | Wansoft SOAP/WSDL | Local WSDL setup documented |
 | Purchases rollout validation | Implemented |
 | Inventory output validation | Implemented |
@@ -430,7 +431,10 @@ Dry-run implemented.
 Validation-only execution implemented.
 Safety gate implemented.
 JSON logging implemented.
-Legacy real execution remains protected.
+First controlled real legacy execution completed against development/test database.
+Puebla location mapping added.
+Post-execution validators passing.
+Legacy real execution remains protected for non-development or unapproved use.
 ```
 
 Current legacy files:
@@ -719,11 +723,11 @@ Inventory dictionary promotions must remain manual and explicitly approved.
 
 # Section 15 Status: Zenput Legacy Integration Assessment and Safe Wrapper
 
-Section 15 focuses on bringing the existing Zenput legacy integration into the same operational standard as Purchases and Inventory.
+Section 15 focused on bringing the existing Zenput legacy integration into the same operational standard as Purchases and Inventory.
 
-The goal is not to replace working legacy scripts blindly.
+The goal was not to replace working legacy scripts blindly.
 
-The goal is to preserve working logic while adding:
+The goal was to preserve working logic while adding:
 
 ```text
 central credentials
@@ -738,7 +742,7 @@ safety gate
 
 ---
 
-## Section 15 Current Status
+## Section 15 Final Status
 
 Current status:
 
@@ -758,6 +762,9 @@ Zenput validation-only execution created and passing
 Zenput runbook created
 Project README updated with Zenput status
 Project status and TODO updated with Zenput status
+Project technical guide updated with Zenput status
+Production orchestration plan updated with Zenput status
+Pipeline logging documentation updated with Zenput status
 ```
 
 Implemented files:
@@ -910,7 +917,7 @@ Reason:
 Zenput is an operational source independent from Wansoft/Odoo source governance for Purchases and Inventory.
 ```
 
-Confirmed special mappings:
+Confirmed special mappings during Section 15:
 
 ```text
 Fonda Argentina Coyoacán -> La Esquina Coyoacán
@@ -937,18 +944,233 @@ They should be modeled as locations that could be incorporated into Wansoft or O
 
 ---
 
-## Section 15 Validators
+# Section 16 Status: Controlled Zenput Legacy Real Execution Readiness
 
-Current Zenput validators:
+Section 16 focuses on validating the first controlled real execution of the Zenput legacy scripts through the new safe wrapper.
+
+The execution was performed against:
 
 ```text
-scripts.validate_zenput_location_mapping
-scripts.validate_zenput_outputs
+development / test database
 ```
 
-Location mapping validator result:
+not production.
+
+Therefore:
 
 ```text
+No production database was affected.
+```
+
+The purpose was to confirm:
+
+```text
+legacy scripts can run through the wrapper
+forms legacy ETL still works
+tasks legacy ETL still works
+validators detect problems after real execution
+new Zenput locations are caught by central mapping validation
+post-execution state can be validated
+```
+
+---
+
+## Section 16 Current Status
+
+Current status:
+
+```text
+Pre-execution snapshot completed
+First controlled real legacy execution completed against development/test database
+Forms legacy ETL executed successfully
+Tasks legacy ETL executed successfully
+Output validator failed correctly on new unmapped location
+New location Fonda Argentina Puebla detected
+Puebla mapping added to core/config/zenput.py
+Post-execution location mapping validation passed
+Post-execution output validation passed
+Validation-only pipeline passed after correction
+```
+
+---
+
+## Section 16 Implemented / Updated Files
+
+Updated after Section 16:
+
+```text
+core/config/zenput.py
+docs/zenput-legacy-assessment.md
+docs/zenput-runbook.md
+docs/project-status-and-todo.md
+```
+
+Already existing Section 15 files reused:
+
+```text
+scripts/validate_zenput_location_mapping.py
+scripts/validate_zenput_outputs.py
+scripts/run_zenput_pipeline.py
+scripts/test_run_zenput_pipeline.py
+```
+
+---
+
+## Section 16 Pre-Execution Snapshot
+
+Before the first controlled real execution:
+
+```text
+form_templates:       19
+submissions:          774
+submission_answers:   61,357
+zenput_tasks:         1,504
+```
+
+Pre-execution dates:
+
+```text
+submissions:
+    min_date: 2025-06-11 22:34:31
+    max_date: 2026-05-27 23:00:27
+
+zenput_tasks:
+    min_date using last_updated: 2026-05-28 13:14:37
+    max_date using last_updated: 2026-05-28 13:14:37
+```
+
+Pre-execution timestamp file:
+
+```text
+legacy/zenput/last_run_timestamp.txt
+2025-10-23T18:37:33Z
+```
+
+---
+
+## Section 16 Controlled Real Execution
+
+Command executed:
+
+```bash
+python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
+```
+
+Execution context:
+
+```text
+development / test database
+```
+
+Initial execution result:
+
+```text
+01. Zenput location mapping validation -> SUCCESS
+02. Zenput forms legacy ETL -> SUCCESS
+03. Zenput tasks legacy ETL -> SUCCESS
+04. Zenput output validation -> FAILED
+```
+
+Pipeline result:
+
+```text
+PIPELINE RESULT: FAILED
+```
+
+Reason:
+
+```text
+Output validation detected a new unmapped location_name:
+Fonda Argentina Puebla
+```
+
+This failure was correct and useful.
+
+It confirmed that the output validator catches new Zenput locations and prevents the pipeline from being considered complete until mapping is updated.
+
+---
+
+## Section 16 Puebla Mapping Correction
+
+New detected Zenput value:
+
+```text
+Fonda Argentina Puebla
+```
+
+Correct mapping:
+
+```text
+Fonda Argentina Puebla -> Puebla
+```
+
+Added to:
+
+```text
+core/config/zenput.py
+```
+
+Puebla should not be classified as Zenput-only.
+
+Reason:
+
+```text
+Puebla already exists as a company_source_key in the project.
+Puebla is modeled as a future Odoo / operational branch.
+Puebla should be preserved as its own canonical key.
+```
+
+The Zenput-only list remains:
+
+```text
+León
+Lindavista
+Perisur
+```
+
+---
+
+## Section 16 Post-Execution Snapshot
+
+After execution and Puebla mapping correction:
+
+```text
+form_templates:       19
+submissions:          1,107
+submission_answers:   89,923
+zenput_tasks:         1,752
+```
+
+Differences:
+
+```text
+form_templates:          +0
+submissions:           +333
+submission_answers:  +28,566
+zenput_tasks:          +248
+```
+
+Interpretation:
+
+```text
+The controlled real execution updated the development/test Zenput database.
+Forms and tasks legacy scripts ran.
+The new Puebla location was detected and then mapped.
+Post-execution validators passed after correction.
+```
+
+---
+
+## Section 16 Post-Execution Validation Results
+
+Location mapping validator:
+
+```text
+submissions_table_exists: PASS
+zenput_location_mapping_available: PASS
+zenput_only_locations_classified: PASS
+zenput_governance_rule_documented: PASS
+
 total_validations: 4
 passed: 4
 failed: 0
@@ -956,9 +1178,16 @@ failed: 0
 VALIDATION RESULT: PASSED
 ```
 
-Output validator result:
+Output validator:
 
 ```text
+required_zenput_tables_exist: PASS
+zenput_table_counts_available: PASS
+zenput_submissions_location_mapping: PASS
+zenput_only_locations_classified: PASS
+zenput_timestamp_file_valid: PASS
+zenput_legacy_pipeline_protection_documented: PASS
+
 total_validations: 6
 passed: 6
 failed: 0
@@ -966,18 +1195,12 @@ failed: 0
 VALIDATION RESULT: PASSED
 ```
 
-Smoke test result:
+Validation-only pipeline after correction:
 
 ```text
-default_dry_run: PASS
-safety_gate: PASS
+01. Zenput location mapping validation -> SUCCESS
+02. Zenput output validation -> SUCCESS
 
-TEST RESULT: PASSED
-```
-
-Validation-only execution result:
-
-```text
 total_steps: 2
 success: 2
 dry_run: 0
@@ -990,31 +1213,103 @@ PIPELINE RESULT: COMPLETED
 
 ---
 
-## Section 15 Safety Rule
+## Section 16 Current Findings
 
-Do not run this command casually:
+### Finding 1: Puebla appeared in Zenput
 
-```bash
-python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
-```
-
-Reason:
+Status:
 
 ```text
-This command may execute legacy scripts that write to MySQL and may update last_run_timestamp.txt.
+Resolved
 ```
 
-Recommended safe command:
+Action:
 
-```bash
-python -m scripts.run_zenput_pipeline --execute --validation-only
+```text
+Fonda Argentina Puebla -> Puebla added to core/config/zenput.py
+```
+
+---
+
+### Finding 2: last_run_timestamp.txt did not change
+
+Observed value after execution:
+
+```text
+2025-10-23T18:37:33Z
+```
+
+Status:
+
+```text
+Not blocking
+Pending review
+```
+
+Current interpretation:
+
+```text
+tasks script may be running full sync
+timestamp may not be used by current execution path
+timestamp update logic may not be triggered
+timestamp file may be legacy residue
+```
+
+Future TODO:
+
+```text
+[ ] Review timestamp logic in legacy/zenput/zenput_mysql_tasks.py
+[ ] Decide whether last_run_timestamp.txt is still active or obsolete
+[ ] Decide whether timestamp state should move to MySQL or JSON logs
+```
+
+---
+
+### Finding 3: Legacy error propagation should be reviewed
+
+A previous failed attempt showed a legacy error related to:
+
+```text
+max_allowed_packet
+```
+
+The wrapper relies on subprocess return codes.
+
+Future TODO:
+
+```text
+[ ] Review legacy scripts to ensure fatal errors return non-zero exit code
+```
+
+---
+
+### Finding 4: max_allowed_packet issue was environmental
+
+The earlier error:
+
+```text
+Got a packet bigger than 'max_allowed_packet' bytes
+```
+
+was related to local XAMPP / MariaDB configuration.
+
+Status:
+
+```text
+Resolved for current execution
+```
+
+Future TODO:
+
+```text
+[ ] Document recommended max_allowed_packet for development database if issue recurs
 ```
 
 ---
 
 # Updated Current TODO
 
-## Priority 1: Finish Section 15 Documentation Consistency
+## Priority 1: Finish Section 16 Documentation Consistency
 
 Status:
 
@@ -1025,48 +1320,46 @@ In progress
 TODO:
 
 ```text
-[x] Identify active Zenput legacy files
-[x] Review write operations and target tables
-[x] Review credentials and .env usage
-[x] Create core/config/zenput.py
-[x] Validate location_name mapping against MySQL
-[x] Create safe run_zenput_pipeline.py wrapper
-[x] Create test_run_zenput_pipeline.py
-[x] Create validate_zenput_outputs.py
-[x] Integrate validate_zenput_outputs.py as required pipeline step
-[x] Add --validation-only mode
-[x] Create docs/zenput-runbook.md
-[x] Update README.md with Zenput status
-[x] Update docs/project-status-and-todo.md with Zenput status
-[ ] Update docs/project-technical-guide.md with Zenput status
-[ ] Update docs/production-orchestration-plan.md with Zenput status
-[ ] Update docs/pipeline-logging-and-run-interpretation.md with Zenput status
-[ ] Add ZENPUT_API_TOKEN placeholder to core/config/.env.example if missing
+[x] Capture pre-execution Zenput snapshot
+[x] Confirm execution target is development/test database
+[x] Run first controlled real legacy execution
+[x] Detect first validation failure after real execution
+[x] Add Fonda Argentina Puebla -> Puebla mapping
+[x] Rerun location mapping validator
+[x] Rerun output validator
+[x] Rerun validation-only pipeline
+[x] Update docs/zenput-legacy-assessment.md with controlled execution result
+[x] Update docs/zenput-runbook.md with controlled execution result
+[x] Update docs/project-status-and-todo.md with Section 16 status
+[ ] Update docs/project-technical-guide.md with Section 16 controlled execution result if desired
+[ ] Update docs/production-orchestration-plan.md with Section 16 controlled execution result if desired
+[ ] Update docs/pipeline-logging-and-run-interpretation.md with Puebla / controlled execution notes if desired
 [ ] Review git status
-[ ] Commit Section 15 package
+[ ] Commit Section 16 package
 ```
 
 ---
 
-## Priority 2: Zenput Future Improvements
+## Priority 2: Zenput Hardening After Controlled Execution
 
 Status:
 
 ```text
-Pending future refinement
+Pending
 ```
 
 TODO:
 
 ```text
-[ ] Review whether and when to approve first controlled legacy real execution
+[ ] Review timestamp behaviour in zenput_mysql_tasks.py
+[ ] Confirm whether last_run_timestamp.txt is active or obsolete
+[ ] Review error propagation from legacy scripts
+[ ] Ensure fatal legacy errors return non-zero exit code
 [ ] Review transaction safety around submission_answers delete/reinsert
-[ ] Review last_run_timestamp.txt future handling
-[ ] Decide whether to keep last_run_timestamp.txt or migrate state to MySQL
-[ ] Decide whether to create a modern extract/zenput layer
+[ ] Consider recording pre/post row counts directly in JSON run logs
+[ ] Consider recording timestamp before/after in JSON run logs
+[ ] Consider moving Zenput extraction logic to extract/zenput/
 [ ] Define future Zenput analytical or canonical tables
-[ ] Review whether Zenput validation results should be persisted to database
-[ ] Review whether Zenput pipeline should later support scheduled execution
 ```
 
 Possible future files:
@@ -1168,9 +1461,11 @@ Current temporary validation state:
 Puebla rollout expectation exists
 active = False
 validation does not fail while inactive
+Puebla now appears in Zenput as Fonda Argentina Puebla
+Zenput maps Fonda Argentina Puebla -> Puebla
 ```
 
-TODO before activation:
+TODO before operational activation:
 
 ```text
 [ ] Confirm official Puebla operational_start_date
@@ -1290,100 +1585,88 @@ historical-only decisions
 Odoo catalog cleanup
 manual correction of Odoo inventory movements
 accounting reconciliation adjustments
-Zenput legacy real execution
-Zenput last_run_timestamp.txt updates outside approved execution
+Zenput production legacy real execution
+Zenput last_run_timestamp.txt manual edits
 Zenput submission_answers delete/reinsert strategy changes
+Zenput error propagation changes without validation
 ```
 
 Reason:
 
 ```text
-These actions represent governance, operational or destructive-write decisions, not simple ETL refreshes.
+These actions represent governance, operational or potentially destructive-write decisions, not simple ETL refreshes.
 ```
 
 ---
 
 # Suggested Next Work Sequence
 
-Recommended next sequence after Step 15.16B:
+Recommended next sequence after Step 16.4C:
 
 ```text
-1. Update docs/project-technical-guide.md with Zenput status
-2. Update docs/production-orchestration-plan.md with Zenput wrapper status
-3. Update docs/pipeline-logging-and-run-interpretation.md with Zenput logs
-4. Add ZENPUT_API_TOKEN placeholder to core/config/.env.example if missing
-5. Review git status
-6. Commit Section 15 package
-7. Decide whether to approve first controlled Zenput legacy real execution or continue safety review
+1. Decide whether to update project-technical-guide.md with Section 16 result
+2. Decide whether to update production-orchestration-plan.md with Section 16 result
+3. Decide whether to update pipeline-logging-and-run-interpretation.md with Section 16 result
+4. Review git status
+5. Commit Section 16 documentation and mapping update
+6. Decide whether to continue Zenput hardening or return to unified analytical consumption layer
 ```
 
 Recommended technical priority:
 
 ```text
-Finish Section 15 documentation consistency first.
-Then decide whether to proceed with controlled Zenput real execution or additional safety hardening.
+Commit Section 16 result first.
+Then decide between Zenput hardening and unified analytical layer design.
 ```
 
 ---
 
-# Section 15 Closeout Criteria
+# Section 16 Closeout Criteria
 
-Section 15 can be considered complete when:
+Section 16 can be considered functionally complete when:
 
 ```text
-[x] Zenput legacy files are identified
-[x] Zenput write operations are documented
-[x] Zenput credentials and .env usage are reviewed
-[x] core/config/zenput.py is created
-[x] Zenput location mapping validates against MySQL
-[x] Zenput-only locations are documented
-[x] run_zenput_pipeline.py is implemented
-[x] test_run_zenput_pipeline.py passes
-[x] validate_zenput_outputs.py passes
-[x] validate_zenput_outputs.py is integrated as required pipeline step
-[x] --validation-only mode works
-[x] docs/zenput-legacy-assessment.md is updated
-[x] docs/zenput-runbook.md is created
-[x] README.md is updated
-[x] docs/project-status-and-todo.md is updated
-[ ] docs/project-technical-guide.md is updated
-[ ] docs/production-orchestration-plan.md is updated
-[ ] docs/pipeline-logging-and-run-interpretation.md is updated
-[ ] core/config/.env.example includes ZENPUT_API_TOKEN placeholder if missing
-[ ] Section 15 changes committed
+[x] Pre-execution snapshot captured
+[x] Development/test execution target confirmed
+[x] First controlled real legacy execution performed
+[x] Legacy forms ETL executed
+[x] Legacy tasks ETL executed
+[x] Output validator caught new unmapped location
+[x] Puebla mapping added
+[x] Location mapping validator passes
+[x] Output validator passes
+[x] Validation-only pipeline passes
+[x] docs/zenput-legacy-assessment.md updated
+[x] docs/zenput-runbook.md updated
+[x] docs/project-status-and-todo.md updated
+[ ] Optional project-level docs updated if desired
+[ ] Section 16 changes committed
 ```
 
 ---
 
-# Current Decision Point After Section 15
+# Current Decision Point After Section 16
 
-The project now has controlled orchestration or safe wrapper capability for:
-
-```text
-Purchases
-Inventory
-Zenput
-```
-
-Current status:
+The project now has:
 
 ```text
 Purchases:
-    real pipeline execution is validated
+    real pipeline execution validated
 
 Inventory:
-    real pipeline execution is validated
+    real pipeline execution validated
 
 Zenput:
-    safe wrapper and validators are validated
-    validation-only real execution is validated
-    legacy real execution remains protected
+    safe wrapper validated
+    validation-only execution validated
+    first controlled real legacy execution completed against development/test database
+    post-execution validators passing
 ```
 
 The next decision is whether to prioritise:
 
 ```text
-controlled Zenput legacy real execution review
+Zenput hardening
 ```
 
 or:
@@ -1392,18 +1675,36 @@ or:
 unified analytical consumption layer design
 ```
 
-Recommended priority:
+## Option A: Continue Zenput Hardening
+
+Focus:
 
 ```text
-Finish Section 15 documentation and commit first.
-Then decide whether Zenput legacy real execution is ready for a controlled approved run.
+timestamp behaviour
+legacy error propagation
+transaction safety
+row-count logging
+timestamp before/after logging
+future extract/zenput layer
 ```
 
-Reason:
+## Option B: Unified Analytical Layer Planning
+
+Focus:
 
 ```text
-Zenput legacy scripts write to MySQL and may update local timestamp state.
-The safety wrapper is ready, but full legacy real execution should remain an explicit operational decision.
+business-ready MySQL outputs
+common company_source_key consumption
+how Purchases, Inventory and Zenput are exposed
+how Zenput-only and future incorporated locations appear analytically
+refresh dependency on pipeline validation
+```
+
+Recommended next step:
+
+```text
+Commit Section 16 first.
+Then choose Option A or Option B.
 ```
 
 ---
@@ -1433,30 +1734,27 @@ docs/wansoft-local-wsdl.md
 
 # Recommended Commit
 
-When Section 15 is ready to checkpoint:
+When Section 16 is ready to checkpoint:
 
 ```bash
 git status
 
-git add README.md docs/ core/config/zenput.py scripts/validate_zenput_location_mapping.py scripts/validate_zenput_outputs.py scripts/run_zenput_pipeline.py scripts/test_run_zenput_pipeline.py core/config/.env.example
+git add core/config/zenput.py docs/zenput-legacy-assessment.md docs/zenput-runbook.md docs/project-status-and-todo.md
 
 git status
 
-git commit -m "feat(zenput): add safe pipeline wrapper and validation"
+git commit -m "docs(zenput): document controlled legacy execution result"
 
 git push
 ```
 
-If `core/config/.env.example` is not changed, use:
+If additional project-level docs are updated, include them in the same commit only if they are part of the Section 16 narrative.
 
-```bash
-git status
+Do not commit:
 
-git add README.md docs/ core/config/zenput.py scripts/validate_zenput_location_mapping.py scripts/validate_zenput_outputs.py scripts/run_zenput_pipeline.py scripts/test_run_zenput_pipeline.py
-
-git status
-
-git commit -m "feat(zenput): add safe pipeline wrapper and validation"
-
-git push
+```text
+.env
+logs/
+logs/zenput_pipeline_runs/
+*.json
 ```

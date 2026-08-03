@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This runbook explains how to operate, validate, and troubleshoot the Zenput legacy integration during its modernization phase.
+This runbook explains how to operate, validate, troubleshoot, and safely execute the Zenput legacy integration during its modernization phase.
 
 The current Zenput implementation is based on legacy scripts that already extract and load operational data into MySQL.
 
@@ -15,10 +15,12 @@ central credentials
 central location mapping
 safe execution
 dry-run support
+validation-only execution
 JSON logging
 read-only validation
 pipeline safety gate
 clear documentation
+controlled legacy execution
 ```
 
 ---
@@ -62,12 +64,16 @@ location mapping validation implemented
 output validation implemented
 JSON logging implemented
 legacy write execution blocked unless explicitly allowed
+first controlled real legacy execution completed against development/test database
+post-execution validation completed
+Puebla location mapping added after controlled execution
 ```
 
 Important:
 
 ```text
-The Zenput legacy ETL scripts have not yet been approved for normal automated real execution through the pipeline.
+The first controlled real legacy execution was performed against a development/test database.
+No production database was used in that phase.
 ```
 
 ---
@@ -192,17 +198,18 @@ Current Zenput API token:
 ZENPUT_API_TOKEN
 ```
 
-Required documentation action:
-
-```text
-ZENPUT_API_TOKEN should be present in core/config/.env.example as a placeholder.
-```
-
-Recommended placeholder:
+Required `.env.example` placeholder:
 
 ```env
 # ZENPUT API
 ZENPUT_API_TOKEN=
+```
+
+Important:
+
+```text
+.env.example must contain placeholders only.
+.env may contain real secrets and must not be committed.
 ```
 
 ---
@@ -259,6 +266,7 @@ Confirmed special mappings:
 Fonda Argentina Coyoacán -> La Esquina Coyoacán
 Fonda Argentina Tollocan -> Metepec
 Taqueria Exhibimex -> Versalles
+Fonda Argentina Puebla -> Puebla
 ```
 
 Current mapping includes:
@@ -276,6 +284,7 @@ Fonda Argentina Napoles -> Napoles
 Fonda Argentina Oceania -> Oceanía
 Fonda Argentina Perisur -> Perisur
 Fonda Argentina Playa -> Playa del Carmen
+Fonda Argentina Puebla -> Puebla
 Fonda Argentina San Jerónimo -> San Jeronimo
 Fonda Argentina San Jeronimo -> San Jeronimo
 Fonda Argentina Tepeyac -> Tepeyac
@@ -321,6 +330,50 @@ Therefore:
 Do not collapse them into another branch.
 Do not remove them from Zenput mapping.
 Do not assign fake Wansoft IDs.
+```
+
+---
+
+## Puebla Handling
+
+Puebla appeared in Zenput after the first controlled real legacy execution.
+
+Detected Zenput value:
+
+```text
+Fonda Argentina Puebla
+```
+
+Correct mapping:
+
+```text
+Fonda Argentina Puebla -> Puebla
+```
+
+Puebla is not Zenput-only.
+
+Reason:
+
+```text
+Puebla already exists as a company_source_key in the project.
+Puebla is modeled as a future Odoo / operational branch.
+Puebla should be preserved as its own canonical key.
+```
+
+Expected configuration:
+
+```python
+ZENPUT_LOCATION_SOURCE_KEY = {
+    ...
+    "Fonda Argentina Puebla": "Puebla",
+    ...
+}
+```
+
+Puebla should not be added to:
+
+```python
+ZENPUT_ONLY_LOCATIONS
 ```
 
 ---
@@ -440,7 +493,7 @@ This mode does not:
 
 ```text
 call Zenput API
-write MySQL
+write MySQL through legacy scripts
 update last_run_timestamp.txt
 ```
 
@@ -457,7 +510,7 @@ required_failed_or_error: 0
 PIPELINE RESULT: COMPLETED
 ```
 
-This is currently the recommended real execution mode for Zenput until legacy write execution is formally approved.
+This is currently the recommended safe real execution mode for Zenput.
 
 ---
 
@@ -516,7 +569,8 @@ python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
 Current status:
 
 ```text
-Not recommended yet for routine execution.
+Executed once against development/test database.
+Not scheduled for production.
 ```
 
 This command may execute:
@@ -548,7 +602,198 @@ Before using this command, confirm:
 [ ] output validators pass before execution.
 [ ] expected write behaviour is understood.
 [ ] rollback or recovery plan is understood.
+[ ] execution target is development/test unless production approval exists.
 [ ] execution is approved.
+```
+
+---
+
+# First Controlled Real Legacy Execution
+
+## Execution Context
+
+Execution type:
+
+```text
+controlled real legacy execution
+```
+
+Command:
+
+```bash
+python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
+```
+
+Environment:
+
+```text
+development / test database
+```
+
+Production impact:
+
+```text
+none
+```
+
+Reason:
+
+```text
+The execution was pointed to development/test Zenput database configuration.
+```
+
+---
+
+## Pre-Execution Snapshot
+
+Before execution:
+
+```text
+form_templates:       19
+submissions:          774
+submission_answers:   61,357
+zenput_tasks:         1,504
+```
+
+Pre-execution dates:
+
+```text
+submissions:
+    min_date: 2025-06-11 22:34:31
+    max_date: 2026-05-27 23:00:27
+
+zenput_tasks:
+    min_date using last_updated: 2026-05-28 13:14:37
+    max_date using last_updated: 2026-05-28 13:14:37
+```
+
+Pre-execution timestamp file:
+
+```text
+legacy/zenput/last_run_timestamp.txt
+2025-10-23T18:37:33Z
+```
+
+---
+
+## Initial Execution Result
+
+Initial controlled real execution result:
+
+```text
+01. Zenput location mapping validation -> SUCCESS
+02. Zenput forms legacy ETL -> SUCCESS
+03. Zenput tasks legacy ETL -> SUCCESS
+04. Zenput output validation -> FAILED
+```
+
+Pipeline result:
+
+```text
+PIPELINE RESULT: FAILED
+```
+
+Reason:
+
+```text
+Output validation detected a new unmapped location_name:
+Fonda Argentina Puebla
+```
+
+This failure was correct and useful.
+
+It proved that the validator correctly blocks final completion when Zenput introduces a location not yet present in the central mapping.
+
+---
+
+## Correction Applied
+
+Added mapping:
+
+```text
+Fonda Argentina Puebla -> Puebla
+```
+
+in:
+
+```text
+core/config/zenput.py
+```
+
+Then reran:
+
+```bash
+python -m py_compile core\config\zenput.py
+python -m scripts.validate_zenput_location_mapping
+python -m scripts.validate_zenput_outputs
+python -m scripts.run_zenput_pipeline --execute --validation-only
+```
+
+All validations passed.
+
+---
+
+## Post-Execution Snapshot
+
+After execution and Puebla mapping correction:
+
+```text
+form_templates:       19
+submissions:          1,107
+submission_answers:   89,923
+zenput_tasks:         1,752
+```
+
+Differences:
+
+```text
+form_templates:          +0
+submissions:           +333
+submission_answers:  +28,566
+zenput_tasks:          +248
+```
+
+Interpretation:
+
+```text
+The controlled real execution updated the development/test Zenput database.
+Forms and tasks legacy scripts ran.
+Output validators now pass after adding Puebla mapping.
+```
+
+---
+
+## Post-Execution Validation Result
+
+Location mapping validator:
+
+```text
+total_validations: 4
+passed: 4
+failed: 0
+
+VALIDATION RESULT: PASSED
+```
+
+Output validator:
+
+```text
+total_validations: 6
+passed: 6
+failed: 0
+
+VALIDATION RESULT: PASSED
+```
+
+Validation-only wrapper:
+
+```text
+total_steps: 2
+success: 2
+failed_or_error: 0
+required_failed_or_error: 0
+
+PIPELINE RESULT: COMPLETED
 ```
 
 ---
@@ -827,7 +1072,7 @@ logs/zenput_pipeline_runs/
 Example:
 
 ```text
-logs/zenput_pipeline_runs/20260730_151927_bb189745-4e5e-4843-a7f0-dafc77381357.json
+logs/zenput_pipeline_runs/YYYYMMDD_HHMMSS_<run_id>.json
 ```
 
 Logs are local execution artefacts.
@@ -922,7 +1167,7 @@ Meaning:
 ```text
 Read-only validators ran successfully.
 No legacy ETL executed.
-No data was modified.
+No data was modified by legacy scripts.
 ```
 
 ---
@@ -950,6 +1195,39 @@ The wrapper protected the project from executing write-enabled legacy scripts wi
 ```
 
 This is a successful safety behaviour.
+
+---
+
+## Full legacy execution completed
+
+Expected when explicitly approved and successful:
+
+```text
+01. Zenput location mapping validation -> SUCCESS
+02. Zenput forms legacy ETL -> SUCCESS
+03. Zenput tasks legacy ETL -> SUCCESS
+04. Zenput output validation -> SUCCESS
+
+PIPELINE RESULT: COMPLETED
+```
+
+If the final output validator fails, the pipeline should be treated as not fully successful even if the legacy ETLs ran.
+
+Example:
+
+```text
+legacy forms -> SUCCESS
+legacy tasks -> SUCCESS
+output validation -> FAILED
+PIPELINE RESULT: FAILED
+```
+
+Meaning:
+
+```text
+Data changed, but final validation blocked completion.
+Investigate validation failure.
+```
 
 ---
 
@@ -1004,20 +1282,164 @@ complete this checklist:
 [ ] Confirm current Git branch.
 [ ] Confirm no uncommitted risky changes.
 [ ] Confirm logs/ is ignored by Git.
+[ ] Confirm execution target is development/test unless production approval exists.
 [ ] Confirm ZENPUT_API_TOKEN is configured in .env.
 [ ] Confirm Zenput DB credentials are configured in .env.
 [ ] Confirm get_db_connection(target="zenput") works.
 [ ] Run python -m scripts.run_zenput_pipeline --execute --validation-only.
 [ ] Confirm validation-only passes.
 [ ] Review legacy/zenput/last_run_timestamp.txt.
+[ ] Capture table counts before execution.
+[ ] Capture max dates before execution.
 [ ] Confirm expected time window or refresh behaviour.
 [ ] Confirm write targets are understood.
 [ ] Confirm form_templates write behaviour is acceptable.
 [ ] Confirm submissions write behaviour is acceptable.
 [ ] Confirm submission_answers targeted delete/reinsert behaviour is acceptable.
 [ ] Confirm zenput_tasks UPSERT behaviour is acceptable.
-[ ] Confirm timestamp update behaviour is acceptable.
+[ ] Confirm timestamp update behaviour is acceptable or currently under review.
 [ ] Confirm execution approval.
+```
+
+---
+
+# Post-Execution Checklist
+
+After running:
+
+```bash
+python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
+```
+
+review:
+
+```text
+[ ] Pipeline summary.
+[ ] Forms legacy ETL status.
+[ ] Tasks legacy ETL status.
+[ ] Output validation status.
+[ ] JSON run log path.
+[ ] Table counts after execution.
+[ ] Submissions location mapping.
+[ ] New unmapped location_name values.
+[ ] Zenput-only classification.
+[ ] last_run_timestamp.txt value.
+[ ] Any printed legacy error messages.
+[ ] Any mismatch between printed legacy errors and return code.
+```
+
+If output validation fails because of a new location:
+
+```text
+1. Review the new location_name.
+2. Add correct mapping to core/config/zenput.py.
+3. Do not classify it as Zenput-only unless explicitly confirmed.
+4. Rerun validators.
+5. Rerun validation-only pipeline.
+```
+
+---
+
+# Current Findings After First Controlled Real Execution
+
+## Finding 1: Puebla appeared in Zenput
+
+Detected value:
+
+```text
+Fonda Argentina Puebla
+```
+
+Action taken:
+
+```text
+Mapped to Puebla in core/config/zenput.py.
+```
+
+Status:
+
+```text
+resolved
+```
+
+---
+
+## Finding 2: last_run_timestamp.txt did not change
+
+Observed value:
+
+```text
+2025-10-23T18:37:33Z
+```
+
+Status:
+
+```text
+valid
+unchanged after controlled real execution
+```
+
+Interpretation:
+
+```text
+Not blocking.
+Requires future review.
+```
+
+Possible explanations:
+
+```text
+tasks script is running full sync
+timestamp is not used by current full-sync path
+timestamp update function is not called
+timestamp file is legacy residue
+```
+
+Recommended future action:
+
+```text
+review timestamp logic in zenput_mysql_tasks.py
+document whether incremental mode is active or obsolete
+```
+
+---
+
+## Finding 3: Legacy error propagation should be reviewed
+
+A previous failed attempt showed a legacy error message related to `max_allowed_packet`.
+
+The wrapper relies on subprocess return codes.
+
+Recommended future action:
+
+```text
+review legacy scripts to ensure fatal errors return non-zero exit code
+```
+
+Status:
+
+```text
+pending future hardening
+```
+
+---
+
+## Finding 4: max_allowed_packet was environmental
+
+The previous error:
+
+```text
+Got a packet bigger than 'max_allowed_packet' bytes
+```
+
+was related to local XAMPP / MariaDB configuration.
+
+The controlled execution later completed after the local database environment was recovered.
+
+Recommended future action:
+
+```text
+document recommended max_allowed_packet for development database if the issue recurs
 ```
 
 ---
@@ -1045,15 +1467,15 @@ These are future modernization steps.
 Pending:
 
 ```text
-[ ] Add ZENPUT_API_TOKEN placeholder to core/config/.env.example if missing.
-[ ] Decide when to approve first controlled real legacy execution.
-[ ] Review timestamp update behaviour in detail.
+[ ] Review timestamp behaviour in zenput_mysql_tasks.py.
+[ ] Review whether last_run_timestamp.txt is active or obsolete.
+[ ] Review error propagation from legacy scripts.
 [ ] Review transaction safety around submission_answers delete/reinsert.
-[ ] Decide whether to keep or migrate last_run_timestamp.txt.
-[ ] Create docs/zenput-runbook.md references in README.md and project docs.
-[ ] Add Zenput status to project-status-and-todo.md.
-[ ] Add Zenput status to project-technical-guide.md.
-[ ] Add Zenput pipeline logging guidance to pipeline-logging-and-run-interpretation.md.
+[ ] Consider logging row counts before and after legacy execution.
+[ ] Consider moving Zenput logic to extract/zenput/.
+[ ] Define future Zenput analytical or canonical tables.
+[ ] Review whether Zenput validation results should be persisted to database.
+[ ] Update project-level status documents with first controlled real execution.
 ```
 
 ---
@@ -1101,6 +1523,7 @@ Then rerun:
 ```bash
 python -m scripts.validate_zenput_location_mapping
 python -m scripts.validate_zenput_outputs
+python -m scripts.run_zenput_pipeline --execute --validation-only
 ```
 
 ---
@@ -1152,6 +1575,49 @@ Example:
 ```
 
 Do not manually edit this file unless the operational impact is understood.
+
+---
+
+## max_allowed_packet error appears
+
+Possible error:
+
+```text
+mysql.connector.errors.OperationalError: 1153 (08S01): Got a packet bigger than 'max_allowed_packet' bytes
+```
+
+Meaning:
+
+```text
+MySQL/MariaDB rejected a large packet sent by the client.
+```
+
+For XAMPP development environment, review:
+
+```text
+C:\xampp\mysql\bin\my.ini
+```
+
+and consider increasing under `[mysqld]`:
+
+```ini
+max_allowed_packet=256M
+```
+
+or, if needed:
+
+```ini
+max_allowed_packet=512M
+```
+
+After editing:
+
+```text
+restart MySQL/MariaDB
+verify SHOW VARIABLES LIKE 'max_allowed_packet'
+rerun validation-only
+rerun controlled legacy execution if approved
+```
 
 ---
 
@@ -1234,7 +1700,10 @@ Zenput output validator created and passing.
 Safe pipeline wrapper created.
 Smoke test created and passing.
 Validation-only execution created and passing.
-Legacy real execution remains protected by safety gate.
+First controlled real legacy execution completed against development/test database.
+Puebla location mapping added.
+Post-execution validators passing.
+Legacy real execution remains protected by safety gate and explicit flag.
 ```
 
 Current recommended safe command:
@@ -1247,18 +1716,4 @@ Current command requiring explicit approval:
 
 ```bash
 python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
-```
-
----
-
-# Recommended Commit Later
-
-Recommended Section 15 checkpoint commit:
-
-```bash
-git add docs/zenput-legacy-assessment.md docs/zenput-runbook.md core/config/zenput.py scripts/validate_zenput_location_mapping.py scripts/validate_zenput_outputs.py scripts/run_zenput_pipeline.py scripts/test_run_zenput_pipeline.py
-
-git commit -m "feat(zenput): add safe pipeline wrapper and validation"
-
-git push
 ```

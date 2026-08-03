@@ -52,6 +52,7 @@ ZENPUT_LOCATION_SOURCE_KEY: Dict[str, str] = {
     "Fonda Argentina Oceania": "Oceanía",
     "Fonda Argentina Perisur": "Perisur",
     "Fonda Argentina Playa": "Playa del Carmen",
+    "Fonda Argentina Puebla": "Puebla",
     "Fonda Argentina San Jerónimo": "San Jeronimo",
     "Fonda Argentina San Jeronimo": "San Jeronimo",
     "Fonda Argentina Tepeyac": "Tepeyac",

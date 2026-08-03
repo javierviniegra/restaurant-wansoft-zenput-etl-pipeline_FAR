@@ -4,23 +4,23 @@
 
 This document defines the production-style orchestration plan for the Wansoft + Odoo + Zenput Data Warehouse and ETL Pipeline project.
 
-The goal is to move from individually validated scripts to controlled, repeatable, auditable execution flows.
+The purpose is to move from individually validated scripts to controlled, repeatable, auditable execution flows.
 
 This document covers:
 
 ```text
-execution order
-task classification
-validation gates
+execution layers
 safe automation candidates
-controlled manual steps
-logging requirements
+controlled execution boundaries
+validation gates
 failure handling
-future orchestration structure
+logging requirements
 rollout validation
 inventory pipeline orchestration
 purchases pipeline orchestration
 Zenput safe wrapper orchestration
+Zenput controlled legacy execution
+future production scheduling
 ```
 
 ---
@@ -45,6 +45,7 @@ which branch still uses Wansoft
 which branch migrated from Wansoft to Odoo
 which branch started directly in Odoo
 which branch is currently Zenput-only
+which branch appears in Zenput before full Wansoft/Odoo incorporation
 which records are historical
 which records are current
 which source system produced each record
@@ -100,7 +101,8 @@ Zenput validation-only execution: implemented
 Zenput safety gate: implemented
 Zenput output validation: implemented
 Zenput JSON logging: implemented
-Zenput legacy real execution: protected by explicit --allow-legacy-writes gate
+Zenput first controlled real legacy execution: completed against development/test database
+Zenput production legacy execution: protected and not scheduled
 
 Production scheduling: pending
 Unified analytical consumption layer: pending
@@ -132,7 +134,7 @@ Dictionary promotions should remain manual or approval-based.
 COMPANY_SOURCE changes should remain controlled.
 Odoo writeback should not happen.
 Rollout activation should be explicit.
-Zenput legacy real execution should remain protected until explicitly approved.
+Zenput production legacy execution should remain protected until explicitly approved.
 ```
 
 ---
@@ -183,9 +185,10 @@ historical-only product decisions
 Odoo catalog cleanup
 accounting adjustments
 inventory correction in Odoo
-Zenput legacy real execution
+Zenput production legacy real execution
 Zenput timestamp state changes
-Zenput submission_answers delete/reinsert behaviour changes
+Zenput submission_answers delete/reinsert strategy changes
+Zenput legacy error propagation changes
 ```
 
 ---
@@ -202,7 +205,7 @@ automatic changes to COMPANY_SOURCE
 automatic rollout activation
 automatic operational corrections in Odoo
 automatic accounting adjustments
-automatic Zenput legacy write execution without explicit approval
+automatic Zenput production legacy write execution without explicit approval
 ```
 
 ---
@@ -426,6 +429,7 @@ Current inactive future rollout:
 Puebla:
     rollout_type = new_odoo_branch
     active = False
+    appears in Zenput as Fonda Argentina Puebla
 ```
 
 ---
@@ -830,7 +834,9 @@ validation-only execution implemented
 JSON logging implemented
 location mapping validation implemented
 output validation implemented
-legacy real execution protected
+first controlled real legacy execution completed against development/test database
+post-execution validators passing
+production real legacy execution protected
 ```
 
 Current default pipeline plan:
@@ -888,6 +894,187 @@ This is correct because write-enabled legacy steps require:
 --allow-legacy-writes
 ```
 
+Full legacy execution:
+
+```bash
+python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
+```
+
+Current status:
+
+```text
+Tested once against development/test database.
+Not approved for routine production scheduling.
+```
+
+---
+
+## First Controlled Zenput Legacy Execution
+
+Execution type:
+
+```text
+controlled real legacy execution
+```
+
+Command:
+
+```bash
+python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
+```
+
+Execution target:
+
+```text
+development / test database
+```
+
+Production impact:
+
+```text
+none
+```
+
+Initial execution result:
+
+```text
+01. Zenput location mapping validation -> SUCCESS
+02. Zenput forms legacy ETL -> SUCCESS
+03. Zenput tasks legacy ETL -> SUCCESS
+04. Zenput output validation -> FAILED
+```
+
+Pipeline result:
+
+```text
+PIPELINE RESULT: FAILED
+```
+
+Reason:
+
+```text
+Output validation detected a new unmapped location_name:
+Fonda Argentina Puebla
+```
+
+This failure was correct.
+
+It confirmed that the output validator blocks completion when Zenput introduces a new location that is not yet mapped centrally.
+
+---
+
+## Puebla Mapping Correction
+
+New detected Zenput value:
+
+```text
+Fonda Argentina Puebla
+```
+
+Correct mapping:
+
+```text
+Fonda Argentina Puebla -> Puebla
+```
+
+Added to:
+
+```text
+core/config/zenput.py
+```
+
+Puebla is not Zenput-only.
+
+Reason:
+
+```text
+Puebla already exists as a company_source_key in the project.
+Puebla is modeled as a future Odoo / operational branch.
+Puebla should be preserved as its own canonical key.
+```
+
+Current Zenput-only list remains:
+
+```text
+León
+Lindavista
+Perisur
+```
+
+---
+
+## Controlled Execution Snapshot
+
+Pre-execution snapshot:
+
+```text
+form_templates:       19
+submissions:          774
+submission_answers:   61,357
+zenput_tasks:         1,504
+```
+
+Post-execution snapshot:
+
+```text
+form_templates:       19
+submissions:          1,107
+submission_answers:   89,923
+zenput_tasks:         1,752
+```
+
+Differences:
+
+```text
+form_templates:          +0
+submissions:           +333
+submission_answers:  +28,566
+zenput_tasks:          +248
+```
+
+Interpretation:
+
+```text
+The controlled real execution updated the development/test Zenput database.
+Forms and tasks legacy scripts ran.
+The new Puebla location was detected and then mapped.
+Post-execution validators passed after correction.
+```
+
+---
+
+## Post-Execution Validation
+
+After adding Puebla mapping:
+
+```bash
+python -m py_compile core\config\zenput.py
+python -m scripts.validate_zenput_location_mapping
+python -m scripts.validate_zenput_outputs
+python -m scripts.run_zenput_pipeline --execute --validation-only
+```
+
+Results:
+
+```text
+location mapping validator: PASSED
+output validator: PASSED
+validation-only pipeline: COMPLETED
+```
+
+Expected validation-only summary:
+
+```text
+total_steps: 2
+success: 2
+dry_run: 0
+skipped: 0
+failed_or_error: 0
+required_failed_or_error: 0
+
+PIPELINE RESULT: COMPLETED
+```
+
 ---
 
 ## Zenput Location Mapping
@@ -916,26 +1103,13 @@ Mapping rule:
 Zenput location_name -> company_source_key
 ```
 
-Zenput should not use:
-
-```text
-is_wansoft_company
-```
-
-as an inclusion filter.
-
-Reason:
-
-```text
-Zenput is independent from the Wansoft/Odoo source selection used by Purchases and Inventory.
-```
-
 Confirmed special mappings:
 
 ```text
 Fonda Argentina Coyoacán -> La Esquina Coyoacán
 Fonda Argentina Tollocan -> Metepec
 Taqueria Exhibimex -> Versalles
+Fonda Argentina Puebla -> Puebla
 ```
 
 Confirmed Zenput-only locations:
@@ -1039,7 +1213,7 @@ Recommended safe command:
 python -m scripts.run_zenput_pipeline --execute --validation-only
 ```
 
-Zenput legacy real execution should not be scheduled yet.
+Zenput production legacy real execution should not be scheduled yet.
 
 Reason:
 
@@ -1048,15 +1222,21 @@ legacy scripts write to MySQL
 tasks may update last_run_timestamp.txt
 submission_answers uses targeted delete and reinsert
 transaction safety still requires review
+legacy error propagation still requires review
 ```
 
-Current unsafe automation candidate:
+Current controlled command:
 
 ```bash
 python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
 ```
 
-The unsafe command must require explicit operational approval.
+Current status:
+
+```text
+Allowed for controlled development/test execution.
+Not approved for routine production execution.
+```
 
 ---
 
@@ -1259,7 +1439,7 @@ Stop if rollout company pattern validation fails.
 
 ---
 
-## Layer 6: Zenput Validation and Safe Wrapper
+## Layer 6: Zenput Validation and Controlled Execution
 
 Purpose:
 
@@ -1277,6 +1457,12 @@ Safe real validation:
 
 ```bash
 python -m scripts.run_zenput_pipeline --execute --validation-only
+```
+
+Controlled development/test legacy execution:
+
+```bash
+python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
 ```
 
 Current validators:
@@ -1301,6 +1487,8 @@ Current safe execution behaviour:
 dry-run simulates all steps
 validation-only executes read-only validators
 safety gate blocks write-enabled legacy execution unless explicitly allowed
+controlled legacy execution has been tested in development/test
+production legacy execution remains protected
 ```
 
 Failure handling:
@@ -1310,6 +1498,7 @@ Stop if location mapping validation fails.
 Stop if output validation fails.
 Block write-enabled legacy scripts without --allow-legacy-writes.
 Do not update last_run_timestamp.txt unless real legacy execution is explicitly approved.
+If a new location_name appears, update core/config/zenput.py and rerun validators.
 ```
 
 ---
@@ -1568,6 +1757,8 @@ inventory_promotions_controlled
 zenput_location_mapping_available
 zenput_only_locations_classified
 zenput_timestamp_file_valid
+required_zenput_tables_exist
+zenput_table_counts_available
 ```
 
 ---
@@ -1606,7 +1797,7 @@ backlog increases
 new unmapped products appear
 new vendor appears
 new company appears but is not final-source
-new Zenput location appears but is not part of a write execution
+new Zenput location appears during a controlled development/test execution and is caught by output validation
 non-critical diagnostic export fails
 Pandas SQLAlchemy warning appears
 inactive future rollout expectation is skipped
@@ -1716,7 +1907,7 @@ Current implication:
 
 ```text
 Zenput legacy execution writes to MySQL and may update local timestamp state.
-It must remain protected until explicitly approved.
+It must remain controlled for production use.
 ```
 
 ---
@@ -1770,6 +1961,14 @@ Detailed rollout process:
 
 ```text
 docs/branch-rollout-playbook.md
+```
+
+Puebla note:
+
+```text
+Puebla currently appears in Zenput as Fonda Argentina Puebla.
+This does not activate Puebla for Purchases or Inventory.
+Puebla Purchases/Inventory activation remains controlled by COMPANY_SOURCE and rollout expectations.
 ```
 
 ---
@@ -1844,7 +2043,7 @@ Current recommendation:
 ```text
 Purchases pipeline and Inventory pipeline can remain the first full automation candidates.
 Zenput validation-only execution can be treated as a safe automation candidate.
-Zenput legacy real execution should not be automated yet.
+Zenput production legacy real execution should not be automated yet.
 ```
 
 Reason:
@@ -1855,7 +2054,8 @@ Purchases rollout validation is implemented.
 Inventory pipeline is validated.
 Inventory output validation is implemented.
 Zenput safe wrapper and validators are implemented.
-Zenput legacy real execution still writes to MySQL and may update timestamp state.
+Zenput controlled legacy execution has been tested in development/test.
+Zenput production legacy execution still writes to MySQL and may update timestamp state.
 Required validation gates are integrated.
 All three areas generate JSON logs.
 ```
@@ -1947,7 +2147,10 @@ Pending improvements:
 Current status:
 
 ```text
-Safe wrapper implemented and validators passing
+Safe wrapper implemented
+Validators passing
+First controlled real legacy execution completed against development/test database
+Production legacy execution not scheduled
 ```
 
 Completed:
@@ -1966,6 +2169,9 @@ Completed:
 [x] Add logs/zenput_pipeline_runs/
 [x] Add safety gate for write-enabled legacy scripts
 [x] Add --validation-only mode
+[x] Execute first controlled real legacy run against development/test database
+[x] Add Fonda Argentina Puebla -> Puebla mapping
+[x] Validate post-execution state
 [x] Create docs/zenput-legacy-assessment.md
 [x] Create docs/zenput-runbook.md
 ```
@@ -1973,11 +2179,14 @@ Completed:
 Pending improvements:
 
 ```text
-[ ] Add ZENPUT_API_TOKEN placeholder to core/config/.env.example if missing
-[ ] Review whether and when to approve first controlled legacy real execution
+[ ] Review timestamp behaviour in zenput_mysql_tasks.py
+[ ] Confirm whether last_run_timestamp.txt is active or obsolete
+[ ] Review error propagation from legacy scripts
+[ ] Ensure fatal legacy errors return non-zero exit code
 [ ] Review transaction safety around submission_answers delete/reinsert
-[ ] Review future handling of last_run_timestamp.txt
-[ ] Decide whether to create a modern extract/zenput layer
+[ ] Consider recording pre/post row counts directly in JSON run logs
+[ ] Consider recording timestamp before/after in JSON run logs
+[ ] Consider moving Zenput extraction logic to extract/zenput/
 [ ] Define future Zenput analytical or canonical tables
 [ ] Review whether Zenput validation results should be persisted to database
 ```
@@ -1991,6 +2200,15 @@ Current status:
 ```text
 Future rollout
 active = False
+```
+
+Current notes:
+
+```text
+Puebla appears in Zenput as Fonda Argentina Puebla.
+Zenput maps Fonda Argentina Puebla -> Puebla.
+This does not activate Puebla for Purchases or Inventory.
+Purchases/Inventory activation remains controlled by COMPANY_SOURCE and rollout expectations.
 ```
 
 Pending work:
@@ -2014,14 +2232,14 @@ Pending work:
 Current recommendation:
 
 ```text
-Finish Section 15 documentation consistency.
-Commit the Zenput assessment, configuration, validation and safe wrapper package.
+Finish Section 16 documentation consistency.
+Commit the Zenput controlled execution result and mapping update.
 ```
 
 After commit, decide between:
 
 ```text
-controlled Zenput legacy real execution review
+Zenput hardening
 transaction safety review
 future Zenput analytical table design
 database run-log persistence
@@ -2031,15 +2249,15 @@ unified analytical consumption layer
 Recommended immediate priority:
 
 ```text
-Close Section 15 first.
-Do not run Zenput legacy real execution casually.
+Close Section 16 first.
+Do not schedule Zenput production legacy real execution casually.
 ```
 
 Reason:
 
 ```text
-Zenput now has a safe wrapper, central location mapping, read-only validators and JSON logging.
-Legacy write execution is still protected and should remain an explicit operational decision.
+Zenput now has a safe wrapper, central location mapping, read-only validators, JSON logging and one controlled real execution result against development/test database.
+Production legacy execution is still protected and should remain an explicit operational decision.
 ```
 
 ---
@@ -2061,20 +2279,4 @@ docs/purchases-product-mapping-policy.md
 docs/purchases-canonical-layer.md
 docs/purchases-runbook.md
 docs/wansoft-local-wsdl.md
-```
-
----
-
-# Recommended Commit
-
-This document should be committed as part of the Section 15 documentation update.
-
-Recommended commit when Section 15 is ready to checkpoint:
-
-```bash
-git add README.md docs/ core/config/zenput.py scripts/validate_zenput_location_mapping.py scripts/validate_zenput_outputs.py scripts/run_zenput_pipeline.py scripts/test_run_zenput_pipeline.py
-
-git commit -m "feat(zenput): add safe pipeline wrapper and validation"
-
-git push
 ```

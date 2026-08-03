@@ -2,24 +2,23 @@
 
 ## Purpose
 
-This document captures the assessment of the existing legacy Zenput integration.
+This document captures the assessment and controlled modernization status of the existing legacy Zenput integration.
 
-The purpose is to understand, classify, preserve, and modernize the current Zenput scripts before integrating them into the unified MySQL analytical layer.
+The purpose is to understand, classify, preserve, validate, and gradually modernize the current Zenput scripts before integrating Zenput into the unified MySQL analytical layer.
 
-This document does not replace the existing legacy scripts.
-
-The goal is not to rewrite working legacy scripts unnecessarily.
+The goal is not to replace working legacy scripts unnecessarily.
 
 The goal is to bring the Zenput legacy integration into the same operational standard already applied to Purchases and Inventory:
 
 ```text
 central credentials
-central company configuration
+central location mapping
 clear documentation
 controlled pipeline execution
 JSON logging
 output validation
 safe governance
+controlled legacy execution
 ```
 
 ---
@@ -39,20 +38,62 @@ Credential strategy reviewed
 Central database connection reviewed
 Zenput location mapping defined
 Zenput location mapping diagnostic implemented
-Zenput-only locations classified
-No legacy script execution performed during assessment
-Modernization criteria defined
+Zenput output validator implemented
+Zenput safe pipeline wrapper implemented
+Zenput validation-only mode implemented
+Zenput smoke test implemented
+First controlled real legacy execution completed against development database
+Post-execution validation completed
+Puebla location mapping added after real execution
+No production database was used in this phase
 ```
 
 Important rule:
 
 ```text
-Do not execute legacy Zenput scripts until inputs, outputs, credentials, side effects and database writes are fully reviewed.
+Zenput legacy scripts can write to MySQL and may update local state.
+
+Real legacy execution must remain explicitly controlled through:
+
+python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
 ```
 
 ---
 
-## Current Active Legacy Folder
+# Project Scope Context
+
+The primary project scope is to build a unified MySQL analytical layer that combines operational data from:
+
+```text
+Wansoft
+Odoo
+Zenput
+future operational sources
+```
+
+The analytical layer should hide source-system complexity from end users.
+
+Users should be able to consume consistent business data without needing to know:
+
+```text
+which branch uses Wansoft
+which branch migrated to Odoo
+which branch started directly in Odoo
+which branch is currently Zenput-only
+which source system produced each record
+```
+
+BI and reporting tools are downstream consumers.
+
+The core project objective is:
+
+```text
+build reliable, governed, validated and auditable MySQL analytical outputs
+```
+
+---
+
+# Current Active Legacy Folder
 
 Current active folder:
 
@@ -97,7 +138,7 @@ legacy/zenput/README.md
 
 ---
 
-## Legacy README Summary
+# Legacy README Summary
 
 The legacy README describes the module as a Crunchtime Zenput operational ETL.
 
@@ -123,7 +164,7 @@ The README also states that the module connects to a Zenput MySQL database throu
 
 ---
 
-## Current Legacy Module Scope
+# Current Legacy Module Scope
 
 Based on the existing files, the module currently covers:
 
@@ -167,29 +208,15 @@ Legacy module documentation
 
 Documents the current Zenput operational ETL module.
 
-### Current documented scope
-
-```text
-tasks
-form templates
-form submissions
-submission answers
-last run timestamp
-REST API extraction
-MySQL load
-```
-
 ### Assessment
 
 ```text
 Keep
-Modernize later
 Use as source reference during migration
+Support with centralized docs under docs/
 ```
 
-### Future documentation target
-
-The current legacy README should be preserved, but its content should later be reflected in the centralized project documentation:
+Future documentation support:
 
 ```text
 docs/zenput-legacy-assessment.md
@@ -198,6 +225,7 @@ README.md
 docs/project-technical-guide.md
 docs/production-orchestration-plan.md
 docs/project-status-and-todo.md
+docs/pipeline-logging-and-run-interpretation.md
 ```
 
 ---
@@ -244,8 +272,6 @@ MySQL target = zenput
 
 ### Detected MySQL objects
 
-The script creates or references:
-
 ```text
 form_templates
 submissions
@@ -284,6 +310,8 @@ The script also includes Wansoft-style subsidiary password references:
 WANSOFT_PWD_<subsidiary_id>
 ```
 
+These password references appear to be inherited from the local legacy subsidiary list.
+
 ### Detected branch catalog usage
 
 The script contains an embedded `subsidiaries` list with Wansoft subsidiary IDs and branch names.
@@ -298,13 +326,13 @@ is_wansoft_company
 
 Zenput is an operational source independent of whether a branch is currently Wansoft-source or Odoo-source for Purchases and Inventory.
 
-Therefore, the use of:
+Therefore, the future Zenput logic should not use:
 
 ```text
 is_wansoft_company
 ```
 
-must be removed or bypassed during modernization.
+as its inclusion filter.
 
 ### Current side-effect risk
 
@@ -337,23 +365,6 @@ requires_modernization: yes
 priority: high
 ```
 
-### Modernization priority
-
-```text
-High
-```
-
-### Recommended next review
-
-```text
-Identify exact table schemas
-Confirm pagination or date-filter logic for submissions
-Confirm whether all forms are downloaded every run
-Confirm whether submissions are downloaded fully or incrementally
-Confirm whether Wansoft company filter should be replaced
-Confirm whether the targeted delete/reinsert logic for submission_answers is safe
-```
-
 ---
 
 ## 3. legacy/zenput/zenput_mysql_tasks.py
@@ -377,6 +388,7 @@ task status
 assignee information
 completion information
 geographic coordinates
+fulfillment fields
 ```
 
 ### Detected input source
@@ -398,8 +410,6 @@ MySQL target = zenput
 ```
 
 ### Detected MySQL object
-
-The script creates or references:
 
 ```text
 zenput_tasks
@@ -439,16 +449,6 @@ The script also includes Wansoft-style subsidiary password references:
 WANSOFT_PWD_<subsidiary_id>
 ```
 
-### Detected branch catalog usage
-
-The script contains an embedded `subsidiaries` list with Wansoft subsidiary IDs and branch names.
-
-The script filters subsidiaries using:
-
-```text
-is_wansoft_company
-```
-
 ### Detected incremental state handling
 
 The script defines:
@@ -472,7 +472,7 @@ legacy/zenput/last_run_timestamp.txt
 
 ### Current side-effect risk
 
-The script writes to MySQL and likely updates the timestamp file.
+The script writes to MySQL and may update the timestamp file.
 
 Detected write targets:
 
@@ -501,23 +501,6 @@ requires_modernization: yes
 priority: high
 ```
 
-### Modernization priority
-
-```text
-High
-```
-
-### Recommended next review
-
-```text
-Identify exact UPSERT behaviour
-Confirm pagination logic
-Confirm rate-limit handling
-Confirm timestamp update moment
-Confirm whether all active branches should be included
-Confirm whether the Wansoft company filter should be removed or replaced
-```
-
 ---
 
 ## 4. legacy/zenput/last_run_timestamp.txt
@@ -528,7 +511,7 @@ Confirm whether the Wansoft company filter should be removed or replaced
 Legacy state file
 ```
 
-### Current value
+### Current value after controlled execution
 
 ```text
 2025-10-23T18:37:33Z
@@ -544,50 +527,45 @@ UTC ISO 8601 style timestamp
 
 Stores the last successful or last processed execution timestamp for incremental extraction.
 
-### Current concern
+### Current finding after first controlled real execution
 
-The state lives in a local file.
-
-That means the execution state is:
+The value remained unchanged after the controlled real execution:
 
 ```text
-local
-not centrally auditable
-not naturally linked to pipeline run_id
-not stored in MySQL
-not stored in JSON run logs unless explicitly added later
+before execution: 2025-10-23T18:37:33Z
+after execution:  2025-10-23T18:37:33Z
 ```
 
-### Assessment classification
+### Current interpretation
+
+This is not currently blocking.
+
+The tasks script reported full synchronization of tasks during the controlled real execution.
+
+Therefore, the timestamp file may currently be:
 
 ```text
-file_name: last_run_timestamp.txt
-path: legacy/zenput/last_run_timestamp.txt
-type: legacy state file
-purpose: incremental extraction marker
-current_value: 2025-10-23T18:37:33Z
-requires_modernization: yes
-priority: medium
+legacy state
+unused by the current full-sync path
+or only used by a code path not triggered in this execution
 ```
 
-### Recommended future decision
-
-Decide whether to:
+### Required future review
 
 ```text
-keep temporarily
-mirror into JSON run logs
-move to MySQL control table
-replace with explicit pipeline date parameters
-integrate into future etl_run_log
+[ ] Confirm whether last_run_timestamp.txt is still used for incremental tasks extraction.
+[ ] Confirm whether the current tasks ETL always performs full sync.
+[ ] Decide whether to keep this file as legacy metadata.
+[ ] Decide whether to migrate timestamp state to MySQL.
+[ ] Decide whether pipeline logs should record timestamp before/after.
 ```
 
 ### Current action
 
 ```text
 Preserve
-Do not modify manually
-Do not overwrite during assessment
+Do not manually edit
+Review in future safety hardening
 ```
 
 ---
@@ -603,16 +581,6 @@ Python package marker
 ### Purpose
 
 Allows `legacy/zenput` to behave as a Python package.
-
-### Assessment classification
-
-```text
-file_name: __init__.py
-path: legacy/zenput/__init__.py
-type: package marker
-requires_modernization: no
-priority: low
-```
 
 ### Current action
 
@@ -636,9 +604,7 @@ This confirms that Zenput uses the existing central database connection logic.
 
 ---
 
-## Detected tables
-
-Detected or documented tables:
+## Required Zenput tables
 
 ```text
 form_templates
@@ -664,19 +630,6 @@ CREATE TABLE IF NOT EXISTS
 INSERT ... ON DUPLICATE KEY UPDATE
 cursor.executemany
 connection.commit
-```
-
-Likely stores:
-
-```text
-form_id
-title
-num_submissions
-date_created
-date_last_submitted
-creator_full_name
-category_name
-last_updated
 ```
 
 Risk level:
@@ -709,8 +662,6 @@ INSERT ... ON DUPLICATE KEY UPDATE
 cursor.executemany
 connection.commit
 ```
-
-Likely stores submission-level metadata from Zenput form responses.
 
 Risk level:
 
@@ -745,8 +696,6 @@ cursor.executemany
 connection.commit
 ```
 
-Likely stores question / answer-level detail from each submission.
-
 Risk level:
 
 ```text
@@ -762,15 +711,15 @@ Existing answers are deleted for processed submission_id values and then reinser
 Current interpretation:
 
 ```text
-This is probably a targeted refresh strategy for answers belonging to submissions processed during the run.
+This is a targeted refresh strategy for answers belonging to submissions processed during the run.
 ```
 
 Required future review:
 
 ```text
-Confirm that DELETE is always scoped to known processed submission_id values.
-Confirm that a failed reinsertion cannot leave answers missing.
-Consider transactional rollback or staging strategy.
+[ ] Confirm that DELETE is always scoped to known processed submission_id values.
+[ ] Confirm that failed reinsertion cannot leave answers missing.
+[ ] Consider transactional rollback or staging strategy.
 ```
 
 ---
@@ -791,8 +740,6 @@ INSERT ... ON DUPLICATE KEY UPDATE
 cursor.executemany
 connection.commit
 ```
-
-Likely stores task-level metadata, status, assignee, location, completion, and fulfillment detail.
 
 Risk level:
 
@@ -862,12 +809,6 @@ Detected through:
 
 ```text
 ON DUPLICATE KEY UPDATE
-```
-
-and table definitions with:
-
-```text
-last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ```
 
 Detected in:
@@ -945,39 +886,9 @@ This is a logical refresh strategy.
 
 ---
 
-## Commits
-
-Detected:
-
-```text
-legacy/zenput/zenput_mysql_forms.py:
-    connection.commit()
-
-legacy/zenput/zenput_mysql_tasks.py:
-    connection.commit()
-```
-
-No rollback detected:
-
-```text
-connection.rollback()
-```
-
-Interpretation:
-
-```text
-The scripts commit explicitly.
-No rollback handling was detected in the search.
-Modernization should add safer transaction handling where relevant.
-```
-
----
-
 # Legacy Refresh Behaviour
 
-Based on operational memory, the Zenput legacy scripts appear to refresh or rewrite the relevant data on each execution so the MySQL Zenput tables remain updated.
-
-The detected SQL pattern suggests a logical refresh strategy rather than a full destructive table rebuild.
+Based on operational memory and detected SQL patterns, the Zenput legacy scripts behave like a logical refresh process.
 
 Detected behaviour:
 
@@ -996,36 +907,18 @@ zenput_tasks:
     INSERT ... ON DUPLICATE KEY UPDATE
 ```
 
-No global table-level operation has been confirmed yet, such as:
+No global table-level destructive operation has been confirmed:
 
 ```text
-DROP TABLE
-TRUNCATE TABLE
-DELETE FROM <table> without filter
+No DROP TABLE
+No TRUNCATE TABLE
+No DELETE FROM table without filter
 ```
 
-Current interpretation:
+Current implication:
 
 ```text
-The scripts update existing rows and insert new rows.
-For submission_answers, the script performs a targeted delete-and-reinsert strategy by submission_id.
-This provides an effective refresh behaviour for processed Zenput records.
-```
-
-Modernization implication:
-
-```text
-The future Zenput pipeline should preserve this refresh behaviour unless a safer incremental or staging-based strategy is explicitly designed.
-```
-
-Required future review:
-
-```text
-[ ] Confirm whether each execution downloads all available Zenput records or only a date-filtered or incremental subset.
-[ ] Confirm whether last_run_timestamp.txt is currently used to limit task extraction.
-[ ] Confirm whether forms/submissions use incremental filters or full refresh logic.
-[ ] Confirm whether targeted delete/reinsert for submission_answers is sufficient and safe.
-[ ] Confirm whether table row counts remain stable or grow correctly after repeated executions.
+The future Zenput pipeline should preserve this refresh behaviour unless a safer staging-based strategy is explicitly designed.
 ```
 
 ---
@@ -1048,8 +941,6 @@ Detected database routing pattern:
 get_db_connection(target="zenput")
 ```
 
-This is partially compliant with the project standard because API and database access are handled through environment variables and centralized routing.
-
 ---
 
 ## Zenput API token
@@ -1068,18 +959,14 @@ Read from .env through os.getenv
 No hardcoded token detected in reviewed searches
 ```
 
-Required action:
-
-```text
-Add ZENPUT_API_TOKEN placeholder to core/config/.env.example if not already present.
-```
-
-Recommended placeholder:
+Required `.env.example` pattern:
 
 ```env
 # ZENPUT API
 ZENPUT_API_TOKEN=
 ```
+
+No real secret values should be committed.
 
 ---
 
@@ -1105,20 +992,13 @@ ZENPUT_DB_PASSWORD_DEV
 ZENPUT_DB_NAME_DEV
 ```
 
-Current status:
-
-```text
-Documented in core/config/.env.example
-Used by core/database/mysql.py through target="zenput"
-```
-
-No Zenput-specific port variable was confirmed during the review.
+The first controlled real execution was performed against development/test database configuration, not production.
 
 ---
 
 ## Current Wansoft password references
 
-Both legacy Zenput scripts include Wansoft-style password variables inside their local `subsidiaries` lists:
+Both legacy Zenput scripts include Wansoft-style password variables inside local `subsidiaries` lists:
 
 ```text
 WANSOFT_PWD_<subsidiary_id>
@@ -1127,8 +1007,8 @@ WANSOFT_PWD_<subsidiary_id>
 Reviewed usage:
 
 ```text
-WANSOFT_PWD_* appears inside the local subsidiaries lists.
-No evidence was found that the password field is used outside that list in the reviewed searches.
+WANSOFT_PWD_* appears inside local subsidiaries lists.
+No evidence was found that the password field is used outside that list in reviewed searches.
 ```
 
 Current interpretation:
@@ -1143,49 +1023,6 @@ Required modernization action:
 ```text
 Remove WANSOFT_PWD dependencies from future Zenput company configuration if confirmed unused.
 Use Zenput-specific location mapping instead.
-```
-
----
-
-## Credential acceptance criteria
-
-Zenput modernization must satisfy:
-
-```text
-[ ] No hardcoded API tokens.
-[ ] No hardcoded database passwords.
-[ ] ZENPUT_API_TOKEN comes from .env.
-[ ] Zenput database credentials come from .env.
-[ ] Zenput database connection uses central connection routing.
-[ ] core/config/.env.example documents placeholders only.
-[ ] No secret values are committed.
-```
-
----
-
-## Current compliance assessment
-
-```text
-ZENPUT_API_TOKEN from environment:
-    PASS
-
-get_db_connection(target="zenput"):
-    PASS
-
-Zenput DB variables documented in core/config/.env.example:
-    PASS
-
-ZENPUT_API_TOKEN documented in core/config/.env.example:
-    pending
-
-Hardcoded secrets:
-    no evidence found in reviewed searches
-
-WANSOFT_PWD dependency:
-    legacy inheritance, not required for future Zenput mapping
-
-Company configuration from companies.py or Zenput config:
-    now partially addressed through core/config/zenput.py
 ```
 
 ---
@@ -1205,8 +1042,6 @@ Current concern:
 ```text
 Zenput operational data should not depend on whether a branch is Wansoft-source or Odoo-source for Purchases and Inventory.
 ```
-
-This is now confirmed as an architecture issue.
 
 ---
 
@@ -1264,7 +1099,41 @@ because Zenput is an operational source independent from whether a branch uses W
 
 ---
 
-## Current distinct Zenput location_name values detected
+## Central Zenput configuration
+
+Implemented file:
+
+```text
+core/config/zenput.py
+```
+
+Purpose:
+
+```text
+Centralize Zenput location_name mapping.
+Avoid duplicating local subsidiaries lists inside Zenput scripts.
+Avoid using is_wansoft_company as Zenput filter.
+Preserve Zenput-only operational locations.
+Support future incorporation of current Zenput-only locations into Wansoft or Odoo.
+```
+
+Main mapping:
+
+```text
+ZENPUT_LOCATION_SOURCE_KEY
+```
+
+Auxiliary metadata:
+
+```text
+ZENPUT_ONLY_LOCATIONS
+ZENPUT_COMPANY_WANSOFT_ID
+ZENPUT_CONFIRMED_SPECIAL_MAPPINGS
+```
+
+---
+
+## Current distinct Zenput location_name values detected after real execution
 
 Current values detected from:
 
@@ -1285,6 +1154,7 @@ Fonda Argentina Napoles
 Fonda Argentina Oceania
 Fonda Argentina Perisur
 Fonda Argentina Playa
+Fonda Argentina Puebla
 Fonda Argentina San Jeronimo
 Fonda Argentina Tepeyac
 Fonda Argentina Tollocan
@@ -1295,44 +1165,17 @@ Taqueria Parroquia
 Taqueria Viaducto
 ```
 
----
-
-## Central Zenput configuration
-
-Implemented file:
+Current total distinct locations:
 
 ```text
-core/config/zenput.py
-```
-
-Purpose:
-
-```text
-Centralize Zenput location_name mapping.
-Avoid duplicating local subsidiaries lists inside Zenput scripts.
-Avoid using is_wansoft_company as Zenput filter.
-Preserve Zenput-only operational locations.
-```
-
-Main mapping:
-
-```text
-ZENPUT_LOCATION_SOURCE_KEY
-```
-
-Auxiliary metadata:
-
-```text
-ZENPUT_ONLY_LOCATIONS
-ZENPUT_COMPANY_WANSOFT_ID
-ZENPUT_CONFIRMED_SPECIAL_MAPPINGS
+21
 ```
 
 ---
 
 ## Confirmed Zenput location mapping
 
-Current mapping:
+Current mapping includes:
 
 ```python
 ZENPUT_LOCATION_SOURCE_KEY = {
@@ -1348,6 +1191,7 @@ ZENPUT_LOCATION_SOURCE_KEY = {
     "Fonda Argentina Oceania": "Oceanía",
     "Fonda Argentina Perisur": "Perisur",
     "Fonda Argentina Playa": "Playa del Carmen",
+    "Fonda Argentina Puebla": "Puebla",
     "Fonda Argentina San Jerónimo": "San Jeronimo",
     "Fonda Argentina San Jeronimo": "San Jeronimo",
     "Fonda Argentina Tepeyac": "Tepeyac",
@@ -1370,6 +1214,7 @@ The following mappings were explicitly confirmed:
 Fonda Argentina Coyoacán -> La Esquina Coyoacán
 Fonda Argentina Tollocan -> Metepec
 Taqueria Exhibimex -> Versalles
+Fonda Argentina Puebla -> Puebla
 ```
 
 ---
@@ -1400,45 +1245,45 @@ Important future-proofing rule:
 León, Lindavista and Perisur are currently Zenput-only, but they should be modeled as locations that could be incorporated into Wansoft or Odoo in the future.
 ```
 
-Therefore, the configuration should preserve them as canonical keys now:
+Therefore:
 
 ```text
-León
-Lindavista
-Perisur
-```
-
-and not collapse them into another branch.
-
----
-
-## WansoftID metadata
-
-WansoftID is retained only as auxiliary metadata where available.
-
-Rule:
-
-```text
-WansoftID should not be used as the only inclusion rule for Zenput.
-```
-
-Zenput-only locations currently have:
-
-```text
-wansoft_id = None
-```
-
-for:
-
-```text
-León
-Lindavista
-Perisur
+Do not collapse them into another branch.
+Do not remove them from Zenput mapping.
+Do not assign fake Wansoft IDs.
 ```
 
 ---
 
-# Zenput Location Mapping Validator
+## Puebla handling
+
+Puebla appeared in Zenput after the first controlled real execution:
+
+```text
+Fonda Argentina Puebla
+```
+
+Correct mapping:
+
+```text
+Fonda Argentina Puebla -> Puebla
+```
+
+Puebla is not Zenput-only.
+
+Reason:
+
+```text
+Puebla already exists as a company_source_key in the project.
+Puebla is modeled as a future Odoo / operational branch.
+Puebla should be preserved as its own canonical key.
+```
+
+---
+
+# Zenput Validators
+
+## Location Mapping Validator
 
 Implemented file:
 
@@ -1462,30 +1307,16 @@ modify MySQL
 update last_run_timestamp.txt
 ```
 
----
-
-## Validation checks
-
-The validator checks:
+Current validation checks:
 
 ```text
-1. submissions_table_exists
-2. zenput_location_mapping_available
-3. zenput_only_locations_classified
-4. zenput_governance_rule_documented
+submissions_table_exists
+zenput_location_mapping_available
+zenput_only_locations_classified
+zenput_governance_rule_documented
 ```
 
----
-
-## Validation result
-
-After adding the missing San Jeronimo alias:
-
-```text
-Fonda Argentina San Jeronimo -> San Jeronimo
-```
-
-the validator passed all checks:
+Current post-execution result:
 
 ```text
 total_validations: 4
@@ -1495,13 +1326,508 @@ failed: 0
 VALIDATION RESULT: PASSED
 ```
 
-This confirms:
+---
+
+## Output Validator
+
+Implemented file:
 
 ```text
-submissions table exists
-all detected location_name values are mapped
-León, Lindavista and Perisur are classified as Zenput-only
-Zenput governance rule is documented
+scripts/validate_zenput_outputs.py
+```
+
+Purpose:
+
+```text
+Validate current Zenput MySQL outputs and local legacy timestamp state.
+```
+
+This validator is read-only.
+
+It validates:
+
+```text
+required Zenput tables exist
+Zenput table counts are available
+submissions.location_name mapping is valid
+Zenput-only locations are classified
+last_run_timestamp.txt exists and is parseable
+legacy pipeline protection is documented
+```
+
+Current validation checks:
+
+```text
+required_zenput_tables_exist
+zenput_table_counts_available
+zenput_submissions_location_mapping
+zenput_only_locations_classified
+zenput_timestamp_file_valid
+zenput_legacy_pipeline_protection_documented
+```
+
+Current post-execution result:
+
+```text
+total_validations: 6
+passed: 6
+failed: 0
+
+VALIDATION RESULT: PASSED
+```
+
+---
+
+# Zenput Safe Pipeline Wrapper
+
+Implemented file:
+
+```text
+scripts/run_zenput_pipeline.py
+```
+
+Current default pipeline plan:
+
+```text
+01. Zenput location mapping validation
+02. Zenput forms legacy ETL
+03. Zenput tasks legacy ETL
+04. Zenput output validation
+```
+
+Current modes:
+
+```text
+dry-run
+validation-only
+safety gate
+real legacy execution with explicit approval
+```
+
+---
+
+## Dry-run
+
+Command:
+
+```bash
+python -m scripts.run_zenput_pipeline
+```
+
+Expected result:
+
+```text
+total_steps: 4
+dry_run: 4
+PIPELINE RESULT: COMPLETED
+```
+
+Meaning:
+
+```text
+The pipeline plan is valid.
+No legacy scripts run.
+No API calls are made.
+No MySQL writes occur.
+last_run_timestamp.txt is not modified.
+```
+
+---
+
+## Validation-only execution
+
+Command:
+
+```bash
+python -m scripts.run_zenput_pipeline --execute --validation-only
+```
+
+Expected result:
+
+```text
+total_steps: 2
+success: 2
+PIPELINE RESULT: COMPLETED
+```
+
+Meaning:
+
+```text
+Only read-only validators execute.
+Legacy ETLs are excluded.
+No MySQL writes are performed by legacy scripts.
+last_run_timestamp.txt is not modified.
+```
+
+Current post-execution validation-only result:
+
+```text
+total_steps: 2
+success: 2
+dry_run: 0
+skipped: 0
+failed_or_error: 0
+required_failed_or_error: 0
+
+PIPELINE RESULT: COMPLETED
+```
+
+---
+
+## Safety gate
+
+Command:
+
+```bash
+python -m scripts.run_zenput_pipeline --execute
+```
+
+Expected result:
+
+```text
+PIPELINE RESULT: FAILED
+```
+
+Meaning:
+
+```text
+The pipeline blocks real execution because write-enabled legacy scripts require explicit --allow-legacy-writes.
+```
+
+This is correct behaviour.
+
+---
+
+## Real legacy execution
+
+Command:
+
+```bash
+python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
+```
+
+This command may:
+
+```text
+call Zenput API
+write to MySQL target zenput
+insert or update form_templates
+insert or update submissions
+delete and reinsert submission_answers for processed submissions
+insert or update zenput_tasks
+possibly update legacy/zenput/last_run_timestamp.txt
+```
+
+Current status:
+
+```text
+Executed once against development/test database.
+Not executed against production.
+```
+
+---
+
+# First Controlled Real Legacy Execution
+
+## Execution context
+
+Execution type:
+
+```text
+controlled real legacy execution
+```
+
+Command:
+
+```bash
+python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
+```
+
+Environment:
+
+```text
+development / test database
+```
+
+Production impact:
+
+```text
+none
+```
+
+Reason:
+
+```text
+The execution was pointed to development/test Zenput database configuration.
+```
+
+---
+
+## Pre-execution snapshot
+
+Before execution:
+
+```text
+form_templates:       19
+submissions:          774
+submission_answers:   61,357
+zenput_tasks:         1,504
+```
+
+Pre-execution dates:
+
+```text
+submissions:
+    min_date: 2025-06-11 22:34:31
+    max_date: 2026-05-27 23:00:27
+
+zenput_tasks:
+    min_date using last_updated: 2026-05-28 13:14:37
+    max_date using last_updated: 2026-05-28 13:14:37
+```
+
+Pre-execution timestamp file:
+
+```text
+legacy/zenput/last_run_timestamp.txt
+2025-10-23T18:37:33Z
+```
+
+---
+
+## Execution result
+
+Initial controlled real execution result:
+
+```text
+01. Zenput location mapping validation -> SUCCESS
+02. Zenput forms legacy ETL -> SUCCESS
+03. Zenput tasks legacy ETL -> SUCCESS
+04. Zenput output validation -> FAILED
+```
+
+Pipeline result:
+
+```text
+PIPELINE RESULT: FAILED
+```
+
+Reason:
+
+```text
+Output validation detected a new unmapped location_name:
+Fonda Argentina Puebla
+```
+
+This failure was correct and useful.
+
+It proved that the validator correctly blocks completion when Zenput introduces a location not yet present in the central mapping.
+
+---
+
+## Follow-up correction
+
+Added mapping:
+
+```text
+Fonda Argentina Puebla -> Puebla
+```
+
+in:
+
+```text
+core/config/zenput.py
+```
+
+After correction:
+
+```text
+python -m py_compile core\config\zenput.py
+python -m scripts.validate_zenput_location_mapping
+python -m scripts.validate_zenput_outputs
+python -m scripts.run_zenput_pipeline --execute --validation-only
+```
+
+All passed.
+
+---
+
+## Post-execution snapshot
+
+After execution and Puebla mapping correction:
+
+```text
+form_templates:       19
+submissions:          1,107
+submission_answers:   89,923
+zenput_tasks:         1,752
+```
+
+Differences:
+
+```text
+form_templates:          +0
+submissions:           +333
+submission_answers:  +28,566
+zenput_tasks:          +248
+```
+
+Interpretation:
+
+```text
+The controlled real execution updated the development/test Zenput database.
+Forms and tasks legacy scripts ran.
+Output validators now pass after adding Puebla mapping.
+```
+
+---
+
+## Post-execution validation result
+
+Location mapping validator:
+
+```text
+total_validations: 4
+passed: 4
+failed: 0
+
+VALIDATION RESULT: PASSED
+```
+
+Output validator:
+
+```text
+total_validations: 6
+passed: 6
+failed: 0
+
+VALIDATION RESULT: PASSED
+```
+
+Validation-only wrapper:
+
+```text
+total_steps: 2
+success: 2
+failed_or_error: 0
+required_failed_or_error: 0
+
+PIPELINE RESULT: COMPLETED
+```
+
+---
+
+# Current Findings After First Controlled Real Execution
+
+## Finding 1: Puebla appeared in Zenput
+
+New location:
+
+```text
+Fonda Argentina Puebla
+```
+
+Action taken:
+
+```text
+Mapped to Puebla in core/config/zenput.py
+```
+
+Status:
+
+```text
+resolved
+```
+
+---
+
+## Finding 2: last_run_timestamp.txt did not change
+
+Observed value:
+
+```text
+2025-10-23T18:37:33Z
+```
+
+Status:
+
+```text
+still valid
+unchanged after controlled real execution
+```
+
+Interpretation:
+
+```text
+Not currently blocking.
+Requires future review.
+```
+
+Possible explanations:
+
+```text
+tasks script is running full sync
+timestamp is not used by current full sync path
+timestamp update function is not called
+timestamp file is legacy residue
+```
+
+Recommended future action:
+
+```text
+review timestamp logic in zenput_mysql_tasks.py
+document whether incremental mode is active or obsolete
+```
+
+---
+
+## Finding 3: Legacy scripts returned success to wrapper
+
+The wrapper correctly captured:
+
+```text
+forms legacy ETL -> SUCCESS
+tasks legacy ETL -> SUCCESS
+```
+
+This execution did not show the previous `max_allowed_packet` error after database configuration recovery.
+
+However, a previous failed attempt suggested a legacy script may print an error without returning non-zero exit code.
+
+Recommended future action:
+
+```text
+review legacy scripts to ensure fatal errors propagate with non-zero exit code
+```
+
+Status:
+
+```text
+pending future hardening
+```
+
+---
+
+## Finding 4: max_allowed_packet issue was environmental
+
+The previous error:
+
+```text
+Got a packet bigger than 'max_allowed_packet' bytes
+```
+
+was resolved by correcting the local XAMPP / MariaDB environment.
+
+Status:
+
+```text
+resolved for current execution
+```
+
+Recommended future action:
+
+```text
+document recommended max_allowed_packet for development database if the issue recurs
 ```
 
 ---
@@ -1516,8 +1842,6 @@ The goal is to modernize them only where needed so they follow the project stand
 
 ## 1. Global credentials
 
-Zenput scripts must use environment variables and central database routing.
-
 Required:
 
 ```text
@@ -1526,344 +1850,197 @@ Zenput database credentials through .env
 get_db_connection(target="zenput")
 ```
 
-Not allowed:
+Current status:
 
 ```text
-hardcoded API tokens
-hardcoded database passwords
-hardcoded connection strings
+PASS
+```
+
+---
+
+## 2. Central location mapping
+
+Required:
+
+```text
+Zenput location_name values must map through core/config/zenput.py.
 ```
 
 Current status:
 
 ```text
-Mostly compliant.
-ZENPUT_API_TOKEN is already read from environment variables.
-get_db_connection(target="zenput") is already used.
-Zenput database variables are already supported in the MySQL router.
-ZENPUT_API_TOKEN should be added to core/config/.env.example.
+PASS
 ```
 
 ---
 
-## 2. Company configuration from central project config
+## 3. Documentation
 
-Zenput scripts should not maintain duplicated branch lists inside each script.
-
-Current legacy concern:
-
-```text
-Both scripts define local subsidiaries lists.
-Both scripts filter through is_wansoft_company.
-```
-
-Future target:
-
-```text
-Zenput branch inclusion should come from core/config/zenput.py.
-Zenput should not depend on whether a branch is Wansoft-source or Odoo-source.
-```
-
-Current status:
-
-```text
-core/config/zenput.py created and validated.
-Legacy scripts not yet migrated to use it.
-```
-
----
-
-## 3. Centralized documentation
-
-Zenput must be documented in:
+Required:
 
 ```text
 legacy/zenput/README.md
 docs/zenput-legacy-assessment.md
-README.md
-```
-
-Future documentation may include:
-
-```text
 docs/zenput-runbook.md
-docs/production-orchestration-plan.md
-docs/project-technical-guide.md
-docs/project-status-and-todo.md
+project-level documentation
 ```
 
 Current status:
 
 ```text
-Partially compliant.
-legacy/zenput/README.md exists.
-docs/zenput-legacy-assessment.md is being maintained.
-Project-level documentation still pending.
+PASS, with ongoing updates after controlled real execution
 ```
 
 ---
 
 ## 4. Structural quality
 
-The current Zenput scripts appear structurally useful and should be preserved as the starting point.
-
-The modernization should focus on:
-
-```text
-configuration cleanup
-centralized location mapping
-dry-run support
-JSON logging
-validation
-pipeline orchestration
-safe timestamp handling
-transaction safety review
-```
-
-Avoid unnecessary rewrites if the existing extraction and load logic is correct.
-
 Current status:
 
 ```text
-Structurally useful legacy scripts.
-Requires modernization wrapper and configuration cleanup.
+Legacy scripts are structurally useful.
+Safe wrapper and validators are now implemented.
+Further hardening is still recommended.
+```
+
+Future hardening:
+
+```text
+error propagation
+timestamp handling
+transaction safety
+possible extraction layer
 ```
 
 ---
 
 ## 5. Pipeline inclusion
 
-Zenput must eventually be executable through a controlled pipeline.
-
-Future expected files:
+Required:
 
 ```text
 scripts/run_zenput_pipeline.py
 scripts/test_run_zenput_pipeline.py
+scripts/validate_zenput_location_mapping.py
 scripts/validate_zenput_outputs.py
 logs/zenput_pipeline_runs/
-docs/zenput-runbook.md
-```
-
-Expected pipeline principles:
-
-```text
-dry-run support
-real execution
-JSON run logging
-required validation step
-controlled timestamp handling
-no hidden credential usage
-centralized location mapping
 ```
 
 Current status:
 
 ```text
-Not yet implemented.
+PASS
 ```
 
 ---
 
-# Modernization Philosophy
+# Risks and Controls
 
-The Zenput modernization goal is not to replace working legacy scripts blindly.
-
-The goal is to bring them into the same operational standard as the rest of the project:
-
-```text
-central configuration
-central credentials
-documented behavior
-auditable execution
-pipeline orchestration
-validation gates
-safe governance
-```
-
-Guiding principle:
-
-```text
-Preserve what works.
-Centralize what is duplicated.
-Orchestrate what is manual.
-Validate before considering it reliable.
-```
-
----
-
-# Risks Identified
-
-## 1. Direct MySQL writes
-
-The legacy scripts create tables and perform upserts.
+## Direct MySQL writes
 
 Risk:
 
 ```text
-Running the scripts modifies the Zenput MySQL database.
+Legacy scripts write to MySQL.
 ```
 
-Mitigation:
+Control:
 
 ```text
-Do not execute during assessment unless explicitly approved.
-Identify all write statements first.
-Create dry-run or read-only wrapper during modernization.
-```
-
----
-
-## 2. Targeted delete in submission_answers
-
-Detected operation:
-
-```text
-DELETE FROM submission_answers WHERE submission_id IN (...)
-```
-
-Risk:
-
-```text
-If the process fails after deleting and before reinserting, answers for processed submissions may be temporarily missing.
-```
-
-Mitigation:
-
-```text
-Confirm transaction scope.
-Add rollback where needed.
-Consider staging table strategy if necessary.
+Safety gate blocks real execution unless --allow-legacy-writes is passed.
 ```
 
 ---
 
-## 3. Local timestamp state
-
-The tasks script uses:
-
-```text
-last_run_timestamp.txt
-```
+## Targeted delete in submission_answers
 
 Risk:
 
 ```text
-Local state may be overwritten.
-State may not match database contents.
-State is not connected to run_id.
-State is not centrally auditable.
+submission_answers are deleted by submission_id and reinserted.
 ```
 
-Mitigation:
+Control:
 
 ```text
-Preserve temporarily.
-Add logging around timestamp read/write.
-Consider future MySQL state table.
+Documented.
+Validators run after execution.
+Future transaction review pending.
 ```
 
 ---
 
-## 4. Wansoft company filter dependency
-
-Both scripts filter by:
-
-```text
-is_wansoft_company
-```
+## Local timestamp state
 
 Risk:
 
 ```text
-Zenput extraction may exclude migrated Odoo branches, new Odoo branches, or Zenput-only locations.
+last_run_timestamp.txt may not reflect actual sync state.
 ```
 
-Mitigation:
+Control:
 
 ```text
-Replace with Zenput-specific location mapping from core/config/zenput.py.
+File is validated as parseable.
+Future timestamp logic review pending.
 ```
 
 ---
 
-## 5. Encoding and historical script formatting
-
-Some console outputs showed mojibake in branch names.
+## New location_name values
 
 Risk:
 
 ```text
-Incorrect branch labels may cause mapping issues if used as keys.
+Zenput may introduce new locations not yet mapped.
 ```
 
-Mitigation:
+Control:
 
 ```text
-Use exact Zenput location_name values detected in MySQL.
-Add explicit aliases where needed.
-Use canonical company_source_key values from central configuration.
+Location mapping validator fails when unmapped location_name appears.
+```
+
+Example found:
+
+```text
+Fonda Argentina Puebla
+```
+
+Resolution:
+
+```text
+Mapped to Puebla.
 ```
 
 ---
 
-## 6. API authentication uncertainty
-
-The tasks script comments indicate that Zenput task endpoint authentication may require either:
-
-```text
-X-API-TOKEN
-```
-
-or:
-
-```text
-Authorization: Bearer <token>
-```
+## Legacy error propagation
 
 Risk:
 
 ```text
-API calls may fail if endpoint authentication expectations differ.
+Legacy scripts may print errors but still return exit code 0.
 ```
 
-Mitigation:
+Control:
 
 ```text
-Do not change until tested safely.
-Create one central Zenput client.
-Handle 401/403 explicitly.
-```
-
----
-
-## 7. Rate limiting
-
-Legacy README indicates rate limiting handling for tasks.
-
-Risk:
-
-```text
-Modernization must preserve HTTP 429 handling.
-```
-
-Mitigation:
-
-```text
-Review current implementation before refactoring.
-Preserve retry/backoff behaviour.
+Wrapper captures subprocess return code.
+Future hardening should ensure legacy scripts return non-zero on fatal errors.
 ```
 
 ---
 
 # What Should Not Be Done Yet
 
-Do not run without explicit decision:
+Do not schedule this command automatically:
 
 ```bash
-python legacy/zenput/zenput_mysql_forms.py
-python legacy/zenput/zenput_mysql_tasks.py
+python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
 ```
+
+without explicit operational approval.
 
 Do not manually edit:
 
@@ -1871,22 +2048,27 @@ Do not manually edit:
 legacy/zenput/last_run_timestamp.txt
 ```
 
+without understanding timestamp behaviour.
+
 Do not remove:
+
+```text
+León
+Lindavista
+Perisur
+```
+
+from Zenput mapping.
+
+Do not treat Puebla as Zenput-only.
+
+Do not use:
 
 ```text
 is_wansoft_company
 ```
 
-from legacy scripts until replacement logic is wired safely.
-
-Do not refactor write logic before the future pipeline has:
-
-```text
-dry-run
-logging
-validation
-timestamp protection
-```
+as Zenput inclusion logic.
 
 ---
 
@@ -1907,8 +2089,8 @@ core/config/
 scripts/
     run_zenput_pipeline.py
     test_run_zenput_pipeline.py
-    validate_zenput_outputs.py
     validate_zenput_location_mapping.py
+    validate_zenput_outputs.py
 
 logs/
     zenput_pipeline_runs/
@@ -1920,82 +2102,9 @@ docs/
 
 ---
 
-## Future Zenput Client
-
-A future centralized Zenput client should handle:
-
-```text
-base URL
-headers
-ZENPUT_API_TOKEN
-HTTP errors
-401 / 403 responses
-429 rate limiting
-pagination
-JSON parsing
-request logging
-safe retries
-```
-
----
-
-## Future Zenput Pipeline
-
-A future Zenput pipeline should support:
-
-```text
-dry-run
-real execution
-JSON run logging
-required validation step
-optional forms execution
-optional tasks execution
-incremental mode
-full refresh mode if required
-controlled timestamp handling
-failure summaries
-```
-
----
-
-## Future Zenput Validation
-
-A future validator should check:
-
-```text
-required tables exist
-zenput_tasks row counts
-form_templates row counts
-submissions row counts
-submission_answers row counts
-latest extracted timestamp
-null or missing location_name values
-location_name mapping coverage
-Zenput-only location preservation
-API extraction completeness
-controlled timestamp state
-```
-
----
-
-# Proposed Migration Phases
+# Proposed Next Phases
 
 ## Phase 1: Assessment
-
-Current phase.
-
-Tasks:
-
-```text
-identify active scripts
-identify inputs
-identify outputs
-identify credentials
-identify write operations
-identify timestamp handling
-identify branch filtering
-document risks
-```
 
 Status:
 
@@ -2007,31 +2116,6 @@ Completed
 
 ## Phase 2: Write Operation Review
 
-Tasks completed:
-
-```text
-searched CREATE TABLE
-searched INSERT
-searched UPDATE
-searched DELETE
-searched ON DUPLICATE KEY UPDATE
-searched cursor.execute
-searched cursor.executemany
-searched commit
-searched rollback
-```
-
-Findings:
-
-```text
-CREATE TABLE detected
-INSERT ... ON DUPLICATE KEY UPDATE detected
-targeted DELETE for submission_answers detected
-commit detected
-rollback not detected
-REPLACE INTO not detected
-```
-
 Status:
 
 ```text
@@ -2041,19 +2125,6 @@ Completed
 ---
 
 ## Phase 3: Configuration Review
-
-Tasks completed:
-
-```text
-confirmed ZENPUT_API_TOKEN usage
-confirmed target="zenput" database routing
-confirmed Zenput DB variables in central MySQL router
-confirmed Zenput DB variables in core/config/.env.example
-confirmed WANSOFT_PWD appears only as legacy subsidiary-list inheritance
-confirmed company_filter.py is not appropriate for future Zenput inclusion
-created core/config/zenput.py
-validated location mapping against real submissions.location_name values
-```
 
 Status:
 
@@ -2065,290 +2136,86 @@ Completed
 
 ## Phase 4: Safe Wrapper
 
-Next phase.
-
-Tasks:
+Status:
 
 ```text
-create dry-run wrapper
-avoid modifying last_run_timestamp during dry-run
-print planned actions
-confirm environment variables
-confirm target database
-summarize intended table writes
+Completed
 ```
 
 ---
 
-## Phase 5: Modern Extract Layer
+## Phase 5: First Controlled Legacy Real Execution
 
-Tasks:
+Status:
 
 ```text
-create extract/zenput/zenput_client.py
-create extract/zenput/zenput_tasks.py
-create extract/zenput/zenput_forms.py
-move API logic out of legacy scripts where appropriate
-centralize rate limiting
-centralize pagination
+Completed against development/test database
+```
+
+Outcome:
+
+```text
+Legacy scripts executed.
+Database updated.
+New Puebla location detected.
+Mapping corrected.
+Validators passed after correction.
 ```
 
 ---
 
-## Phase 6: Zenput Pipeline
+## Phase 6: Hardening
 
-Tasks:
+Pending:
 
 ```text
-create scripts/run_zenput_pipeline.py
-create scripts/test_run_zenput_pipeline.py
-create scripts/validate_zenput_outputs.py
-add logs/zenput_pipeline_runs/
-add docs/zenput-runbook.md
+[ ] Review timestamp behaviour.
+[ ] Review error propagation from legacy scripts.
+[ ] Review transaction safety around submission_answers delete/reinsert.
+[ ] Consider recording row counts in run logs.
+[ ] Consider splitting legacy script logic into modern extract layer.
 ```
 
 ---
 
 ## Phase 7: Analytical Integration
 
-Tasks:
+Pending:
 
 ```text
-define Zenput staging tables
-define Zenput canonical or analytical tables
-map Zenput location_name to company_source_key
-integrate with MySQL analytical layer
-hide operational source complexity from users
+[ ] Define Zenput staging or analytical tables.
+[ ] Map Zenput outputs into unified analytical layer.
+[ ] Decide how Zenput-only and future incorporated locations should be represented analytically.
+[ ] Define reporting-ready Zenput facts.
 ```
 
 ---
 
-# Initial Classification Table
-
-```text
-asset_name: README.md
-path: legacy/zenput/README.md
-type: documentation
-purpose: documents Crunchtime Zenput operational ETL
-input_source: none
-output_target: none
-uses_api: no
-uses_credentials: describes them
-writes_database: no
-writes_files: no
-requires_modernization: yes
-priority: medium
-```
-
-```text
-asset_name: zenput_mysql_forms.py
-path: legacy/zenput/zenput_mysql_forms.py
-type: Python legacy ETL
-purpose: extracts Zenput form templates, submissions and answers
-input_source: Zenput REST API
-output_target: MySQL target zenput
-uses_api: yes
-uses_credentials: yes
-writes_database: yes
-writes_files: not confirmed
-requires_modernization: yes
-priority: high
-```
-
-```text
-asset_name: zenput_mysql_tasks.py
-path: legacy/zenput/zenput_mysql_tasks.py
-type: Python legacy ETL
-purpose: extracts Zenput tasks
-input_source: Zenput REST API
-output_target: MySQL target zenput
-uses_api: yes
-uses_credentials: yes
-writes_database: yes
-writes_files: yes, timestamp file
-requires_modernization: yes
-priority: high
-```
-
-```text
-asset_name: last_run_timestamp.txt
-path: legacy/zenput/last_run_timestamp.txt
-type: state file
-purpose: stores last run timestamp
-current_value: 2025-10-23T18:37:33Z
-input_source: Zenput task execution
-output_target: local file
-uses_api: no
-uses_credentials: no
-writes_database: no
-writes_files: yes
-requires_modernization: yes
-priority: medium
-```
-
-```text
-asset_name: __init__.py
-path: legacy/zenput/__init__.py
-type: Python package marker
-purpose: package initialization
-input_source: none
-output_target: none
-uses_api: no
-uses_credentials: no
-writes_database: no
-writes_files: no
-requires_modernization: no
-priority: low
-```
-
----
-
-# Write Operation Classification Table
-
-```text
-script_name: zenput_mysql_forms.py
-target: form_templates
-operation: CREATE TABLE IF NOT EXISTS
-method: cursor.execute
-risk: low
-modernization_action: keep, document schema, add validator
-```
-
-```text
-script_name: zenput_mysql_forms.py
-target: form_templates
-operation: INSERT ... ON DUPLICATE KEY UPDATE
-method: cursor.executemany
-risk: medium
-modernization_action: preserve refresh behaviour, add row count logging
-```
-
-```text
-script_name: zenput_mysql_forms.py
-target: submissions
-operation: CREATE TABLE IF NOT EXISTS
-method: cursor.execute
-risk: low
-modernization_action: keep, document schema, add validator
-```
-
-```text
-script_name: zenput_mysql_forms.py
-target: submissions
-operation: INSERT ... ON DUPLICATE KEY UPDATE
-method: cursor.executemany
-risk: medium
-modernization_action: preserve refresh behaviour, add row count logging
-```
-
-```text
-script_name: zenput_mysql_forms.py
-target: submission_answers
-operation: CREATE TABLE IF NOT EXISTS
-method: cursor.execute
-risk: low
-modernization_action: keep, document schema, add validator
-```
-
-```text
-script_name: zenput_mysql_forms.py
-target: submission_answers
-operation: DELETE WHERE submission_id IN (...)
-method: cursor.execute
-risk: medium-high
-modernization_action: confirm scoping, add transaction safety, consider staging
-```
-
-```text
-script_name: zenput_mysql_forms.py
-target: submission_answers
-operation: INSERT
-method: cursor.executemany
-risk: medium
-modernization_action: preserve refresh behaviour, add row count logging
-```
-
-```text
-script_name: zenput_mysql_tasks.py
-target: zenput_tasks
-operation: CREATE TABLE IF NOT EXISTS
-method: cursor.execute
-risk: low
-modernization_action: keep, document schema, add validator
-```
-
-```text
-script_name: zenput_mysql_tasks.py
-target: zenput_tasks
-operation: INSERT ... ON DUPLICATE KEY UPDATE
-method: cursor.executemany
-risk: medium
-modernization_action: preserve refresh behaviour, add row count logging
-```
-
-```text
-script_name: zenput_mysql_tasks.py
-target: last_run_timestamp.txt
-operation: timestamp read/write
-method: open/read/write
-risk: medium
-modernization_action: protect in dry-run, log before/after, consider MySQL state table
-```
-
----
-
-# Section 15 Current Status
+# Section 16 Current Status
 
 Current status:
 
 ```text
-Zenput legacy folder identified.
-Active Zenput files identified.
-Legacy README reviewed.
-Forms script reviewed at high level.
-Tasks script reviewed at high level.
-Timestamp file reviewed.
-Write operations detected.
-Target tables detected.
-Refresh behaviour documented.
-Credential and .env usage reviewed.
-Central MySQL target="zenput" confirmed.
-core/config/zenput.py created.
-Zenput location mapping validated against real MySQL submissions.location_name values.
-Zenput-only locations confirmed.
-Modernization acceptance criteria defined.
-No legacy script execution performed.
+Step 16.1 - Pre-execution snapshot completed
+Step 16.2 - First controlled real execution completed against development/test database
+Step 16.3 - Puebla mapping corrected and post-execution validators passed
+Step 16.4 - Documentation update in progress
 ```
 
-Current active scripts:
+Current post-execution validated state:
 
 ```text
-legacy/zenput/zenput_mysql_forms.py
-legacy/zenput/zenput_mysql_tasks.py
-```
+form_templates:       19
+submissions:          1,107
+submission_answers:   89,923
+zenput_tasks:         1,752
 
-Current state file:
+distinct location_name values: 21
+unmapped locations: 0
 
-```text
-legacy/zenput/last_run_timestamp.txt
-```
-
-Current configuration file:
-
-```text
-core/config/zenput.py
-```
-
-Current validator:
-
-```text
-scripts/validate_zenput_location_mapping.py
-```
-
-Current next step:
-
-```text
-Paso 15.10 — Crear run_zenput_pipeline.py en modo dry-run / wrapper seguro
+location validator: PASSED
+output validator: PASSED
+validation-only pipeline: COMPLETED
 ```
 
 ---
@@ -2357,25 +2224,10 @@ Paso 15.10 — Crear run_zenput_pipeline.py en modo dry-run / wrapper seguro
 
 ```text
 README.md
-README_CONFIG.md
-docs/project-technical-guide.md
 docs/project-status-and-todo.md
+docs/project-technical-guide.md
 docs/production-orchestration-plan.md
-docs/inventory-runbook.md
-docs/purchases-runbook.md
 docs/pipeline-logging-and-run-interpretation.md
-```
-
----
-
-# Recommended Commit Later
-
-Recommended future Section 15 checkpoint commit:
-
-```bash
-git add docs/zenput-legacy-assessment.md core/config/zenput.py scripts/validate_zenput_location_mapping.py
-
-git commit -m "feat(zenput): add location mapping config and legacy assessment"
-
-git push
+docs/zenput-runbook.md
+docs/zenput-legacy-assessment.md
 ```
