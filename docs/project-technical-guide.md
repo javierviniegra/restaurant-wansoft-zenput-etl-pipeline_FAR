@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document is the main technical guide for the Wansoft + Odoo Data Warehouse and ETL Pipeline project.
+This document is the main technical guide for the Wansoft + Odoo + Zenput Data Warehouse and ETL Pipeline project.
 
 Its purpose is to explain the project end-to-end:
 
@@ -17,11 +17,50 @@ pipeline orchestration
 JSON run logging
 rollout validation
 inventory output validation
+Zenput location mapping
+Zenput safe wrapper
 documentation structure
 future work
 ```
 
-This guide should be used when returning to the project after time away, onboarding another developer, reviewing the architecture, or preparing production orchestration.
+This guide should be used when returning to the project after time away, onboarding another developer, reviewing the architecture, or preparing production-style orchestration.
+
+---
+
+## Project Scope
+
+The primary scope of this project is to build a unified MySQL analytical layer that combines operational data from:
+
+```text
+Wansoft
+Odoo
+Zenput
+future operational sources
+```
+
+The analytical layer should hide source-system complexity from end users.
+
+Users should be able to consume consistent business data without needing to know:
+
+```text
+which branch still uses Wansoft
+which branch migrated from Wansoft to Odoo
+which branch started directly in Odoo
+which branch is currently Zenput-only
+which data is historical
+which data is current
+which source system produced each record
+```
+
+This is not primarily a Power BI project.
+
+BI and reporting tools, including Power BI, Excel, dashboards, SQL notebooks, APIs or other reporting layers, are downstream consumers of the MySQL analytical layer.
+
+The core project objective is:
+
+```text
+build reliable, governed, validated and auditable MySQL analytical outputs
+```
 
 ---
 
@@ -32,24 +71,27 @@ This project integrates operational data from:
 ```text
 Odoo
 Wansoft
+Zenput
 MySQL
 future external operational sources
 ```
 
-The goal is to create a reliable analytical environment where business data can be extracted, governed, mapped, validated, orchestrated, logged, and consumed without modifying Odoo directly.
+The goal is to create a reliable analytical environment where business data can be extracted, governed, mapped, validated, orchestrated, logged, and consumed without modifying Odoo directly and without exposing source-system migration complexity to users.
 
 The project follows these principles:
 
 ```text
 Odoo is read-only.
-Wansoft remains the source of truth for sales.
+Wansoft remains the source of truth for Sales.
 MySQL is the governance and analytical layer.
+Zenput is a separate operational source.
 Catalog governance is handled outside Odoo.
 Source-system transitions are controlled by company-level rules.
 Canonical tables preserve source traceability.
 Pipeline execution must be auditable.
 Rollout behaviour must be validated before production use.
 Inventory dictionary promotions must remain controlled.
+Zenput legacy real execution must remain protected until explicitly approved.
 ```
 
 ---
@@ -61,7 +103,9 @@ Odoo read-only extraction
         ↓
 Wansoft operational data / SOAP sources
         ↓
-MySQL staging and governance tables
+Zenput REST API / legacy outputs
+        ↓
+MySQL staging, output and governance tables
         ↓
 Scope classification
         ↓
@@ -71,13 +115,15 @@ Backlogs and bridge reports
         ↓
 Company source governance
         ↓
-Canonical BI-ready tables
+Zenput location mapping
+        ↓
+Canonical / analytical MySQL tables
         ↓
 Pipeline validation
         ↓
 JSON run logs
         ↓
-Power BI / analysis / reporting
+Unified analytical consumption layer
 ```
 
 ---
@@ -98,6 +144,7 @@ Current state:
 Sales domain is functionally established.
 Inventory domain is technically stable, functionally advanced, orchestrated and validated.
 Purchases domain has a validated canonical layer with Odoo and Wansoft.
+Zenput domain has a legacy assessment, central location mapping, validators and safe wrapper.
 Purchases orchestration pipeline is implemented.
 Purchases JSON logging is implemented.
 Purchases rollout validation is implemented.
@@ -105,28 +152,37 @@ Inventory orchestration pipeline is implemented.
 Inventory JSON logging is implemented.
 Inventory output validation is implemented.
 Inventory optional bridge reports are validated.
-Documentation package is being updated for Section 14.
-Power BI semantic modelling remains pending.
+Zenput safe wrapper is implemented.
+Zenput validation-only execution is implemented.
+Zenput JSON logging is implemented.
+Zenput legacy real execution remains protected.
+Documentation package is being updated for Section 15.
+Unified analytical consumption layer remains pending.
 Production scheduling remains pending.
 ```
 
-The project now has controlled orchestration for:
+The project now has controlled orchestration or safe wrapper capability for:
 
 ```text
 Purchases
 Inventory
+Zenput
 ```
 
-Both domains now support:
+Current domain execution status:
 
 ```text
-dry-run execution
-real controlled execution
-JSON run logging
-required final validation
-pipeline summary output
-failure detection
-governance guardrails
+Purchases:
+    real pipeline execution is validated
+
+Inventory:
+    real pipeline execution is validated
+
+Zenput:
+    dry-run wrapper is validated
+    validation-only execution is validated
+    safety gate is validated
+    legacy real execution remains protected
 ```
 
 The next major phase is:
@@ -140,7 +196,8 @@ This means:
 ```text
 keep Purchases pipeline stable
 keep Inventory pipeline stable
-prepare Power BI consumption
+keep Zenput legacy execution protected
+prepare unified analytical consumption
 decide whether database run-log tables are needed
 decide whether validation results should be persisted
 keep governance decisions controlled
@@ -168,6 +225,7 @@ future orchestration scripts
 rollout validation
 inventory pipeline execution
 purchases pipeline execution
+Zenput safe wrapper execution
 ```
 
 Current orchestration status:
@@ -184,26 +242,35 @@ Inventory JSON logging: implemented
 Inventory bridge reports: implemented as optional diagnostics
 Inventory dictionary promotions: intentionally excluded from default automation
 
+Zenput safe wrapper: implemented
+Zenput validation-only execution: implemented
+Zenput output validation: implemented
+Zenput JSON logging: implemented
+Zenput safety gate: implemented
+Zenput legacy real execution: protected by explicit --allow-legacy-writes gate
+
 Production scheduling: pending
-Power BI semantic layer: pending
+Unified analytical consumption layer: pending
 Database run-log persistence: pending
 Validation result persistence: pending
 ```
 
-Recommended priority after Section 14:
+Recommended priority after Section 15:
 
 ```text
-finish Section 14 documentation consistency
-commit Inventory pipeline package
-prepare Power BI consumption layer
+finish Section 15 documentation consistency
+commit Zenput assessment, configuration, validation and safe wrapper package
+review whether to approve first controlled Zenput legacy real execution
+continue unified analytical consumption layer design
 review database run-log persistence
 ```
 
 Reason:
 
 ```text
-Purchases and Inventory now both produce repeatable, validated outputs.
-Power BI should consume stable pipeline outputs, not manually refreshed intermediate tables.
+Purchases and Inventory now produce repeatable, validated outputs.
+Zenput now has central mapping, read-only validators, safe wrapper and safety gate.
+Full Zenput legacy execution still requires explicit operational approval because it writes to MySQL and may update local timestamp state.
 ```
 
 ---
@@ -230,6 +297,8 @@ docs/purchases-company-migration-policy.md
 docs/purchases-product-mapping-policy.md
 docs/purchases-canonical-layer.md
 docs/purchases-runbook.md
+docs/zenput-legacy-assessment.md
+docs/zenput-runbook.md
 docs/wansoft-local-wsdl.md
 ```
 
@@ -247,7 +316,9 @@ Recommended reading order:
 9. docs/purchases-runbook.md
 10. docs/inventory-domain-closeout.md
 11. docs/inventory-runbook.md
-12. docs/wansoft-local-wsdl.md
+12. docs/zenput-legacy-assessment.md
+13. docs/zenput-runbook.md
+14. docs/wansoft-local-wsdl.md
 ```
 
 Document roles:
@@ -260,10 +331,10 @@ docs/project-status-and-todo.md
     Current project checkpoint, completed work, pending work, and TODO list.
 
 docs/production-orchestration-plan.md
-    Production-style orchestration plan, validation gates, logging needs, automation boundaries, Inventory pipeline and Purchases pipeline status.
+    Production-style orchestration plan, validation gates, logging needs, automation boundaries, Inventory pipeline, Purchases pipeline and Zenput wrapper status.
 
 docs/pipeline-logging-and-run-interpretation.md
-    Explains how to read JSON pipeline logs, run_id, status, duration, step results, and failure signals.
+    Explains how to read JSON pipeline logs, run_id, status, duration, step results, dry-run, safety gates and failure signals.
 
 docs/branch-rollout-playbook.md
     Defines the controlled rollout process for branches moving from Wansoft to Odoo.
@@ -285,6 +356,12 @@ docs/inventory-domain-closeout.md
 
 docs/inventory-runbook.md
     Operational runbook for running and validating the Inventory domain, including pipeline, logging, validator and bridge reports.
+
+docs/zenput-legacy-assessment.md
+    Assessment of the existing Zenput legacy integration, including scripts, write operations, credentials, mapping, risks and modernization criteria.
+
+docs/zenput-runbook.md
+    Operational runbook for Zenput safe execution, validation-only mode, safety gate and future controlled legacy execution.
 
 docs/wansoft-local-wsdl.md
     Technical documentation for the local Wansoft SOAP/WSDL setup.
@@ -357,6 +434,71 @@ WHERE TipoEntrada = 'Factura'
 
 ---
 
+## Zenput
+
+Zenput is a separate operational source.
+
+Zenput currently contributes to:
+
+```text
+field operations
+task completions
+custom form submissions
+form templates
+submission answers
+operational location data
+```
+
+Current Zenput legacy output tables:
+
+```text
+form_templates
+submissions
+submission_answers
+zenput_tasks
+```
+
+Current Zenput legacy scripts:
+
+```text
+legacy/zenput/zenput_mysql_forms.py
+legacy/zenput/zenput_mysql_tasks.py
+```
+
+Current Zenput state file:
+
+```text
+legacy/zenput/last_run_timestamp.txt
+```
+
+Current Zenput central configuration:
+
+```text
+core/config/zenput.py
+```
+
+Current Zenput safe wrapper:
+
+```text
+scripts/run_zenput_pipeline.py
+```
+
+Zenput should not use `COMPANY_SOURCE` as its inclusion filter.
+
+Zenput maps:
+
+```text
+submissions.location_name -> company_source_key
+```
+
+using:
+
+```text
+core/config/zenput.py
+```
+
+---
+
 ## MySQL
 
 MySQL is the governance and analytical layer.
@@ -373,10 +515,14 @@ bridge reports
 company migration policies
 source governance outputs
 pipeline outputs
+Zenput output tables
 validation results
+future analytical consumption tables
 ```
 
-Odoo is not modified by the ETL. Any correction or mapping decision is stored in MySQL.
+Odoo is not modified by the ETL.
+
+Any correction, mapping decision or governance decision is stored in MySQL or project configuration.
 
 ---
 
@@ -400,6 +546,7 @@ The domain source rules are:
 Sales      -> always Wansoft
 Purchases  -> COMPANY_SOURCE
 Inventory  -> COMPANY_SOURCE
+Zenput     -> core/config/zenput.py location mapping
 ```
 
 ---
@@ -438,6 +585,10 @@ Oceanía:
     Wansoft remains final
     Odoo activity remains technical snapshot only
 ```
+
+Zenput is separate from this rule.
+
+Zenput may include locations regardless of whether a branch is currently Wansoft or Odoo for Purchases and Inventory.
 
 ---
 
@@ -490,6 +641,69 @@ Validated examples:
 ```
 
 This avoids maintaining duplicate manual mapping dictionaries.
+
+---
+
+## Zenput Location Mapping
+
+Zenput location names do not always match Odoo or Wansoft names.
+
+The source field currently used for Zenput mapping is:
+
+```text
+submissions.location_name
+```
+
+Central mapping file:
+
+```text
+core/config/zenput.py
+```
+
+Primary mapping object:
+
+```text
+ZENPUT_LOCATION_SOURCE_KEY
+```
+
+Mapping rule:
+
+```text
+Zenput location_name -> company_source_key
+```
+
+Confirmed special mappings:
+
+```text
+Fonda Argentina Coyoacán -> La Esquina Coyoacán
+Fonda Argentina Tollocan -> Metepec
+Taqueria Exhibimex -> Versalles
+```
+
+Confirmed Zenput-only locations:
+
+```text
+León
+Lindavista
+Perisur
+```
+
+These locations:
+
+```text
+exist in Zenput
+are valid for Zenput operational reporting
+do not currently have Wansoft as operational source
+are not expected to participate in Purchases or Inventory Wansoft/Odoo pipelines
+should be modeled so they can be incorporated into Wansoft or Odoo in the future
+```
+
+Important:
+
+```text
+Zenput should not use is_wansoft_company as its inclusion filter.
+Zenput should not depend on COMPANY_SOURCE to decide whether a location is valid.
+```
 
 ---
 
@@ -611,7 +825,7 @@ docs/inventory-runbook.md
 
 ## Inventory Orchestration Status
 
-Inventory now has a full orchestration pipeline equivalent in structure to Purchases.
+Inventory has a full orchestration pipeline equivalent in structure to Purchases.
 
 Implemented files:
 
@@ -648,18 +862,6 @@ Current Inventory pipeline base execution order:
 07. Inventory output validation
 ```
 
-Current base modules:
-
-```text
-01. scripts.test_odoo_inventory_scope_classification
-02. scripts.test_odoo_inventory_etl
-03. scripts.test_inventory_dictionary_lookup
-04. scripts.test_apply_inventory_dictionary
-05. scripts.test_inventory_not_found_analyzer
-06. scripts.test_inventory_not_found_priority_backlog
-07. scripts.validate_inventory_outputs
-```
-
 Current optional extended execution with bridge reports:
 
 ```bash
@@ -681,14 +883,6 @@ Extended execution order:
 10. Inventory output validation
 ```
 
-Optional bridge modules:
-
-```text
-scripts.test_inventory_not_found_p1_bridge
-scripts.test_inventory_not_found_p2_bridge
-scripts.test_inventory_not_found_residual_bridge
-```
-
 Current validated status:
 
 ```text
@@ -699,47 +893,6 @@ Inventory extended bridge execution: passing
 Inventory output validation: passing
 Inventory JSON logging: implemented
 Inventory promotions: excluded from default automation
-```
-
-Validated base pipeline result:
-
-```text
-total_steps: 7
-success: 7
-dry_run: 0
-skipped: 0
-failed_or_error: 0
-required_failed_or_error: 0
-
-PIPELINE RESULT: COMPLETED
-```
-
-Validated extended pipeline result:
-
-```text
-total_steps: 10
-success: 10
-dry_run: 0
-skipped: 0
-failed_or_error: 0
-required_failed_or_error: 0
-
-PIPELINE RESULT: COMPLETED
-```
-
-Important governance rule:
-
-```text
-Inventory dictionary promotions must not run automatically unless explicitly approved.
-```
-
-Promotion scripts intentionally excluded from default orchestration:
-
-```text
-scripts.test_promote_inventory_bridge_to_dictionary
-scripts.test_promote_inventory_not_found_p1_to_dictionary
-scripts.test_promote_inventory_not_found_p2_to_dictionary
-scripts.test_promote_inventory_not_found_residual_to_dictionary
 ```
 
 ---
@@ -785,41 +938,6 @@ passed: 8
 failed: 0
 
 VALIDATION RESULT: PASSED
-```
-
-If validation fails:
-
-```text
-Inventory pipeline fails.
-```
-
-This is intentional because the Inventory pipeline should not be considered successful unless the output validation passes.
-
-Important backlog rule:
-
-```text
-odoo_inventory_backlog does not exist -> FAIL
-odoo_inventory_backlog exists and has 0 rows -> PASS with note
-odoo_inventory_backlog exists and has rows -> PASS if distribution is available
-```
-
-Reason:
-
-```text
-An empty backlog may mean the current inventory ETL produced no unresolved backlog rows.
-```
-
-Important promotion rule:
-
-```text
-inventory_promotions_controlled: PASS
-```
-
-Meaning:
-
-```text
-Promotion scripts are intentionally excluded from default automation.
-Dictionary changes require manual review and explicit approval.
 ```
 
 ---
@@ -897,25 +1015,6 @@ Current pipeline order:
 10. Purchases canonical layer validation
 ```
 
-Current modules:
-
-```text
-01. scripts.test_company_source_governance
-02. scripts.test_odoo_purchase_etl
-03. scripts.test_odoo_purchase_receipt_etl
-04. scripts.test_purchase_inventory_mapping_backlog
-05. scripts.test_purchase_backlog_product_reference_report
-06. scripts.test_purchase_company_source_eligibility
-07. scripts.test_canonical_purchase_odoo_etl
-08. scripts.test_wansoft_purchase_subsidiary_mapping_report
-09. scripts.test_canonical_purchase_wansoft_etl
-10. scripts.validate_purchases_canonical_layer
-```
-
----
-
-## Purchases Pipeline Current Status
-
 Current status:
 
 ```text
@@ -924,28 +1023,6 @@ real execution validated
 JSON logging validated
 canonical validation integrated as required step
 rollout company pattern validation integrated
-```
-
-Expected dry-run summary:
-
-```text
-total_steps: 10
-success: 0
-dry_run: 10
-failed_or_error: 0
-required_failed_or_error: 0
-PIPELINE RESULT: COMPLETED
-```
-
-Expected real-run summary:
-
-```text
-total_steps: 10
-success: 10
-dry_run: 0
-failed_or_error: 0
-required_failed_or_error: 0
-PIPELINE RESULT: COMPLETED
 ```
 
 ---
@@ -979,13 +1056,6 @@ error messages
 ```
 
 Logs are local execution artefacts and should not be committed.
-
-Recommended `.gitignore` entry:
-
-```gitignore
-# Pipeline run logs
-logs/
-```
 
 Detailed documentation:
 
@@ -1157,83 +1227,6 @@ migrated_from_wansoft
 new_odoo_branch
 ```
 
----
-
-## migrated_from_wansoft
-
-Expected pattern:
-
-```text
-Odoo:
-    final_odoo_enabled from operational_start_date onward
-
-Wansoft:
-    wansoft_history_before_odoo before operational_start_date
-```
-
-Not allowed after activation:
-
-```text
-wansoft / final_wansoft_enabled
-```
-
-Current active migrated branches:
-
-```text
-Antenas
-La Esquina Coyoacán
-```
-
----
-
-## new_odoo_branch
-
-Expected pattern:
-
-```text
-Odoo:
-    final_odoo_enabled
-```
-
-Not allowed after activation:
-
-```text
-wansoft / final_wansoft_enabled
-```
-
-Current active new branch:
-
-```text
-CentroMyJ
-```
-
-Current inactive future branch:
-
-```text
-Puebla
-```
-
----
-
-## Active and Inactive Rollout Expectations
-
-Rollout expectations can be configured as:
-
-```text
-active = True
-active = False
-```
-
-Meaning:
-
-```text
-active = True:
-    validation is enforced and can fail the pipeline.
-
-active = False:
-    rollout is documented as future work but does not fail current validation.
-```
-
 Current rollout state:
 
 ```text
@@ -1262,6 +1255,347 @@ Detailed rollout documentation:
 
 ```text
 docs/branch-rollout-playbook.md
+```
+
+---
+
+# Zenput Domain
+
+Zenput is an operational source that contains field operations, task completions and custom form submission data.
+
+Zenput is separate from the Wansoft/Odoo source governance used by Purchases and Inventory.
+
+The current Zenput work does not replace the existing legacy scripts.
+
+The current objective is:
+
+```text
+preserve working legacy behaviour
+centralize configuration
+validate outputs
+protect write-enabled execution
+add safe orchestration wrapper
+document operational use
+```
+
+---
+
+## Zenput Current Status
+
+Current status:
+
+```text
+legacy scripts assessed
+write operations documented
+central location mapping implemented
+location mapping validated
+output validation implemented
+safe pipeline wrapper implemented
+JSON logging implemented
+safety gate implemented
+validation-only execution implemented
+legacy real execution protected
+```
+
+Current legacy scripts:
+
+```text
+legacy/zenput/zenput_mysql_forms.py
+legacy/zenput/zenput_mysql_tasks.py
+```
+
+Current legacy state file:
+
+```text
+legacy/zenput/last_run_timestamp.txt
+```
+
+Current modern configuration:
+
+```text
+core/config/zenput.py
+```
+
+Current modern scripts:
+
+```text
+scripts/validate_zenput_location_mapping.py
+scripts/validate_zenput_outputs.py
+scripts/run_zenput_pipeline.py
+scripts/test_run_zenput_pipeline.py
+```
+
+Current documentation:
+
+```text
+docs/zenput-legacy-assessment.md
+docs/zenput-runbook.md
+```
+
+---
+
+## Zenput Legacy Scripts
+
+## zenput_mysql_forms.py
+
+Functional area:
+
+```text
+Zenput forms
+form templates
+submissions
+submission answers
+```
+
+Detected write targets:
+
+```text
+form_templates
+submissions
+submission_answers
+```
+
+Detected operations:
+
+```text
+CREATE TABLE IF NOT EXISTS
+INSERT ... ON DUPLICATE KEY UPDATE
+DELETE FROM submission_answers WHERE submission_id IN (...)
+INSERT INTO submission_answers
+connection.commit()
+```
+
+Risk:
+
+```text
+This script writes to MySQL.
+The submission_answers refresh strategy should remain controlled.
+```
+
+---
+
+## zenput_mysql_tasks.py
+
+Functional area:
+
+```text
+Zenput tasks
+task metadata
+task status
+completion information
+fulfillment details
+```
+
+Detected write target:
+
+```text
+zenput_tasks
+```
+
+Detected local state file:
+
+```text
+legacy/zenput/last_run_timestamp.txt
+```
+
+Detected operations:
+
+```text
+CREATE TABLE IF NOT EXISTS
+INSERT ... ON DUPLICATE KEY UPDATE
+connection.commit()
+timestamp read/write
+```
+
+Risk:
+
+```text
+This script writes to MySQL.
+This script may update last_run_timestamp.txt.
+```
+
+---
+
+## Zenput Location Mapping
+
+Zenput uses operational location names from:
+
+```text
+submissions.location_name
+```
+
+Central mapping:
+
+```text
+ZENPUT_LOCATION_SOURCE_KEY
+```
+
+in:
+
+```text
+core/config/zenput.py
+```
+
+Mapping rule:
+
+```text
+Zenput location_name -> company_source_key
+```
+
+Zenput should not use:
+
+```text
+is_wansoft_company
+```
+
+as an inclusion filter.
+
+Reason:
+
+```text
+Zenput is independent from the Wansoft/Odoo source selection used by Purchases and Inventory.
+```
+
+Confirmed Zenput-only locations:
+
+```text
+León
+Lindavista
+Perisur
+```
+
+These locations are valid for Zenput operational analysis.
+
+They do not currently have Wansoft as an operational source.
+
+They should be modeled so they can be incorporated into Wansoft or Odoo in the future if operations change.
+
+---
+
+## Zenput Pipeline Status
+
+Current Zenput pipeline wrapper:
+
+```bash
+python -m scripts.run_zenput_pipeline
+```
+
+Current default dry-run result:
+
+```text
+total_steps: 4
+dry_run: 4
+PIPELINE RESULT: COMPLETED
+```
+
+Current validation-only execution:
+
+```bash
+python -m scripts.run_zenput_pipeline --execute --validation-only
+```
+
+This executes only read-only validators.
+
+Expected result:
+
+```text
+total_steps: 2
+success: 2
+PIPELINE RESULT: COMPLETED
+```
+
+Current safety gate:
+
+```bash
+python -m scripts.run_zenput_pipeline --execute
+```
+
+Expected result:
+
+```text
+PIPELINE RESULT: FAILED
+```
+
+This is intentional.
+
+Reason:
+
+```text
+Write-enabled legacy scripts require explicit --allow-legacy-writes.
+```
+
+Full real legacy execution is protected:
+
+```bash
+python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
+```
+
+This command is not recommended for routine execution until explicitly approved.
+
+---
+
+## Zenput Validators
+
+Location mapping validator:
+
+```bash
+python -m scripts.validate_zenput_location_mapping
+```
+
+Current checks:
+
+```text
+submissions_table_exists
+zenput_location_mapping_available
+zenput_only_locations_classified
+zenput_governance_rule_documented
+```
+
+Expected result:
+
+```text
+total_validations: 4
+passed: 4
+VALIDATION RESULT: PASSED
+```
+
+Output validator:
+
+```bash
+python -m scripts.validate_zenput_outputs
+```
+
+Current checks:
+
+```text
+required_zenput_tables_exist
+zenput_table_counts_available
+zenput_submissions_location_mapping
+zenput_only_locations_classified
+zenput_timestamp_file_valid
+zenput_legacy_pipeline_protection_documented
+```
+
+Expected result:
+
+```text
+total_validations: 6
+passed: 6
+VALIDATION RESULT: PASSED
+```
+
+Smoke test:
+
+```bash
+python -m scripts.test_run_zenput_pipeline
+```
+
+Expected result:
+
+```text
+default_dry_run: PASS
+safety_gate: PASS
+TEST RESULT: PASSED
 ```
 
 ---
@@ -1537,48 +1871,61 @@ python -m scripts.test_run_inventory_pipeline
 python -m scripts.validate_inventory_outputs
 ```
 
-## Inventory scope classification
+## Zenput pipeline dry-run
 
 ```bash
-python -m scripts.test_odoo_inventory_scope_classification
+python -m scripts.run_zenput_pipeline
 ```
 
-## Inventory ETL
+## Zenput validation-only execution
 
 ```bash
-python -m scripts.test_odoo_inventory_etl
+python -m scripts.run_zenput_pipeline --execute --validation-only
 ```
 
-## Inventory dictionary lookup
+## Zenput safety gate test
 
 ```bash
-python -m scripts.test_inventory_dictionary_lookup
+python -m scripts.run_zenput_pipeline --execute
 ```
 
-## Inventory dictionary application
+Expected result:
 
-```bash
-python -m scripts.test_apply_inventory_dictionary
+```text
+PIPELINE RESULT: FAILED
 ```
 
-## Inventory not_found analyser
+This is correct because write-enabled legacy steps require explicit `--allow-legacy-writes`.
+
+## Zenput full legacy execution
 
 ```bash
-python -m scripts.test_inventory_not_found_analyzer
+python -m scripts.run_zenput_pipeline --execute --allow-legacy-writes
 ```
 
-## Inventory not_found priority backlog
+Current recommendation:
 
-```bash
-python -m scripts.test_inventory_not_found_priority_backlog
+```text
+Do not run casually.
+Requires explicit operational approval.
 ```
 
-## Inventory optional bridge reports
+## Zenput pipeline smoke test
 
 ```bash
-python -m scripts.test_inventory_not_found_p1_bridge
-python -m scripts.test_inventory_not_found_p2_bridge
-python -m scripts.test_inventory_not_found_residual_bridge
+python -m scripts.test_run_zenput_pipeline
+```
+
+## Zenput location mapping validation
+
+```bash
+python -m scripts.validate_zenput_location_mapping
+```
+
+## Zenput output validation
+
+```bash
+python -m scripts.validate_zenput_outputs
 ```
 
 ## Odoo purchases snapshot load
@@ -1655,6 +2002,29 @@ WANSOFT_WSDL_PATH=resources/wsdl/wansoft.wsdl
 WANSOFT_SERVICE_URL=https://www.wansoft.net/wansoft.web/API/IntegrationService.asmx
 ```
 
+## Zenput example
+
+```env
+ZENPUT_API_TOKEN=
+
+ZENPUT_DB_HOST=
+ZENPUT_DB_USER=
+ZENPUT_DB_PASSWORD=
+ZENPUT_DB_NAME=
+
+ZENPUT_DB_HOST_DEV=
+ZENPUT_DB_USER_DEV=
+ZENPUT_DB_PASSWORD_DEV=
+ZENPUT_DB_NAME_DEV=
+```
+
+Important:
+
+```text
+ZENPUT_API_TOKEN should be documented as a placeholder in core/config/.env.example if missing.
+No real secret values should be committed.
+```
+
 ---
 
 # SQL Folder
@@ -1686,6 +2056,7 @@ rollout reproducibility
 
 ```text
 Odoo read-only extraction
+Wansoft read-only source extraction
 snapshot preparation
 scope merge
 dictionary lookup
@@ -1698,6 +2069,9 @@ canonical layer refresh by source_system
 JSON run logging
 canonical validation
 inventory output validation
+Zenput location mapping validation
+Zenput output validation
+Zenput validation-only execution
 rollout pattern validation
 ```
 
@@ -1712,6 +2086,9 @@ catalog-governance decisions
 company migration policy changes
 COMPANY_SOURCE changes
 rollout activation
+Zenput legacy real execution
+Zenput last_run_timestamp.txt updates
+Zenput submission_answers delete/reinsert behaviour
 ```
 
 ---
@@ -1730,6 +2107,9 @@ Wansoft local WSDL validation
 canonical purchases refresh orchestration
 inventory pipeline orchestration
 inventory validation script
+Zenput safe wrapper
+Zenput validation-only execution
+Zenput legacy real execution approval policy
 JSON run logs
 future database run-log persistence
 future validation result persistence
@@ -1739,64 +2119,68 @@ future validation result persistence
 
 # Current Next Step
 
-The Section 14 documentation package is being updated.
+The Section 15 documentation package is being updated.
 
 Recommended immediate action:
 
 ```text
-Finish Section 14 documentation consistency.
-Commit the Inventory pipeline, logging and output validation package.
+Finish Section 15 documentation consistency.
+Commit the Zenput assessment, configuration, validation and safe wrapper package.
 ```
 
-Section 14 completed or in progress:
+Section 15 completed or in progress:
 
 ```text
-Inventory pipeline implemented
-Inventory smoke test implemented
-Inventory real execution validated
-Inventory bridge reports validated
-Inventory output validator implemented
-Inventory output validator integrated as required final step
-Inventory JSON logging implemented
-Inventory runbook updated
-Production orchestration plan updated
+Zenput legacy assessment completed
+Zenput write operations documented
+Zenput credentials reviewed
+Zenput central location mapping created
+Zenput location mapping validated
+Zenput output validator created
+Zenput safe pipeline wrapper created
+Zenput dry-run validated
+Zenput safety gate validated
+Zenput validation-only execution validated
+Zenput runbook created
+README updated
 Project status and TODO updated
 Project technical guide updated
 ```
 
-Remaining Section 14 documentation tasks:
+Remaining Section 15 documentation tasks:
 
 ```text
-Update README.md with Inventory pipeline status.
-Review pipeline logging documentation for Inventory-specific additions if needed.
+Update docs/production-orchestration-plan.md with Zenput status.
+Update docs/pipeline-logging-and-run-interpretation.md with Zenput status.
+Add ZENPUT_API_TOKEN placeholder to core/config/.env.example if missing.
 Review git status.
-Commit Section 14 package.
+Commit Section 15 package.
 ```
 
-After Section 14 is committed, the next technical options are:
+After Section 15 is committed, the next technical options are:
 
 ```text
-1. Power BI consumption layer
-2. Database run-log persistence
-3. Database validation result persistence
-4. Wansoft canonical performance optimisation
-5. Puebla rollout activation when operationally ready
-6. Full data warehouse refresh orchestrator
+1. Controlled Zenput legacy real execution review
+2. Transaction safety review for submission_answers delete/reinsert
+3. Future handling of last_run_timestamp.txt
+4. Future Zenput analytical/canonical table design
+5. Database run-log persistence
+6. Validation result persistence
+7. Unified analytical consumption layer
 ```
 
 Recommended technical priority:
 
 ```text
-Power BI consumption layer first
-database logging persistence second
+Close Section 15 documentation and commit first.
+Then decide whether Zenput legacy real execution is ready for a controlled approved run.
 ```
 
 Reason:
 
 ```text
-Purchases and Inventory now both produce repeatable, validated outputs.
-Power BI can begin consuming validated pipeline outputs.
-Database logging persistence can be added when operational scheduling is closer.
+Zenput now has a safe wrapper, central location mapping, read-only validators and JSON logging.
+Legacy write execution is still protected and should not be run casually.
 ```
 
 ---
@@ -1815,6 +2199,8 @@ docs/purchases-company-migration-policy.md
 docs/purchases-product-mapping-policy.md
 docs/purchases-canonical-layer.md
 docs/purchases-runbook.md
+docs/zenput-legacy-assessment.md
+docs/zenput-runbook.md
 docs/wansoft-local-wsdl.md
 ```
 
@@ -1822,14 +2208,14 @@ docs/wansoft-local-wsdl.md
 
 # Recommended Commit
 
-This document should be committed as part of the Section 14 documentation update.
+This document should be committed as part of the Section 15 documentation update.
 
-Recommended commit when Section 14 is ready to checkpoint:
+Recommended commit when Section 15 is ready to checkpoint:
 
 ```bash
-git add docs/project-technical-guide.md docs/project-status-and-todo.md docs/production-orchestration-plan.md docs/inventory-runbook.md scripts/run_inventory_pipeline.py scripts/test_run_inventory_pipeline.py scripts/validate_inventory_outputs.py
+git add README.md docs/ core/config/zenput.py scripts/validate_zenput_location_mapping.py scripts/validate_zenput_outputs.py scripts/run_zenput_pipeline.py scripts/test_run_zenput_pipeline.py
 
-git commit -m "feat(inventory): add pipeline orchestration and output validation"
+git commit -m "feat(zenput): add safe pipeline wrapper and validation"
 
 git push
 ```
