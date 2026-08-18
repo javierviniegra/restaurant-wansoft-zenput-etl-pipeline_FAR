@@ -1758,3 +1758,427 @@ logs/
 logs/zenput_pipeline_runs/
 *.json
 ```
+
+---
+
+## Section 17 Status: Unified Analytical Purchase Layer
+
+Section 17 focused on building the first validated analytical consumption layer over the governed MySQL outputs.
+
+The current purchase analytical layer is now validated across line-level, order-level and daily company-product aggregate objects.
+
+### Current Section 17 Status
+
+```text
+Status: validated for purchase analytical layer
+Purchase line fact: complete
+Purchase order fact: complete
+Daily company-product aggregate: complete
+Known remaining work: product governance backlog, key stability review, orchestration documentation and inventory analytical layer design
+```
+
+### Implemented Shared Dimensions
+
+```text
+dim_company_analytical
+dim_time
+dim_vendor
+dim_product
+```
+
+### Implemented Analytical Support Table
+
+```text
+analytics_company_domain_coverage
+```
+
+### Implemented Purchase Analytical Tables
+
+```text
+analytics_purchase_order_lines
+analytics_purchase_orders
+analytics_purchase_daily_company_product
+```
+
+### Validated Purchase Reconciliation Chain
+
+```text
+canonical_purchase_order_line_snapshot
+-> analytics_purchase_order_lines
+-> analytics_purchase_orders
+-> analytics_purchase_daily_company_product
+```
+
+Shared reconciled line count:
+
+```text
+749932
+```
+
+Shared reconciled purchase amount:
+
+```text
+1034075208.2566
+```
+
+### Step 17.20 - Implement analytics_purchase_order_lines
+
+Status:
+
+```text
+completed
+```
+
+Scripts:
+
+```text
+scripts/build_analytics_purchase_order_lines.py
+scripts/validate_analytics_purchase_order_lines.py
+```
+
+Validated result:
+
+```text
+total_rows: 749932
+include_in_business_views: 676186
+excluded_from_business_views: 73746
+internal_vendor_rows: 20061
+review_required_product_rows: 4936
+orphan_product_rows: 50978
+orphan_company_rows: 0
+orphan_vendor_rows: 0
+invalid_order_date_rows: 0
+```
+
+Validation result:
+
+```text
+total_validations: 14
+passed: 14
+failed: 0
+VALIDATION RESULT: PASSED
+```
+
+Amount reconciliation:
+
+```text
+canonical_price_total: 1034075208.2566
+analytics_price_total: 1034075208.2566
+difference: 0.0000
+```
+
+### Step 17.21 - Document analytics_purchase_order_lines closeout
+
+Status:
+
+```text
+completed
+```
+
+Document:
+
+```text
+docs/analytics-purchase-order-lines-design.md
+```
+
+Key decisions:
+
+```text
+All canonical purchase lines are preserved.
+Business-facing inclusion is controlled by include_in_business_views.
+Excluded rows remain visible with exclude_reason.
+Product joins do not use product names.
+Review-required products and internal vendors are excluded from default business views.
+```
+
+### Step 17.22 - Design analytics_purchase_orders
+
+Status:
+
+```text
+completed
+```
+
+Document:
+
+```text
+docs/analytics-purchase-orders-design.md
+```
+
+Design grain:
+
+```text
+1 row = 1 source purchase order group
+```
+
+Source:
+
+```text
+analytics_purchase_order_lines
+```
+
+### Step 17.23 - Implement analytics_purchase_orders
+
+Status:
+
+```text
+completed
+```
+
+Scripts:
+
+```text
+scripts/build_analytics_purchase_orders.py
+scripts/validate_analytics_purchase_orders.py
+```
+
+Validated result:
+
+```text
+total_orders: 145876
+include_in_business_views: 143188
+excluded_from_business_views: 2688
+review_required_orders: 26497
+no_business_line_orders: 2688
+inconsistent_company_orders: 0
+inconsistent_date_orders: 0
+inconsistent_vendor_orders: 0
+```
+
+Line reconciliation:
+
+```text
+analytics_purchase_order_lines rows: 749932
+analytics_purchase_orders summed line_count: 749932
+```
+
+Amount reconciliation:
+
+```text
+analytics_purchase_order_lines.price_total: 1034075208.2566
+analytics_purchase_orders.price_total_total: 1034075208.2566
+difference: 0.0000
+```
+
+Validation result:
+
+```text
+total_validations: 14
+passed: 14
+failed: 0
+VALIDATION RESULT: PASSED
+```
+
+Technical issue resolved:
+
+```text
+Initial build failed with MySQL error 2013 Lost connection to MySQL server during query.
+Build was rewritten to use INSERT INTO SELECT.
+Final build completed successfully.
+```
+
+### Step 17.24 - Document analytics_purchase_orders closeout
+
+Status:
+
+```text
+completed
+```
+
+Document:
+
+```text
+docs/analytics-purchase-orders-design.md
+```
+
+Key decisions:
+
+```text
+analytics_purchase_orders is derived from analytics_purchase_order_lines.
+Orders with at least one business-ready line remain included unless order-level inconsistencies exist.
+Orders with no business-ready lines are excluded with no_business_lines.
+Order-level company, date and vendor consistency checks are clean.
+```
+
+### Step 17.25 - Design analytics_purchase_daily_company_product
+
+Status:
+
+```text
+completed
+```
+
+Document:
+
+```text
+docs/analytics-purchase-daily-company-product-design.md
+```
+
+Design grain:
+
+```text
+company_source_key
+order_date_key
+product_analytical_group_key
+source_system
+```
+
+Product orphan handling rule:
+
+```text
+product_analytical_group_key = product_analytical_key when populated
+product_analytical_group_key = 0 when product_analytical_key is null
+```
+
+### Step 17.26 - Implement analytics_purchase_daily_company_product
+
+Status:
+
+```text
+completed
+```
+
+Scripts:
+
+```text
+scripts/build_analytics_purchase_daily_company_product.py
+scripts/validate_analytics_purchase_daily_company_product.py
+```
+
+Validated result:
+
+```text
+total_rows: 626258
+include_in_business_views: 595831
+excluded_from_business_views: 30427
+total_line_count: 749932
+total_business_line_count: 676186
+total_excluded_line_count: 73746
+total_review_required_line_count: 55914
+total_internal_vendor_line_count: 20061
+total_review_required_product_line_count: 4936
+total_orphan_product_line_count: 50978
+```
+
+Amount reconciliation:
+
+```text
+total_price_total: 1034075208.2566
+business_price_total: 989935685.4550
+excluded_price_total: 44139522.8016
+```
+
+Validation result:
+
+```text
+total_validations: 15
+passed: 15
+failed: 0
+VALIDATION RESULT: PASSED
+```
+
+### Step 17.27 - Document analytics_purchase_daily_company_product closeout
+
+Status:
+
+```text
+completed
+```
+
+Document:
+
+```text
+docs/analytics-purchase-daily-company-product-design.md
+```
+
+Key decisions:
+
+```text
+Aggregate uses analytics_purchase_order_lines as source.
+Aggregate preserves full line activity, including excluded lines.
+Product orphans are grouped under product_analytical_group_key = 0.
+Vendor is summarized through counts, not included in the grain.
+Aggregate reconciles line counts and purchase amounts to analytics_purchase_order_lines.
+```
+
+### Step 17.28 - Update README.md and project-status-and-todo.md with analytical purchases closeout
+
+Status:
+
+```text
+completed
+```
+
+Important documentation rule:
+
+```text
+README.md and project-status-and-todo.md were updated additively.
+Existing historical project content was preserved.
+The update records the validated purchase analytical layer without replacing prior documentation.
+```
+
+Files updated:
+
+```text
+README.md
+docs/project-status-and-todo.md
+```
+
+### Section 17 Known Open Items
+
+```text
+orphan_product_lines: 50978
+review_required_product_lines: 4936
+product key stability review
+production orchestration documentation
+purchase analytical refresh runbook
+inventory analytical layer design
+```
+
+### Section 17 Recommended Next Step
+
+```text
+Paso 17.29 - Revisar y cerrar documentación de Sección 17
+```
+
+---
+
+## Current Decision Point After Section 17
+
+The project now has:
+
+```text
+Purchases:
+    canonical layer validated
+    pipeline execution validated
+    analytical line fact validated
+    analytical order fact validated
+    daily company-product aggregate validated
+Inventory:
+    pipeline execution validated
+    analytical layer pending
+Zenput:
+    safe wrapper validated
+    validation-only execution validated
+    first controlled real legacy execution completed against development/test database
+    post-execution validators passing
+```
+
+Recommended next step:
+
+```text
+Paso 17.29 - Revisar y cerrar documentación de Sección 17
+```
+
+After Section 17 closeout, the next technical domain should be:
+
+```text
+Inventory analytical layer design
+```
+
+Suggested future step:
+
+```text
+Paso 18.1 - Diseñar analytics_inventory_snapshot o analytics_inventory_daily_company_product
+```
+

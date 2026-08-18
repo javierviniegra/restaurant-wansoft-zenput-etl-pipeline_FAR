@@ -168,7 +168,7 @@ Zenput JSON logging: implemented
 Zenput legacy real execution: protected by explicit --allow-legacy-writes gate
 
 Production scheduling: pending
-Unified analytical consumption layer: pending
+Unified analytical consumption layer: purchase analytical layer implemented and validated; inventory and Zenput analytical additions pending
 Database run-log persistence: pending
 Validation result persistence: pending
 ```
@@ -2166,3 +2166,253 @@ Reason:
 Zenput now has a safe wrapper, central location mapping, read-only validators and JSON logging.
 Legacy write execution is still protected and should not be run casually.
 ```
+
+---
+
+## Current Analytical Purchase Layer Status
+
+The analytical purchase layer has reached a validated multi-level structure.
+
+Validated shared dimensions:
+
+```text
+dim_company_analytical
+dim_time
+dim_vendor
+dim_product
+```
+
+Validated analytical support table:
+
+```text
+analytics_company_domain_coverage
+```
+
+Validated purchase analytical objects:
+
+```text
+analytics_purchase_order_lines
+analytics_purchase_orders
+analytics_purchase_daily_company_product
+```
+
+### Validated Purchase Reconciliation Chain
+
+The current validated purchase analytical layer reconciles through:
+
+```text
+canonical_purchase_order_line_snapshot
+-> analytics_purchase_order_lines
+-> analytics_purchase_orders
+-> analytics_purchase_daily_company_product
+```
+
+Shared reconciled line count:
+
+```text
+749932
+```
+
+Shared reconciled purchase amount:
+
+```text
+1034075208.2566
+```
+
+### analytics_purchase_order_lines
+
+Purpose:
+
+```text
+Detailed analytical purchase line fact.
+1 row = 1 canonical purchase order line.
+```
+
+Validated result:
+
+```text
+total_rows: 749932
+include_in_business_views: 676186
+excluded_from_business_views: 73746
+internal_vendor_rows: 20061
+review_required_product_rows: 4936
+orphan_product_rows: 50978
+orphan_company_rows: 0
+orphan_vendor_rows: 0
+invalid_order_date_rows: 0
+```
+
+Validation result:
+
+```text
+total_validations: 14
+passed: 14
+failed: 0
+VALIDATION RESULT: PASSED
+```
+
+Amount reconciliation:
+
+```text
+canonical_purchase_order_line_snapshot.price_total: 1034075208.2566
+analytics_purchase_order_lines.price_total: 1034075208.2566
+difference: 0.0000
+```
+
+### analytics_purchase_orders
+
+Purpose:
+
+```text
+Order-level analytical purchase fact.
+1 row = 1 source purchase order group.
+```
+
+Validated result:
+
+```text
+total_orders: 145876
+include_in_business_views: 143188
+excluded_from_business_views: 2688
+review_required_orders: 26497
+no_business_line_orders: 2688
+inconsistent_company_orders: 0
+inconsistent_date_orders: 0
+inconsistent_vendor_orders: 0
+```
+
+Line reconciliation:
+
+```text
+analytics_purchase_order_lines rows: 749932
+analytics_purchase_orders summed line_count: 749932
+```
+
+Amount reconciliation:
+
+```text
+analytics_purchase_order_lines.price_total: 1034075208.2566
+analytics_purchase_orders.price_total_total: 1034075208.2566
+difference: 0.0000
+```
+
+Validation result:
+
+```text
+total_validations: 14
+passed: 14
+failed: 0
+VALIDATION RESULT: PASSED
+```
+
+Technical note:
+
+```text
+Initial build failed with MySQL error 2013 Lost connection to MySQL server during query.
+The build was rewritten to use INSERT INTO SELECT.
+Final build completed successfully.
+```
+
+### analytics_purchase_daily_company_product
+
+Purpose:
+
+```text
+Daily company-product-source purchase aggregate.
+1 row = 1 company_source_key + 1 order_date_key + 1 product_analytical_group_key + 1 source_system.
+```
+
+Validated result:
+
+```text
+total_rows: 626258
+include_in_business_views: 595831
+excluded_from_business_views: 30427
+total_line_count: 749932
+total_business_line_count: 676186
+total_excluded_line_count: 73746
+total_review_required_line_count: 55914
+total_internal_vendor_line_count: 20061
+total_review_required_product_line_count: 4936
+total_orphan_product_line_count: 50978
+```
+
+Amount reconciliation:
+
+```text
+total_price_total: 1034075208.2566
+total_business_price_total: 989935685.4550
+total_excluded_price_total: 44139522.8016
+```
+
+Validation result:
+
+```text
+total_validations: 15
+passed: 15
+failed: 0
+VALIDATION RESULT: PASSED
+```
+
+### Product Governance Note
+
+Current product governance diagnostics:
+
+```text
+orphan_product_lines: 50978
+review_required_product_lines: 4936
+```
+
+Current handling:
+
+```text
+Rows without product_analytical_key remain visible.
+Rows without product_analytical_key are excluded from default business-facing views when required.
+Rows without product_analytical_key are grouped under product_analytical_group_key = 0 in analytics_purchase_daily_company_product.
+```
+
+This preserves reconciliation while keeping product mapping backlog visible.
+
+### Current Analytical Purchase Layer Status
+
+```text
+Status: validated
+Purchase line fact: complete
+Purchase order fact: complete
+Daily company-product aggregate: complete
+Known remaining work: product governance backlog, key stability review and orchestration documentation
+```
+
+---
+
+## Current Next Step - Updated After Section 17.28
+
+Recommended next step:
+
+```text
+Paso 17.29 - Revisar y cerrar documentación de Sección 17
+```
+
+Recommended review scope:
+
+```text
+README.md
+project-status-and-todo.md
+docs/analytics-purchase-order-lines-design.md
+docs/analytics-purchase-orders-design.md
+docs/analytics-purchase-daily-company-product-design.md
+scripts/build_analytics_purchase_order_lines.py
+scripts/validate_analytics_purchase_order_lines.py
+scripts/build_analytics_purchase_orders.py
+scripts/validate_analytics_purchase_orders.py
+scripts/build_analytics_purchase_daily_company_product.py
+scripts/validate_analytics_purchase_daily_company_product.py
+```
+
+Reason:
+
+```text
+The analytical purchase layer now has validated line, order and daily company-product outputs.
+The next work should close Section 17 documentation safely and prepare a commit without replacing historical project documentation.
+```
+
