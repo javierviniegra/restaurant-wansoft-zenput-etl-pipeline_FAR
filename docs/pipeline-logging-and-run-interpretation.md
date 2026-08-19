@@ -2161,3 +2161,147 @@ Zenput timestamp behaviour review
 Zenput legacy error propagation review
 Zenput pre/post count logging
 ```
+
+<!-- STEP_18_16D_INVENTORY_PIPELINE_SCOPE_REFINEMENT -->
+
+# Paso 18.16D - Inventory pipeline scope refinement closeout
+
+## Status
+
+Completed and validated.
+
+## Purpose
+
+This section documents the closure of the Inventory pipeline scope-refinement correction. The Inventory pipeline now runs the Odoo inventory scope refinement step before the Odoo inventory ETL.
+
+## Root cause corrected
+
+The previous Inventory pipeline order executed base Odoo inventory scope classification directly before the Odoo inventory ETL. That was incomplete because `scripts.test_odoo_inventory_etl` consumes `refined_inventory_scope`, not only base `inventory_scope`.
+
+The base classifier can correctly produce `shared_or_open`, but the ETL is configured to include `shared_cross_company` through:
+
+```text
+INVENTORY_ETL_SCOPE_INCLUDE=shared_cross_company
+```
+
+Without the refinement step, a real pipeline execution can produce:
+
+```text
+inventory_candidates_rows: 0
+```
+
+while final validation can still pass against previously loaded `odoo_inventory_snapshot` rows.
+
+## Correction applied
+
+The required step:
+
+```text
+scripts.test_refine_odoo_inventory_scope
+```
+
+was inserted between:
+
+```text
+scripts.test_odoo_inventory_scope_classification
+```
+
+and:
+
+```text
+scripts.test_odoo_inventory_etl
+```
+
+## Validated default Inventory pipeline order
+
+1. `scripts.test_odoo_inventory_scope_classification`
+2. `scripts.test_refine_odoo_inventory_scope`
+3. `scripts.test_odoo_inventory_etl`
+4. `scripts.test_inventory_dictionary_lookup`
+5. `scripts.test_apply_inventory_dictionary`
+6. `scripts.test_inventory_not_found_analyzer`
+7. `scripts.test_inventory_not_found_priority_backlog`
+8. `scripts.validate_inventory_outputs`
+
+## Validation evidence
+
+### Dry-run
+
+```text
+total_steps: 8
+dry_run: 8
+failed_or_error: 0
+required_failed_or_error: 0
+TEST RESULT: PASSED
+```
+
+### Real execution
+
+```text
+run_id: ba1840b2-b79e-4642-aed6-0ea925f5ed57
+total_steps: 8
+success: 8
+failed_or_error: 0
+required_failed_or_error: 0
+PIPELINE RESULT: COMPLETED
+duration_seconds: 16.1
+log_file: logs\inventory_pipeline_runs\20260819_143706_ba1840b2-b79e-4642-aed6-0ea925f5ed57.json
+```
+
+### Scope refinement result
+
+```text
+review_scope: 579
+shared_cross_company: 526
+bodegon: 404
+restaurantes: 224
+empanadas: 27
+odoo_inventory_scope_classification records updated: 1760
+```
+
+### Odoo inventory ETL after refinement
+
+```text
+sales_reference_rows: 1528
+inventory_candidates_rows: 4029
+scope_backlog_rows: 3890
+approved_rows: 1387
+pending_rows: 3
+historical_rows: 0
+not_found_rows: 1029
+odoo_inventory_snapshot: 1387 rows
+odoo_inventory_backlog: 6450 rows
+```
+
+### Final output validation
+
+```text
+total_validations: 8
+passed: 8
+failed: 0
+VALIDATION RESULT: PASSED
+```
+
+## Controlled promotion policy
+
+Inventory dictionary promotion scripts remain intentionally excluded from the default pipeline and require explicit manual approval.
+
+Excluded promotion scripts:
+
+- `scripts.test_promote_inventory_bridge_to_dictionary`
+- `scripts.test_promote_inventory_not_found_p1_to_dictionary`
+- `scripts.test_promote_inventory_not_found_p2_to_dictionary`
+- `scripts.test_promote_inventory_not_found_residual_to_dictionary`
+
+## Operational interpretation
+
+The Inventory pipeline should not be considered fully refreshed unless Step 03 confirms non-zero `inventory_candidates_rows` and inserted rows into `odoo_inventory_snapshot`.
+
+## Git traceability recommendation
+
+Recommended commit message:
+
+```text
+Fix inventory pipeline scope refinement order
+```
+

@@ -142,16 +142,20 @@ def build_pipeline_steps(
 
     Default execution order:
         1. Odoo inventory scope classification
-        2. Odoo inventory ETL
-        3. Inventory dictionary lookup validation
-        4. Inventory dictionary application validation
-        5. Inventory not    6. Inventory not_found priority backlog
-        7. Inventory output validation
+        2. Odoo inventory scope refinement
+        3. Odoo inventory ETL
+        4. Inventory dictionary lookup validation
+        5. Inventory dictionary application validation
+        6. Inventory not_found analyzer
+        7. Inventory not_found priority backlog
+        8. Inventory output validation
 
-    Optional:
-        - bridge report diagnostics
-
-    Dictionary promotions are intentionally excluded from this orchestrator.
+    Safety rules:
+        - Odoo remains read-only.
+        - Dictionary promotions are intentionally excluded from this orchestrator.
+        - Bridge reports are optional diagnostics only.
+        - Inventory scope refinement is required before Odoo inventory ETL because
+          the ETL consumes refined_inventory_scope, not only inventory_scope.
     """
 
     steps: List[PipelineStep] = []
@@ -164,8 +168,8 @@ def build_pipeline_steps(
             required=True,
             group="scope",
             description=(
-                "Classifies Odoo inventory products into business scopes "
-                "before inventory ETL execution."
+                "Classifies Odoo inventory products into base business scopes "
+                "before scope refinement and inventory ETL execution."
             ),
         )
     )
@@ -173,13 +177,15 @@ def build_pipeline_steps(
     steps.append(
         PipelineStep(
             step_id="02",
-            name="Odoo inventory ETL",
-            module="scripts.test_odoo_inventory_etl",
+            name="Odoo inventory scope refinement",
+            module="scripts.test_refine_odoo_inventory_scope",
             required=True,
-            group="inventory_snapshot",
+            group="scope",
             description=(
-                "Loads odoo_inventory_snapshot and odoo_inventory_backlog "
-                "using scope-aware dictionary logic."
+                "Refines base Odoo inventory scopes into refined_inventory_scope "
+                "values such as shared_cross_company, review_scope, bodegon, "
+                "empanadas and restaurantes. This step is required before the "
+                "Odoo inventory ETL because the ETL filters by refined_inventory_scope."
             ),
         )
     )
@@ -187,6 +193,20 @@ def build_pipeline_steps(
     steps.append(
         PipelineStep(
             step_id="03",
+            name="Odoo inventory ETL",
+            module="scripts.test_odoo_inventory_etl",
+            required=True,
+            group="inventory_snapshot",
+            description=(
+                "Loads odoo_inventory_snapshot and odoo_inventory_backlog "
+                "using refined scope-aware dictionary logic."
+            ),
+        )
+    )
+
+    steps.append(
+        PipelineStep(
+            step_id="04",
             name="Inventory dictionary lookup validation",
             module="scripts.test_inventory_dictionary_lookup",
             required=True,
@@ -199,7 +219,7 @@ def build_pipeline_steps(
 
     steps.append(
         PipelineStep(
-            step_id="04",
+            step_id="05",
             name="Inventory dictionary application validation",
             module="scripts.test_apply_inventory_dictionary",
             required=True,
@@ -213,7 +233,7 @@ def build_pipeline_steps(
     if not skip_diagnostics:
         steps.append(
             PipelineStep(
-                step_id="05",
+                step_id="06",
                 name="Inventory not_found analyzer",
                 module="scripts.test_inventory_not_found_analyzer",
                 required=True,
@@ -226,7 +246,7 @@ def build_pipeline_steps(
 
         steps.append(
             PipelineStep(
-                step_id="06",
+                step_id="07",
                 name="Inventory not_found priority backlog",
                 module="scripts.test_inventory_not_found_priority_backlog",
                 required=False,
@@ -293,7 +313,6 @@ def build_pipeline_steps(
                 "snapshot mapping distribution, backlog visibility, dictionary coverage "
                 "and controlled promotion policy."
             ),
-            skip_if_missing=False,
         )
     )
 
