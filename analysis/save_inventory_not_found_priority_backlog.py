@@ -14,6 +14,34 @@ def sql_safe(value):
     return value
 
 
+def ensure_inventory_not_found_priority_backlog_table(conn):
+    """
+    Creates inventory_not_found_priority_backlog when it does not exist yet.
+    Columns match exactly what this module inserts.
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS inventory_not_found_priority_backlog (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+                odoo_product_id VARCHAR(100) NULL,
+                odoo_product_name VARCHAR(500) NULL,
+                category_name VARCHAR(255) NULL,
+                refined_inventory_scope VARCHAR(100) NULL,
+                not_found_classification VARCHAR(100) NULL,
+                row_count INT NULL,
+                location_count INT NULL,
+                total_abs_stock_qty DECIMAL(18,4) NULL,
+                priority_bucket VARCHAR(100) NULL,
+                priority_reason VARCHAR(500) NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+        """)
+        conn.commit()
+    finally:
+        cursor.close()
+
+
 def save_inventory_not_found_priority_backlog():
     """
     Guarda en MySQL el backlog priorizado de not_found.
@@ -25,6 +53,7 @@ def save_inventory_not_found_priority_backlog():
         return
 
     conn = get_db_connection(target="wansoft")
+    ensure_inventory_not_found_priority_backlog_table(conn)
     cursor = conn.cursor()
 
     cursor.execute("TRUNCATE TABLE inventory_not_found_priority_backlog")

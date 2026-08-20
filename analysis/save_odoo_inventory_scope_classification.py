@@ -14,6 +14,43 @@ def sql_safe(value):
     return value
 
 
+def ensure_odoo_inventory_scope_classification_table(conn):
+    """
+    Creates odoo_inventory_scope_classification when it does not exist yet.
+
+    Columns match exactly what this module inserts plus the refined_*
+    columns updated later by analysis/save_refined_odoo_inventory_scope.py.
+    id is a plain AUTO_INCREMENT column because the refinement UPDATE
+    targets it directly by name.
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS odoo_inventory_scope_classification (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+                odoo_product_id VARCHAR(100) NULL,
+                product_name VARCHAR(500) NULL,
+                category_name VARCHAR(255) NULL,
+                company_id_only VARCHAR(100) NULL,
+                company_name VARCHAR(500) NULL,
+                sale_ok VARCHAR(10) NULL,
+                purchase_ok VARCHAR(10) NULL,
+                inventory_scope VARCHAR(100) NULL,
+                scope_source VARCHAR(100) NULL,
+                scope_status VARCHAR(100) NULL,
+                notes TEXT NULL,
+
+                refined_inventory_scope VARCHAR(100) NULL,
+                refined_scope_source VARCHAR(100) NULL,
+                refined_scope_status VARCHAR(100) NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+        """)
+        conn.commit()
+    finally:
+        cursor.close()
+
+
 def save_odoo_inventory_scope_classification():
     df = classify_odoo_inventory_scope()
 
@@ -22,6 +59,7 @@ def save_odoo_inventory_scope_classification():
         return
 
     conn = get_db_connection(target="wansoft")
+    ensure_odoo_inventory_scope_classification_table(conn)
     cursor = conn.cursor()
 
     cursor.execute("TRUNCATE TABLE odoo_inventory_scope_classification")
