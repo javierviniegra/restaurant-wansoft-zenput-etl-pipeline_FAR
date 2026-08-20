@@ -646,7 +646,7 @@ complete
 
 ---
 
-## Recommended Next Step
+## Recommended Next Step (as of original closeout)
 
 Recommended next step:
 
@@ -658,4 +658,75 @@ Purpose:
 
 ```text
 Create a governed process for populating approved source_location_id to company_source_key mappings before building company-level inventory aggregates.
+```
+
+---
+
+## Update: Paso 18.20 Reconnection (2026-08-20)
+
+The state documented above (`company_view_eligible_locations: 0`, entirely dependent on the manual seed) was accurate at the time but is now superseded. It reflected a real architectural gap: the Odoo location master extraction (Paso 18.18) was built after this closeout but never wired back into this build script.
+
+### What Changed
+
+`scripts/build_dim_inventory_location.py` was updated so that `company_source_key`, `mapped_company_name`, `company_mapping_status`, `company_mapping_method` and `include_in_company_inventory_views` now prefer the governed resolution already computed in `analytics_inventory_snapshot.company_source_key` (itself resolved from `stg_odoo_inventory_location_master`, Odoo's own `stock.location.company_id`, Paso 18.18-18.20). The manual seed table (`inventory_location_company_mapping_config`) is kept as an explicit override: when an active mapping exists there, it always wins over the automatic Odoo resolution.
+
+The governance principle from the original design is preserved exactly: `company_source_key` is never inferred from `location_name` text. It is now resolved from Odoo's structured `company_id` field instead of only from the (still empty) manual worklist.
+
+### Actual Rebuild Result (dev, 2026-08-20)
+
+```text
+total_locations: 70
+internal_or_unknown_locations: 37
+partner_locations: 2
+virtual_locations: 31
+physical_view_eligible_locations: 37
+company_view_eligible_locations: 14        (was 0)
+approved_company_mappings: 0                (manual seed still empty, expected)
+pending_company_mappings: 0
+needs_governance_review_locations: 1
+non_physical_locations: 33
+current_source_row_count: 294
+current_stock_qty: 4327.4549
+```
+
+`total_locations` grew from 54 to 70 and `current_source_row_count`/`current_stock_qty` changed because `analytics_inventory_snapshot` itself was rebuilt in the same session against a corrected, current `odoo_inventory_snapshot` (see Section 18 Status in `docs/project-status-and-todo.md` for the full chain). This is not a discrepancy in this object; it reflects an upstream refresh.
+
+### Validation Result
+
+```text
+total_validations: 17
+passed: 17
+failed: 0
+VALIDATION RESULT: PASSED
+```
+
+Includes two updated checks (`no_company_key_without_approved_mapping`, `company_view_requires_approved_mapping` in `scripts/validate_dim_inventory_location.py`) that now also accept the new `approved_from_odoo_location_master` status alongside the original `approved`/`approved_from_source`.
+
+### Company Mapping Status Distribution
+
+```text
+approved_from_odoo_location_master: 14   (physically eligible + Odoo final -> company eligible)
+final_odoo_enabled: 12                    (Odoo final, but not a physically eligible location type)
+parallel_diagnostic_odoo: 22              (Wansoft is official source, Odoo data kept visible only)
+internal_provider_excluded: 11
+out_of_scope_excluded: 7
+unmapped_location_pending_review: 4
+```
+
+### What This Still Does Not Solve
+
+```text
+The manual seed table remains empty (0 approved rows). It stays available as an
+override mechanism for exceptions the Odoo location master cannot resolve, per
+the original design intent, but is no longer the only path to company eligibility.
+Wansoft-side inventory (getstockinventory_inventario) is still not unified with
+this table.
+```
+
+### Recommended Next Step
+
+```text
+Continue with the remaining Section 18 documentation closeout, then decide
+between Wansoft inventory unification and preparing for the final
+production-promotion acceptance test.
 ```

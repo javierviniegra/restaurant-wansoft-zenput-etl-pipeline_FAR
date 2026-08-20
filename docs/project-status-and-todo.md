@@ -2325,3 +2325,140 @@ Recommended commit message:
 Fix inventory pipeline scope refinement order
 ```
 
+---
+
+# Section 18 Status: Inventory Analytical Layer and Company Source Governance
+
+This section closes the documentation gap for Section 18. Steps 18.1 through 18.16D were completed and committed on 2026-08-19 (commits `7a23543` through `78e8e0c`), but never consolidated into this document. Steps 18.17 through 18.21 were completed on 2026-08-20. This block covers both.
+
+## What Was Already Built (2026-08-19, previously undocumented here)
+
+```text
+scripts/extract_odoo_inventory_location_master.py   -> stg_odoo_inventory_location_master
+scripts/validate_odoo_inventory_location_master.py
+scripts/build_dim_inventory_location.py              -> dim_inventory_location
+scripts/validate_dim_inventory_location.py
+scripts/build_analytics_inventory_snapshot.py         -> analytics_inventory_snapshot
+scripts/build_analytics_inventory_current_product_location.py
+scripts/build_inventory_snapshot_views.py             -> vw_inventory_physical_snapshot,
+                                                          vw_inventory_non_physical_snapshot
+scripts/analyze_analytics_inventory_negative_stock.py
+scripts/export_inventory_location_company_mapping_worklist.py
+scripts/seed_inventory_location_company_mapping_config.py -> inventory_location_company_mapping_config
+scripts/validate_inventory_location_company_mapping_config.py
+docs/odoo-inventory-location-master-extraction-design.md
+docs/dim-inventory-location-design.md / -closeout.md
+docs/analytics-inventory-snapshot-design.md
+docs/analytics-inventory-current-product-location-design.md / -closeout.md
+docs/inventory-physical-diagnostic-views-closeout.md
+docs/inventory-location-usage-policy.md
+docs/inventory-location-company-mapping-seed-process-design.md
+```
+
+At that point, all of this ran only against dev, and `dim_inventory_location`'s company eligibility depended exclusively on the manual seed table (`inventory_location_company_mapping_config`), which had 0 approved rows. Result at that time: `company_view_eligible_locations: 0` of 54 locations.
+
+## Paso 18.17-18.21 (2026-08-20)
+
+### Paso 18.17 - Design
+
+Original plan was a new `canonical_inventory_snapshot` table mirroring `canonical_purchase_order_snapshot`. Superseded during implementation (see 18.20). Full design history in `docs/canonical-inventory-snapshot-design.md`.
+
+### Paso 18.18 - Resolve company_id via Odoo location master
+
+Fixed two real bugs blocking first execution: `stg_odoo_inventory_location_master` had no self-provisioning DDL (fails in any fresh environment), and the DDL used the reserved word `usage` unquoted. Both fixed in `scripts/extract_odoo_inventory_location_master.py`. Also fixed the same missing-DDL pattern in `extract/inventory/odoo_inventory_etl.py` for `odoo_inventory_snapshot` and `odoo_inventory_backlog`.
+
+Executed successfully in dev: 388 locations, 100% with `company_id` resolved from Odoo directly.
+
+Critical finding: the `FONDA` location name prefix is shared identically across 8 different Odoo companies (ids 5, 6, 8, 9, 14, 17, 18, 19). Name-based location mapping (the original Paso 18.14/18.15 worklist approach) would have been structurally wrong at scale. Only `company_id` from the location master is a reliable join key.
+
+`core/config/companies.py` updated with 4 new confirmed mappings (`FONDA ARGENTINA AEROPUERTO`, `VALLEJO`, `VIADUCTO`, `TOLLOCAN` → `Aeropuerto`, `Vía Vallejo`, `Viaducto`, `Metepec`), and two new governance categories:
+
+```text
+ODOO_OUT_OF_SCOPE_COMPANIES = { "TACOS FA FUENTES" }
+    -- confirmed by owner: no longer belongs to Grupo Fonda Argentina,
+       excluded from every domain including Sales, no fallback source.
+```
+
+`FONDA ARGENTINA POLYFORUM` was initially misclassified as a new "sales-only" category, then corrected per owner clarification: it is the Odoo-side entity for the **Napoles** franchise branch, which will never operate through Odoo. It now resolves as a normal Wansoft-final company (`ODOO_COMPANY_SOURCE_KEY["FONDA ARGENTINA POLYFORUM"] = "Napoles"`), same pattern as Tepeyac/Oceanía/Acoxpa.
+
+### Paso 18.19 - Inventory company source classification
+
+Implemented `analysis/build_inventory_company_source_eligibility_report.py`, mirroring the existing Purchases eligibility report pattern. Classifies every `analytics_inventory_snapshot` row against `COMPANY_SOURCE`, resolved via the Odoo location master join, never from location name text. Unknown companies are never defaulted to `wansoft`; they are flagged `unmapped_location_pending_review`.
+
+Validated against the full 1660-row pre-refresh snapshot: 100% reconciled across `final_odoo_enabled` (290), `internal_provider_excluded` (447), `out_of_scope_excluded` (154, TACOS FA FUENTES), `parallel_diagnostic_odoo` (461), `unmapped_location_pending_review` (308, confirmed as Odoo's own shared/system locations with `company_id=0`, not a data gap).
+
+### Paso 18.20 - Enrich analytics_inventory_snapshot (scope change from 18.17)
+
+Rather than a separate canonical table, `analytics_inventory_snapshot` was enriched directly: it already carried unused `company_source_key`, `company_mapping_status`, `include_in_business_views`, `exclude_reason` columns. `scripts/build_analytics_inventory_snapshot.py` and `scripts/validate_analytics_inventory_snapshot.py` updated accordingly (12/12 validations pass, new `company_mapping_governed` check replaces the old `company_mapping_not_forced` check that assumed the column would always be null).
+
+This surfaced that `odoo_inventory_snapshot` had been refreshed by the Paso 18.16D pipeline fix (1387 rows) but `analytics_inventory_snapshot` and everything built from it had never been rebuilt since (still reflecting the pre-fix 1660-row snapshot). Full downstream cascade rebuilt in dependency order and reconciled:
+
+```text
+analytics_inventory_snapshot (1380 rows)
+  -> vw_inventory_physical_snapshot (294) + vw_inventory_non_physical_snapshot (1086) = 1380 (exact)
+  -> analytics_inventory_current_product_location (294 rows, 4327.4549 stock_qty)
+  -> dim_inventory_location (70 locations, 17/17 validations pass)
+```
+
+`scripts/build_dim_inventory_location.py` was also updated: `company_source_key` and `include_in_company_inventory_views` now prefer the governed Odoo location master resolution (`final_odoo_enabled` + physically eligible), with the manual seed table kept only as an explicit override mechanism, not the sole path. Result: `company_view_eligible_locations` went from 0 to 14 (Antenas and La Esquina Coyoacán locations).
+
+### Paso 18.21 - Preliminary reconciliation gate
+
+Built `scripts/reconcile_purchases_dev_vs_odoo.py`: queries `purchase.order` / `purchase.order.line` directly against live Odoo, independent of any project ETL code, and compares against `canonical_purchase_order_snapshot` / `canonical_purchase_order_line_snapshot` in dev.
+
+First case (Antenas, July 2026, closed month): exact match, zero difference, on order count, order amount_total, line count and line price_total.
+
+```text
+Prerequisite discovered: the Purchases pipeline in dev had not been refreshed since
+the original Section 17 close (data stopped at 2026-07-22 for Antenas). Re-ran
+scripts.run_purchases_pipeline in dev before this gate to get a fully current
+July. Also confirmed during this run: none of the 17 Purchases canonical/analytical
+tables exist in production yet, same situation as Inventory. Both domains are
+fully built and validated in dev only, exactly per the project's stated
+dev-first methodology.
+```
+
+**This is explicitly a preliminary gate, not the final acceptance test.** Project owner decision (2026-08-20): the real final functional test must compare at least two branches against the production database itself, and must only run once the project is functionally complete, immediately before production promotion.
+
+## Current Section 18 Status
+
+```text
+Inventory pipeline (base, Section 14):          stable, dev only
+Inventory location governance (dim_inventory_location):  reconnected to Odoo
+                                                  location master, 14 locations
+                                                  company-eligible, dev only
+Inventory company source classification:         implemented and validated, dev only
+Wansoft inventory (getstockinventory_inventario): still separate, ungoverned,
+                                                  not unified with Odoo side
+Purchases canonical + analytical layer:           re-validated fresh in dev,
+                                                  none of it exists in production
+Preliminary reconciliation gate:                  1 case passed (Purchases,
+                                                  Antenas, Odoo-final pattern)
+Final acceptance test (2 branches vs production): not started, deferred to
+                                                  project completion
+Production promotion:                             not started
+```
+
+## Known Open Items Going Into Paso 18.22+
+
+```text
+[ ] Unify Wansoft inventory (getstockinventory_inventario) with the now-governed
+    Odoo side under COMPANY_SOURCE, same pattern already proven for Purchases
+[ ] Missing self-provisioning DDL still open for odoo_inventory_scope_classification
+    and inventory_not_found_priority_backlog (works today because dev already has
+    the tables; will fail on first production run exactly like
+    stg_odoo_inventory_location_master did, until fixed)
+[ ] Cosmetic print bug in analysis/build_wansoft_purchase_subsidiary_mapping_report.py
+    (garbled console output on wide DataFrame print, does not affect data)
+[ ] Final acceptance test (2 branches, against production DB) before promotion
+[ ] Production promotion itself: create every table in production for the first time
+```
+
+## Recommended Next Step
+
+```text
+Continue documentation closeout (README.md, docs/dim-inventory-location-closeout.md,
+docs/production-orchestration-plan.md), then decide between continuing Wansoft
+inventory unification or preparing for final acceptance testing and promotion.
+```
+

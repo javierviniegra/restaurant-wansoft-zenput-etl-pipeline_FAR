@@ -2424,3 +2424,48 @@ Recommended commit message:
 Fix inventory pipeline scope refinement order
 ```
 
+---
+
+# Production Promotion Gate (added 2026-08-20)
+
+## Environment Governance Rule
+
+```text
+All development, construction and validation work happens exclusively in
+the development environment (dev). Production is not touched until:
+
+1. The project is functionally complete in dev.
+2. A final acceptance test is passed: at least two branches, compared
+   against the production database itself, for Purchases, Sales and
+   Inventory.
+3. That test passes without unexplained discrepancies.
+
+Only then is the project promoted to production, at which point every new
+table is created there for the first time.
+```
+
+Confirmed by direct check (2026-08-20): none of the Purchases canonical/analytical tables, and none of the Inventory Section 14/18 governed tables, exist in production. Only the legacy `getstockinventory_inventario` table runs there today. This is expected under the rule above, not a defect.
+
+## Preliminary Reconciliation Tooling (built ahead of the final gate)
+
+```text
+scripts/reconcile_purchases_dev_vs_odoo.py
+```
+
+Queries Odoo directly (`purchase.order`, `purchase.order.line`), independent of any project ETL code, and compares against the dev canonical layer. Used once (Antenas, July 2026): exact match, zero difference, on order count, order amount, line count and line amount.
+
+This tool reduces risk before the final gate but does not replace it. The final acceptance test (two branches, against the production database, only when the project is functionally complete) is a separate, later step, tracked in `docs/project-status-and-todo.md` Section 18 Status.
+
+## Known Gaps to Close Before First Production Run
+
+```text
+[ ] odoo_inventory_scope_classification and inventory_not_found_priority_backlog
+    lack self-provisioning DDL (same class of bug already fixed for
+    stg_odoo_inventory_location_master, odoo_inventory_snapshot and
+    odoo_inventory_backlog). Will fail on first production run if not fixed first.
+[ ] Wansoft inventory (getstockinventory_inventario) still not unified with the
+    governed Odoo side of Inventory.
+[ ] Cosmetic print bug in analysis/build_wansoft_purchase_subsidiary_mapping_report.py
+    (does not affect data correctness).
+```
+

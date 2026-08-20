@@ -2559,3 +2559,36 @@ Recommended commit message:
 Fix inventory pipeline scope refinement order
 ```
 
+---
+
+# Section 18 Continuation: Inventory Company Source Governance (2026-08-20)
+
+Full detail lives in `docs/project-status-and-todo.md` (Section 18 Status), `docs/canonical-inventory-snapshot-design.md`, and `docs/dim-inventory-location-closeout.md`. Summary:
+
+```text
+Inventory now resolves company_source_key from Odoo's own stock.location
+company_id (via stg_odoo_inventory_location_master), not from location name
+text. dim_inventory_location reconnected to this source; the manual seed
+table remains available only as an explicit override.
+
+company_view_eligible_locations: 14 (was 0)
+
+Two governance corrections made in core/config/companies.py:
+  - FONDA ARGENTINA POLYFORUM -> Napoles (normal Wansoft-final company,
+    Odoo never used as its source)
+  - TACOS FA FUENTES -> fully out of scope (no longer belongs to Grupo
+    Fonda Argentina, excluded from every domain including Sales)
+
+Preliminary reconciliation gate built and passed once (Purchases, Antenas,
+July 2026, exact match against live Odoo, independent of ETL code). This is
+explicitly not the final acceptance test; the real one (two branches, against
+the production database) runs only once the project is functionally complete.
+
+Confirmed during this work: none of the Purchases or Inventory canonical/
+analytical tables exist in production yet. Everything has been built and
+validated in dev only, per the project's dev-first methodology. Production
+is not touched until the final acceptance test passes.
+```
+
+Wansoft inventory (`getstockinventory_inventario`) remains a separate, ungoverned legacy table, not yet unified with the now-governed Odoo side. This is the next open item for the Inventory domain.
+
