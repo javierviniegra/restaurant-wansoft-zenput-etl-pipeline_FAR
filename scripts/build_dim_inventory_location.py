@@ -295,25 +295,49 @@ def insert_dim_rows(conn: Any) -> None:
         COALESCE(s.is_virtual_location, FALSE) AS is_virtual_location,
         COALESCE(s.is_partner_location, FALSE) AS is_partner_location,
         COALESCE(s.is_internal_location, FALSE) AS is_internal_location,
+        -- Company eligibility priority (Paso 18.20 reconciliation):
+        -- 1. Manual seed (inventory_location_company_mapping_config), when an
+        --    active entry exists at all, always wins as an explicit override.
+        -- 2. Otherwise, the governed Odoo location master resolution already
+        --    computed in analytics_inventory_snapshot.company_source_key
+        --    (Paso 18.18/18.20), only when that resolution is
+        --    final_odoo_enabled and the location is physically eligible.
+        -- 3. Otherwise NULL / not eligible.
         CASE
             WHEN m.active_mapping_count = 1 AND m.mapping_status = 'approved'
             THEN m.company_source_key
+            WHEN m.active_mapping_count >= 1 THEN NULL
+            WHEN s.location_usage_type = 'internal_or_unknown'
+             AND s.source_company_mapping_status = 'final_odoo_enabled'
+             AND s.source_company_source_key IS NOT NULL
+            THEN s.source_company_source_key
             ELSE NULL
         END AS company_source_key,
         CASE
             WHEN m.active_mapping_count = 1 AND m.mapping_status = 'approved'
             THEN m.mapped_company_name
+            WHEN m.active_mapping_count >= 1 THEN NULL
+            WHEN s.location_usage_type = 'internal_or_unknown'
+             AND s.source_company_mapping_status = 'final_odoo_enabled'
+             AND s.source_company_source_key IS NOT NULL
+            THEN s.source_company_source_key
             ELSE NULL
         END AS mapped_company_name,
         CASE
             WHEN m.active_mapping_count > 1 THEN 'conflicting_mapping'
             WHEN m.active_mapping_count = 1 THEN m.mapping_status
-            WHEN s.source_company_source_key IS NOT NULL AND s.source_company_mapping_status = 'approved' THEN 'approved_from_source'
+            WHEN s.location_usage_type = 'internal_or_unknown'
+             AND s.source_company_mapping_status = 'final_odoo_enabled'
+            THEN 'approved_from_odoo_location_master'
+            WHEN s.source_company_mapping_status IS NOT NULL THEN s.source_company_mapping_status
             ELSE 'pending_location_mapping'
         END AS company_mapping_status,
         CASE
             WHEN m.active_mapping_count = 1 THEN m.mapping_method
-            WHEN s.source_company_source_key IS NOT NULL AND s.source_company_mapping_status = 'approved' THEN 'source_field_preserved'
+            WHEN m.active_mapping_count >= 1 THEN NULL
+            WHEN s.location_usage_type = 'internal_or_unknown'
+             AND s.source_company_mapping_status = 'final_odoo_enabled'
+            THEN 'odoo_location_master'
             ELSE NULL
         END AS company_mapping_method,
         CASE
@@ -326,10 +350,12 @@ def insert_dim_rows(conn: Any) -> None:
             ELSE FALSE
         END AS include_in_inventory_physical_views,
         CASE
+            WHEN m.active_mapping_count = 1 AND m.mapping_status = 'approved' AND m.company_source_key IS NOT NULL
+            THEN TRUE
+            WHEN m.active_mapping_count >= 1 THEN FALSE
             WHEN s.location_usage_type = 'internal_or_unknown'
-             AND m.active_mapping_count = 1
-             AND m.mapping_status = 'approved'
-             AND m.company_source_key IS NOT NULL
+             AND s.source_company_mapping_status = 'final_odoo_enabled'
+             AND s.source_company_source_key IS NOT NULL
             THEN TRUE
             ELSE FALSE
         END AS include_in_company_inventory_views,
@@ -338,10 +364,16 @@ def insert_dim_rows(conn: Any) -> None:
             WHEN s.location_usage_type IN ('partner', 'virtual') THEN 'non_physical_location'
             WHEN s.location_usage_type = 'mixed_usage_type_review_required' THEN 'mapping_review_required'
             WHEN m.active_mapping_count > 1 THEN 'mapping_review_required'
+            WHEN m.active_mapping_count = 1 AND m.mapping_status = 'approved' THEN 'ok'
             WHEN s.location_usage_type = 'internal_or_unknown'
-             AND m.active_mapping_count = 1
-             AND m.mapping_status = 'approved'
+             AND s.source_company_mapping_status = 'final_odoo_enabled'
             THEN 'ok'
+            WHEN s.location_usage_type = 'internal_or_unknown'
+             AND s.source_company_mapping_status = 'parallel_diagnostic_odoo'
+            THEN 'wansoft_is_official_source'
+            WHEN s.location_usage_type = 'internal_or_unknown'
+             AND s.source_company_mapping_status IN ('internal_provider_excluded', 'out_of_scope_excluded')
+            THEN 'excluded_by_company_governance'
             WHEN s.location_usage_type = 'internal_or_unknown' THEN 'needs_governance_review'
             ELSE 'needs_governance_review'
         END AS location_review_status,

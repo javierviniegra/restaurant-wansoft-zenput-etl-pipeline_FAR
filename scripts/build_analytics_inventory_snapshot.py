@@ -23,13 +23,26 @@ from decimal import Decimal
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from core.database.mysql import get_db_connection
+from analysis.build_inventory_company_source_eligibility_report import (
+    classify_inventory_company_source,
+)
 
 
 TARGET_TABLE = "analytics_inventory_snapshot"
 SOURCE_TABLE = "odoo_inventory_snapshot"
 PRODUCT_TABLE = "dim_product"
 TIME_TABLE = "dim_time"
+LOCATION_MASTER_TABLE = "stg_odoo_inventory_location_master"
 BATCH_SIZE = 5000
+
+
+COMPANY_SOURCE_EXCLUDE_REASONS = {
+    "internal_provider_excluded": "internal_provider_company",
+    "out_of_scope_excluded": "out_of_scope_company",
+    "parallel_diagnostic_odoo": "wansoft_is_official_source",
+    "unmapped_location_pending_review": "unmapped_company_pending_review",
+    "unknown_source_review": "unmapped_company_pending_review",
+}
 
 
 APPROVED_MAPPING_STATUSES = {
@@ -410,6 +423,10 @@ def determine_review_status(reasons: Optional[str]) -> str:
         "mapping_not_approved",
         "product_review_required",
         "product_excluded",
+        "internal_provider_company",
+        "out_of_scope_company",
+        "wansoft_is_official_source",
+        "unmapped_company_pending_review",
     ]:
         if preferred in reason_parts:
             return preferred
@@ -417,7 +434,65 @@ def determine_review_status(reasons: Optional[str]) -> str:
     return "review_required"
 
 
-def build_row(source_row: Dict[str, Any], product: Optional[Dict[str, Any]], valid_date_keys: set[int]) -> Dict[str, Any]:
+def load_location_company_map(conn: Any) -> Dict[str, Optional[str]]:
+    """
+    Loads source_location_id -> odoo_company_name from
+    stg_odoo_inventory_location_master (Paso 18.18), which reads
+    company_id/company_name directly from Odoo's stock.location
+    configuration.
+
+    Returns an empty map when the staging table does not exist yet,
+    so this build can still run before that step, with every row falling
+    back to unmapped_company_pending_review.
+    """
+    if not table_exists(conn, LOCATION_MASTER_TABLE):
+        return {}
+
+    rows = fetch_all_dict(
+        conn,
+        f"SELECT source_location_id, odoo_company_name FROM {LOCATION_MASTER_TABLE}"
+    )
+
+    return {
+        row["source_location_id"]: row["odoo_company_name"]
+        for row in rows
+        if row.get("source_location_id") is not None
+    }
+
+
+def resolve_company_source(
+    source_location_id: Optional[str],
+    location_company_map: Dict[str, Optional[str]],
+) -> Tuple[Optional[str], str, bool, Optional[str]]:
+    """
+    Resolves company_source_key, final_inventory_source_status,
+    include_final_company and an exclude_reason for a single inventory
+    row, reusing the same classification already validated in Paso 18.19
+    (analysis/build_inventory_company_source_eligibility_report.py).
+    """
+    odoo_company_name = location_company_map.get(source_location_id)
+
+    classified = classify_inventory_company_source(
+        {"odoo_company_name": odoo_company_name}
+    )
+
+    status = classified["final_inventory_source_status"]
+    exclude_reason = COMPANY_SOURCE_EXCLUDE_REASONS.get(status)
+
+    return (
+        classified["company_source_key"],
+        status,
+        bool(classified["include_final_company"]),
+        exclude_reason,
+    )
+
+
+def build_row(
+    source_row: Dict[str, Any],
+    product: Optional[Dict[str, Any]],
+    valid_date_keys: set[int],
+    location_company_map: Dict[str, Optional[str]],
+) -> Dict[str, Any]:
     loaded_at = parse_datetime(source_row.get("etl_loaded_at"))
     snapshot_date_key = date_key_from_datetime(loaded_at)
     snapshot_date_value = loaded_at.date() if loaded_at else None
@@ -474,6 +549,20 @@ def build_row(source_row: Dict[str, Any], product: Optional[Dict[str, Any]], val
         include_in_business_views = False
         exclude_reason = append_reason(exclude_reason, "mapping_not_approved")
 
+    normalized_source_location_id = normalize_text(source_row.get("source_location_id"))
+
+    (
+        company_source_key,
+        company_mapping_status,
+        include_final_company,
+        company_exclude_reason,
+    ) = resolve_company_source(normalized_source_location_id, location_company_map)
+
+    if not include_final_company:
+        include_in_business_views = False
+        if company_exclude_reason:
+            exclude_reason = append_reason(exclude_reason, company_exclude_reason)
+
     inventory_review_status = determine_review_status(exclude_reason)
 
     return {
@@ -481,7 +570,7 @@ def build_row(source_row: Dict[str, Any], product: Optional[Dict[str, Any]], val
         "odoo_product_id": normalize_text(source_row.get("odoo_product_id")),
         "odoo_product_name": source_row.get("odoo_product_name"),
         "product_code": source_row.get("product_code"),
-        "source_location_id": normalize_text(source_row.get("source_location_id")),
+        "source_location_id": normalized_source_location_id,
         "location_name": source_row.get("location_name"),
         "normalized_location_name": location["normalized_location_name"],
         "location_usage_type": location["location_usage_type"],
@@ -489,8 +578,8 @@ def build_row(source_row: Dict[str, Any], product: Optional[Dict[str, Any]], val
         "is_partner_location": bool_to_int(location["is_partner_location"]),
         "is_internal_location": bool_to_int(location["is_internal_location"]),
         "location_mapping_status": "pending_company_mapping",
-        "company_source_key": None,
-        "company_mapping_status": "pending_location_mapping",
+        "company_source_key": company_source_key,
+        "company_mapping_status": company_mapping_status,
         "snapshot_date": snapshot_date_value,
         "snapshot_date_key": snapshot_date_key,
         "etl_loaded_at": loaded_at,
@@ -651,6 +740,7 @@ def build_analytics_inventory_snapshot(conn: Any) -> Dict[str, Any]:
 
     valid_date_keys = load_valid_date_keys(conn)
     by_odoo, by_wansoft = load_product_indexes(conn)
+    location_company_map = load_location_company_map(conn)
 
     source_rows = fetch_all_dict(conn, f"SELECT * FROM {SOURCE_TABLE}")
 
@@ -658,7 +748,9 @@ def build_analytics_inventory_snapshot(conn: Any) -> Dict[str, Any]:
 
     for source_row in source_rows:
         product = find_product(source_row, by_odoo, by_wansoft)
-        output_rows.append(build_row(source_row, product, valid_date_keys))
+        output_rows.append(
+            build_row(source_row, product, valid_date_keys, location_company_map)
+        )
 
     insert_rows(conn, output_rows)
 

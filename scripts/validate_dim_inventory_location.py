@@ -157,7 +157,7 @@ def validate_no_company_key_without_approved_mapping(conn: Any) -> Dict[str, Any
         SELECT COUNT(1) AS bad_rows
         FROM {DIM_TABLE}
         WHERE company_source_key IS NOT NULL
-          AND company_mapping_status NOT IN ('approved', 'approved_from_source')
+          AND company_mapping_status NOT IN ('approved', 'approved_from_odoo_location_master')
     """
     row = fetch_one_dict(conn, query)
     total = int(row["bad_rows"])
@@ -175,7 +175,7 @@ def validate_company_view_requires_approved_mapping(conn: Any) -> Dict[str, Any]
         WHERE include_in_company_inventory_views = TRUE
           AND (
                 company_source_key IS NULL
-             OR company_mapping_status <> 'approved'
+             OR company_mapping_status NOT IN ('approved', 'approved_from_odoo_location_master')
              OR location_usage_type <> 'internal_or_unknown'
           )
     """

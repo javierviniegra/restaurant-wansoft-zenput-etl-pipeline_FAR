@@ -123,6 +123,23 @@ ODOO_COMPANY_SOURCE_KEY = {
     "FONDA COSTA NERA": "Acoxpa",
     "FONDA ARGENTINA": "Isabel La Católica",
     "MARIO Y JULY": "CentroMyJ",
+    # Discovered via stg_odoo_inventory_location_master (Paso 18.18,
+    # 2026-08-20) and confirmed by project owner. Odoo groups all four
+    # under the generic "FONDA/..." location tree, which is why they were
+    # never distinguishable from location_name alone.
+    "FONDA ARGENTINA AEROPUERTO": "Aeropuerto",
+    "FONDA ARGENTINA VALLEJO": "Vía Vallejo",
+    "FONDA ARGENTINA VIADUCTO": "Viaducto",
+    "FONDA ARGENTINA TOLLOCAN": "Metepec",
+    # FONDA ARGENTINA POLYFORUM is the Odoo-side entity for the Napoles
+    # franchise branch. Confirmed by project owner on 2026-08-20: Napoles
+    # is a franchise that will never operate through Odoo. Purchases,
+    # Sales and Inventory are all sourced from Wansoft
+    # (COMPANY_SOURCE["Napoles"] = "wansoft"). This mapping only exists so
+    # that any Odoo data found under this company resolves to the correct
+    # company_source_key and is treated as parallel/diagnostic data, the
+    # same pattern already used for Tepeyac, Oceanía, San Jeronimo, etc.
+    "FONDA ARGENTINA POLYFORUM": "Napoles",
 }
 
 
@@ -139,6 +156,25 @@ ODOO_COMPANY_SOURCE_KEY = {
 ODOO_INTERNAL_PROVIDER_COMPANIES = {
     "EL BODEGON DE FITO",
     "LAS EMPANADAS DE MARIA EVA",
+}
+
+
+# =====================================================
+# OUT-OF-SCOPE ODOO COMPANIES
+# =====================================================
+# These companies no longer belong to Grupo Fonda Argentina in any domain,
+# including Sales. There is no Wansoft fallback for them at all. They must
+# be fully excluded, with no default
+# source system in any domain.
+#
+# Confirmed by project owner on 2026-08-20:
+# - TACOS FA FUENTES: no longer belongs to Grupo Fonda Argentina. Discard
+#   completely from both Odoo and Wansoft. Discovered via
+#   stg_odoo_inventory_location_master under the "TACOS/..." location tree.
+# =====================================================
+
+ODOO_OUT_OF_SCOPE_COMPANIES = {
+    "TACOS FA FUENTES",
 }
 
 
@@ -171,6 +207,20 @@ def is_internal_provider_company(company_name):
     return normalized_name in ODOO_INTERNAL_PROVIDER_COMPANIES
 
 
+def is_out_of_scope_company(company_name):
+    """
+    Returns True when a company no longer belongs to Grupo Fonda
+    Argentina in any domain, including Sales. Must be excluded with no
+    fallback source system.
+    """
+    normalized_name = normalize_company_name(company_name)
+
+    if normalized_name is None:
+        return False
+
+    return normalized_name in ODOO_OUT_OF_SCOPE_COMPANIES
+
+
 def get_company_source_key(company_name):
     """
     Resolves the operational COMPANY_SOURCE key from an Odoo/Wansoft company name.
@@ -180,12 +230,16 @@ def get_company_source_key(company_name):
     FONDA ARGENTINA MAQ -> Tepeyac
     FONDA COSTA NERA -> Acoxpa
 
-    Internal provider companies return None because they should not be treated
-    as operating branches in final Grupo Fonda Argentina BI tables.
+    Internal provider and out-of-scope companies return None because they
+    should not be treated as operating branches in final Grupo Fonda
+    Argentina BI tables.
     """
     normalized_name = normalize_company_name(company_name)
 
     if normalized_name is None:
+        return None
+
+    if is_out_of_scope_company(normalized_name):
         return None
 
     if is_internal_provider_company(normalized_name):
@@ -205,7 +259,11 @@ def get_company_source(company_name, default="wansoft"):
     - "wansoft"
     - "odoo"
     - "internal_provider"
+    - "out_of_scope"
     """
+    if is_out_of_scope_company(company_name):
+        return "out_of_scope"
+
     if is_internal_provider_company(company_name):
         return "internal_provider"
 
@@ -222,12 +280,17 @@ def get_domain_company_source(company_name, domain, default="wansoft"):
     Returns the official source system for a company and domain.
 
     Rules:
+    - out-of-scope companies return out_of_scope for every domain,
+      including sales, with no fallback source system
     - internal providers return internal_provider for purchases/inventory
     - sales always returns wansoft for operating companies
     - purchases and inventory use COMPANY_SOURCE
     - unknown domains default to Wansoft unless explicitly handled
     """
     domain_normalized = str(domain).strip().lower()
+
+    if is_out_of_scope_company(company_name):
+        return "out_of_scope"
 
     if is_internal_provider_company(company_name):
         if domain_normalized in COMPANY_SOURCE_CONTROLLED_DOMAINS:
@@ -278,8 +341,13 @@ def should_include_company_in_final_domain(company_name, domain):
     Determines whether a company should be included as an operating company
     in final canonical BI tables for a given domain.
 
-    Internal providers are excluded from final branch-level BI facts.
+    Out-of-scope companies are excluded from every domain, including
+    sales. Internal providers are excluded from every final branch-level
+    BI fact.
     """
+    if is_out_of_scope_company(company_name):
+        return False
+
     if is_internal_provider_company(company_name):
         return False
 

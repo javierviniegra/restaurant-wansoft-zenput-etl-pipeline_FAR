@@ -212,18 +212,76 @@ def validate_location_classification_distribution(conn: Any) -> Dict[str, Any]:
     )
 
 
-def validate_company_not_forced(conn: Any) -> Dict[str, Any]:
-    query = f"""
-        SELECT COUNT(1) AS populated_company_rows
+COMPANY_SOURCE_KEY_REQUIRED_STATUSES = {
+    "final_odoo_enabled",
+    "parallel_diagnostic_odoo",
+}
+
+COMPANY_SOURCE_KEY_MUST_BE_NULL_STATUSES = {
+    "internal_provider_excluded",
+    "out_of_scope_excluded",
+    "unmapped_location_pending_review",
+    "unknown_source_review",
+}
+
+
+def validate_company_mapping_governed(conn: Any) -> Dict[str, Any]:
+    """
+    Replaces the old company_mapping_not_forced check.
+
+    Since Paso 18.20, company_source_key is resolved from
+    stg_odoo_inventory_location_master (Odoo's own stock.location
+    company_id, not name inference) filtered through the project's
+    explicit governance dictionaries. This validates that company_source_key
+    is populated exactly when company_mapping_status says it should be, and
+    null exactly when it should be, never anything looser.
+    """
+    required_query = f"""
+        SELECT COUNT(1) AS bad_rows
         FROM {TARGET_TABLE}
-        WHERE company_source_key IS NOT NULL
+        WHERE company_mapping_status IN ({", ".join(["%s"] * len(COMPANY_SOURCE_KEY_REQUIRED_STATUSES))})
+          AND company_source_key IS NULL
+    """
+    null_required_query = f"""
+        SELECT COUNT(1) AS bad_rows
+        FROM {TARGET_TABLE}
+        WHERE company_mapping_status IN ({", ".join(["%s"] * len(COMPANY_SOURCE_KEY_MUST_BE_NULL_STATUSES))})
+          AND company_source_key IS NOT NULL
+    """
+
+    df_required = query_df(conn, required_query, tuple(COMPANY_SOURCE_KEY_REQUIRED_STATUSES))
+    df_null = query_df(conn, null_required_query, tuple(COMPANY_SOURCE_KEY_MUST_BE_NULL_STATUSES))
+
+    missing_key_rows = int(df_required.iloc[0]["bad_rows"])
+    unexpected_key_rows = int(df_null.iloc[0]["bad_rows"])
+
+    passed = missing_key_rows == 0 and unexpected_key_rows == 0
+
+    return validation_result(
+        "company_mapping_governed",
+        "PASS" if passed else "FAIL",
+        {
+            "missing_key_rows": missing_key_rows,
+            "unexpected_key_rows": unexpected_key_rows,
+        },
+    )
+
+
+def validate_company_mapping_status_distribution(conn: Any) -> Dict[str, Any]:
+    query = f"""
+        SELECT
+            company_mapping_status,
+            COUNT(1) AS rows_count
+        FROM {TARGET_TABLE}
+        GROUP BY company_mapping_status
+        ORDER BY rows_count DESC
     """
     df = query_df(conn, query)
-    total = int(df.iloc[0]["populated_company_rows"])
+    rows = df.to_dict(orient="records")
     return validation_result(
-        "company_mapping_not_forced",
-        "PASS" if total == 0 else "FAIL",
-        {"populated_company_rows": total},
+        "company_mapping_status_distribution_available",
+        "PASS" if rows else "FAIL",
+        rows,
     )
 
 
@@ -258,7 +316,8 @@ def main() -> int:
                     validate_business_inclusion_distribution(conn),
                     validate_review_status_distribution(conn),
                     validate_location_classification_distribution(conn),
-                    validate_company_not_forced(conn),
+                    validate_company_mapping_governed(conn),
+                    validate_company_mapping_status_distribution(conn),
                 ]
             )
 

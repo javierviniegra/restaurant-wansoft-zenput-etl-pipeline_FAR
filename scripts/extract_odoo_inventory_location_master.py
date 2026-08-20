@@ -374,6 +374,72 @@ def get_table_columns(connection: Any, driver: str, table_name: str) -> List[str
         cursor.close()
 
 
+def ensure_staging_table(connection: Any, driver: str, table_name: str) -> None:
+    """
+    Creates the staging table when it does not exist yet.
+
+    This makes the extraction self-provisioning across environments
+    (dev, prod) instead of depending on a table created manually outside
+    of version control. Columns match exactly what transform_location()
+    produces.
+    """
+    ddl = f"""
+    CREATE TABLE IF NOT EXISTS `{table_name}` (
+        staging_row_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+        source_system VARCHAR(50) NOT NULL,
+        source_location_id VARCHAR(100) NOT NULL,
+        odoo_location_id VARCHAR(100) NULL,
+
+        location_name VARCHAR(500) NULL,
+        odoo_location_name VARCHAR(500) NULL,
+        odoo_complete_name VARCHAR(500) NULL,
+        odoo_display_name VARCHAR(500) NULL,
+
+        location_usage_type VARCHAR(100) NULL,
+        odoo_usage VARCHAR(100) NULL,
+        `usage` VARCHAR(100) NULL,
+
+        odoo_parent_location_id VARCHAR(100) NULL,
+        parent_location_id VARCHAR(100) NULL,
+        odoo_parent_location_name VARCHAR(500) NULL,
+        parent_location_name VARCHAR(500) NULL,
+
+        odoo_company_id VARCHAR(100) NULL,
+        company_id VARCHAR(100) NULL,
+        odoo_company_name VARCHAR(500) NULL,
+        company_name VARCHAR(500) NULL,
+        company_availability VARCHAR(50) NULL,
+
+        is_active BOOLEAN NULL,
+        active BOOLEAN NULL,
+        is_scrap_location BOOLEAN NULL,
+        scrap_location BOOLEAN NULL,
+        is_return_location BOOLEAN NULL,
+        return_location BOOLEAN NULL,
+        replenish_location BOOLEAN NULL,
+
+        barcode VARCHAR(255) NULL,
+
+        raw_payload LONGTEXT NULL,
+        odoo_raw_payload LONGTEXT NULL,
+
+        extracted_at DATETIME NULL,
+        created_at DATETIME NULL,
+        updated_at DATETIME NULL,
+
+        UNIQUE KEY uq_staging_source_location (source_system, odoo_location_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+    """
+
+    cursor = get_cursor(connection, driver)
+    try:
+        cursor.execute(ddl)
+        connection.commit()
+    finally:
+        cursor.close()
+
+
 def truncate_table(connection: Any, driver: str, table_name: str) -> None:
     cursor = get_cursor(connection, driver)
     try:
@@ -756,6 +822,7 @@ def run_extraction() -> int:
     connection, driver = get_mysql_connection()
 
     try:
+        ensure_staging_table(connection, driver, STAGING_TABLE)
         table_columns = get_table_columns(connection, driver, STAGING_TABLE)
         truncate_table(connection, driver, STAGING_TABLE)
 

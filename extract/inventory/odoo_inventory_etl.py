@@ -120,6 +120,84 @@ def _ensure_backlog_columns(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _ensure_snapshot_table(conn):
+    """
+    Creates odoo_inventory_snapshot when it does not exist yet.
+
+    This table previously depended on being created manually outside of
+    version control. Columns match exactly what _save_snapshot() inserts.
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS odoo_inventory_snapshot (
+                snapshot_row_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+                odoo_product_id VARCHAR(100) NULL,
+                odoo_product_name VARCHAR(500) NULL,
+                product_code VARCHAR(255) NULL,
+                source_location_id VARCHAR(100) NULL,
+                location_name VARCHAR(500) NULL,
+                stock_qty DECIMAL(18,4) NULL,
+
+                mapping_found VARCHAR(50) NULL,
+                lookup_method VARCHAR(100) NULL,
+                mapping_status VARCHAR(100) NULL,
+                usable_for_etl VARCHAR(50) NULL,
+
+                wansoft_code VARCHAR(255) NULL,
+                wansoft_product_name VARCHAR(500) NULL,
+                wansoft_department VARCHAR(255) NULL,
+
+                lifecycle_candidate VARCHAR(50) NULL,
+                similarity_score DECIMAL(9,4) NULL,
+                mapping_notes TEXT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+        """)
+        conn.commit()
+    finally:
+        cursor.close()
+
+
+def _ensure_backlog_table(conn):
+    """
+    Creates odoo_inventory_backlog when it does not exist yet.
+
+    Same column set as odoo_inventory_snapshot plus backlog_bucket.
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS odoo_inventory_backlog (
+                backlog_row_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+                odoo_product_id VARCHAR(100) NULL,
+                odoo_product_name VARCHAR(500) NULL,
+                product_code VARCHAR(255) NULL,
+                source_location_id VARCHAR(100) NULL,
+                location_name VARCHAR(500) NULL,
+                stock_qty DECIMAL(18,4) NULL,
+
+                mapping_found VARCHAR(50) NULL,
+                lookup_method VARCHAR(100) NULL,
+                mapping_status VARCHAR(100) NULL,
+                usable_for_etl VARCHAR(50) NULL,
+
+                wansoft_code VARCHAR(255) NULL,
+                wansoft_product_name VARCHAR(500) NULL,
+                wansoft_department VARCHAR(255) NULL,
+
+                lifecycle_candidate VARCHAR(50) NULL,
+                similarity_score DECIMAL(9,4) NULL,
+                mapping_notes TEXT NULL,
+                backlog_bucket VARCHAR(100) NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+        """)
+        conn.commit()
+    finally:
+        cursor.close()
+
+
 def _save_snapshot(df: pd.DataFrame):
     if df is None or df.empty:
         print("No hay filas aprobadas para guardar en odoo_inventory_snapshot.")
@@ -156,6 +234,7 @@ def _save_snapshot(df: pd.DataFrame):
     )
 
     conn = get_db_connection(target="wansoft")
+    _ensure_snapshot_table(conn)
     cursor = conn.cursor()
 
     cursor.execute("TRUNCATE TABLE odoo_inventory_snapshot")
@@ -221,6 +300,7 @@ def _save_backlog(df: pd.DataFrame, backlog_bucket: str):
     df = _ensure_backlog_columns(df)
 
     conn = get_db_connection(target="wansoft")
+    _ensure_backlog_table(conn)
     cursor = conn.cursor()
 
     insert_sql = """
@@ -355,6 +435,7 @@ def run_odoo_inventory_etl():
 
     # 7. Refrescar backlog
     conn = get_db_connection(target="wansoft")
+    _ensure_backlog_table(conn)
     cursor = conn.cursor()
     cursor.execute("TRUNCATE TABLE odoo_inventory_backlog")
     conn.commit()
