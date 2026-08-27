@@ -157,13 +157,19 @@ These values should not override company-specific governance.
 
 ## Current Source Status
 
-Current validated company source behaviour:
+Current validated company source behaviour (updated 2026-08-26):
 
 ```text
-Antenas:
+Antenas, La Esquina Coyoacán, CentroMyJ, Acoxpa, Tepeyac, Oceanía:
     Purchases -> Odoo
     Inventory -> Odoo
     Sales -> Wansoft
+
+Puebla:
+    Purchases -> Odoo (COMPANY_SOURCE), but rollout not yet activated
+    in ROLLOUT_COMPANY_EXPECTATIONS / odoo_company_migration_policy
+    (is_active = 0). Documented as future work, see "Puebla Future
+    Rollout" below.
 
 All other configured companies:
     Purchases -> Wansoft
@@ -322,6 +328,97 @@ Not expected after activation:
 source_system = wansoft
 company_source_key = CentroMyJ
 final_purchase_source_status = final_wansoft_enabled
+```
+
+---
+
+## Acoxpa / Tepeyac / Oceanía Rollout (2026-08-26)
+
+These three branches follow the same `migrated_from_wansoft` pattern as Antenas and La Esquina Coyoacán.
+
+Expected configuration (already present in `odoo_company_migration_policy` before this rollout, only `COMPANY_SOURCE` and `ROLLOUT_COMPANY_EXPECTATIONS` were missing):
+
+```text
+Acoxpa:
+    company_name = FONDA COSTA NERA
+    operational_start_date = 2026-07-01
+    company_migration_type = migrated_from_wansoft
+    include_odoo_history = 0
+
+Tepeyac:
+    company_name = FONDA ARGENTINA MAQ
+    operational_start_date = 2026-06-01
+    company_migration_type = migrated_from_wansoft
+    include_odoo_history = 0
+
+Oceanía:
+    company_name = FONDA ARGENTINA ENCUENTRO OCEANIA
+    operational_start_date = 2026-06-30
+    company_migration_type = migrated_from_wansoft
+    include_odoo_history = 0
+```
+
+Confirmed by the project owner from memory (Tepeyac 2026-06-01, Acoxpa/Oceanía 2026-07-01) and cross-checked against live Odoo cost-of-sale data (`account.move.line`, Costos domain) -- exact match for Tepeyac and Acoxpa, one day off for Oceanía (2026-06-30 in the policy vs 2026-07-01 recalled by the owner). The pre-existing `operational_start_date` values were kept as-is (not overwritten) since they were already active governance, not a draft.
+
+### Important: Wansoft and Odoo both show recent activity for these three
+
+Unlike Antenas/Coyoacán (whose Wansoft `getinputinventory_entrada` "Factura" rows stop cleanly around 2026-06-09), Acoxpa/Tepeyac/Oceanía have real Wansoft purchase invoices dated through **2026-08-22/24** (this week, not stale history), while Odoo `purchase.order` also has activity for these three going back to **2024-10-21** and continuing through today. This is a genuine parallel-operation period, not a data error.
+
+This is handled correctly by design: `canonical_purchase_etl.py` classifies Wansoft rows on/after `operational_start_date` as `exclude_after_odoo_start` (dropped from canonical, Odoo is authoritative from that date), and Odoo rows before `operational_start_date` are similarly excluded on the Odoo side (`apply_purchase_order_migration_policy`, `date_order >= operational_start_date` filter). No double-counting, no gap -- but it does mean the raw `getinputinventory_entrada` table will keep accumulating Wansoft rows for these branches that never reach canonical. That is expected, not a bug to fix.
+
+Confirmed with the project owner (2026-08-26) before proceeding: use the already-loaded `operational_start_date` values as-is, do not attempt to independently re-derive a "true" cutover from the parallel activity.
+
+### Rollout status: CLOSED (completed 2026-08-27)
+
+All steps completed and verified with real data, in two sessions (2026-08-26 governance + Odoo load, 2026-08-27 Wansoft reload + full pipeline after a harness permission block on the raw `DELETE` forced a pause -- resolved by wrapping the delete in a saved script, `scripts/reload_purchase_canonical_wansoft_side.py`, instead of an inline command):
+
+```text
+1. COMPANY_SOURCE updated (Acoxpa, Tepeyac, Oceanía -> odoo)          DONE
+2-4. odoo_company_migration_policy already had correct active rows    DONE (pre-existing)
+5. ROLLOUT_COMPANY_EXPECTATIONS updated in
+   scripts/validate_purchases_canonical_layer.py                      DONE
+6. Company source governance test                                     DONE, PASSED
+7-9. Odoo canonical purchase ETL (test_canonical_purchase_odoo_etl)    DONE -- orders_inserted: 3083
+10. Reload Wansoft canonical rows (via scripts/reload_purchase_
+    canonical_wansoft_side.py, then test_canonical_purchase_
+    wansoft_etl)                                                      DONE
+11. validate_purchases_canonical_layer                                DONE -- 8/8 PASS
+12. run_purchases_pipeline (full pipeline, 10 steps)                   DONE -- 10/10 SUCCESS
+```
+
+Final verified split (no overlap, `validate_purchases_canonical_layer.py` "ROLLOUT COMPANY PATTERN VALIDATION" section):
+
+```text
+Acoxpa:   wansoft ends 2026-06-30 17:54:10 -> odoo starts 2026-07-01 06:00:00
+Oceanía:  wansoft ends 2026-06-29 23:29:54 -> odoo starts 2026-06-30 06:00:00
+Tepeyac:  wansoft ends 2026-05-31 14:11:38 -> odoo starts 2026-06-01 18:04:07
+```
+
+### Rollout validation query (extend the one already documented above)
+
+```sql
+SELECT
+    source_system,
+    company_source_key,
+    final_purchase_source_status,
+    COUNT(*) AS total_lines,
+    MIN(order_date) AS min_order_date,
+    MAX(order_date) AS max_order_date
+FROM canonical_purchase_order_line_snapshot
+WHERE company_source_key IN ('Acoxpa', 'Tepeyac', 'Oceanía')
+GROUP BY source_system, company_source_key, final_purchase_source_status
+ORDER BY company_source_key, source_system, final_purchase_source_status;
+```
+
+Expected after steps 10-12 run:
+
+```text
+Acoxpa / Tepeyac / Oceanía:
+    odoo / final_odoo_enabled
+    wansoft / wansoft_history_before_odoo
+
+Not expected:
+    wansoft / final_wansoft_enabled  (would mean the reload did not run)
 ```
 
 ---

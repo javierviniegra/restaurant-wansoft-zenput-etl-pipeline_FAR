@@ -55,6 +55,24 @@ ROLLOUT_COMPANY_EXPECTATIONS = [
         "description": "New Odoo branch. Should be Odoo final without Wansoft final history.",
     },
     {
+        "company_source_key": "Acoxpa",
+        "rollout_type": "migrated_from_wansoft",
+        "active": True,
+        "description": "Migrated Fonda branch (2026-08-26). Should behave like Antenas.",
+    },
+    {
+        "company_source_key": "Tepeyac",
+        "rollout_type": "migrated_from_wansoft",
+        "active": True,
+        "description": "Migrated Fonda branch (2026-08-26). Should behave like Antenas.",
+    },
+    {
+        "company_source_key": "Oceanía",
+        "rollout_type": "migrated_from_wansoft",
+        "active": True,
+        "description": "Migrated Fonda branch (2026-08-26). Should behave like Antenas.",
+    },
+    {
         "company_source_key": "Puebla",
         "rollout_type": "new_odoo_branch",
         "active": False,
