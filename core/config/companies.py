@@ -52,7 +52,7 @@ WANSOFT_SUBSIDIARY_SOURCE_KEY = {
 
 # 🔥 CONFIGURACIÓN DE FUENTE POR EMPRESA
 COMPANY_SOURCE = {
-    "Acoxpa": "wansoft",
+    "Acoxpa": "odoo",
     "Aeropuerto": "wansoft",
     "Isabel La Católica": "wansoft",
     "Antenas": "odoo",
@@ -61,9 +61,9 @@ COMPANY_SOURCE = {
     "Viaducto": "wansoft",
     "Taquería Viaducto": "wansoft",
     "San Jeronimo": "wansoft",
-    "Tepeyac": "wansoft",
+    "Tepeyac": "odoo",
     "Playa del Carmen": "wansoft",
-    "Oceanía": "wansoft",
+    "Oceanía": "odoo",
     "Cancun": "wansoft",
     "Napoles": "wansoft",
     "Metepec": "wansoft",
@@ -127,6 +127,10 @@ ODOO_COMPANY_SOURCE_KEY = {
     # 2026-08-20) and confirmed by project owner. Odoo groups all four
     # under the generic "FONDA/..." location tree, which is why they were
     # never distinguishable from location_name alone.
+    # Note (2026-08-26): Acoxpa (FONDA COSTA NERA) and Tepeyac (FONDA
+    # ARGENTINA MAQ) moved from "wansoft" to "odoo" in COMPANY_SOURCE
+    # above this same day, per project owner confirmation -- so this
+    # mapping now feeds their official source, not just diagnostic data.
     "FONDA ARGENTINA AEROPUERTO": "Aeropuerto",
     "FONDA ARGENTINA VALLEJO": "Vía Vallejo",
     "FONDA ARGENTINA VIADUCTO": "Viaducto",
@@ -138,7 +142,9 @@ ODOO_COMPANY_SOURCE_KEY = {
     # (COMPANY_SOURCE["Napoles"] = "wansoft"). This mapping only exists so
     # that any Odoo data found under this company resolves to the correct
     # company_source_key and is treated as parallel/diagnostic data, the
-    # same pattern already used for Tepeyac, Oceanía, San Jeronimo, etc.
+    # same pattern still used for Aeropuerto, Vía Vallejo, Viaducto,
+    # Metepec, San Jeronimo, Isabel La Católica (still "wansoft" as of
+    # 2026-08-26).
     "FONDA ARGENTINA POLYFORUM": "Napoles",
 }
 
