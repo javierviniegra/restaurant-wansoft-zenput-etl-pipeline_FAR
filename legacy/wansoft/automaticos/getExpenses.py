@@ -84,7 +84,6 @@ subsidiaries = [
     {"id":4962, "nombreCorto":"Taquería Viaducto", "password":os.getenv("WANSOFT_PWD_4962"),  'name': "Fonda Argentina - Taqueria Viaducto"},
     {"id":5319, "nombreCorto":"San Jeronimo", "password":os.getenv("WANSOFT_PWD_5319"),  'name': "Fonda Argentina – San Jerónimo"},
     {"id":6560, "nombreCorto":"Tepeyac", "password":os.getenv("WANSOFT_PWD_6560"),  'name': "Fonda Argentina - Tepeyac"},
-    {"id":7697, "nombreCorto":"Taq San Fernando", "password":os.getenv("WANSOFT_PWD_7697"),  'name': "Fonda Argentina - Taqueria San Fernando"},
     {"id":6174, "nombreCorto":"Playa del Carmen", "password":os.getenv("WANSOFT_PWD_6174"),  'name': "Fonda Argentina - Playa del Carmen"},
     {"id":5943, "nombreCorto":"Oceanía", "password":os.getenv("WANSOFT_PWD_5943"),  'name': "Fonda Argentina - Oceanía"},
     {"id":6175, "nombreCorto":"Cancun", "password":os.getenv("WANSOFT_PWD_6175"),  'name': "Fonda Argentina - Cancún"},
