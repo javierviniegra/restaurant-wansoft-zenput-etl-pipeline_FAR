@@ -11,9 +11,14 @@ import os
 from core.database.mysql import get_db_connection
 
 # Fechas de inicio y fin (puedes cambiarlas fuera del loop)
-# TEMPORAL (Paso 18.22, 2026-08-21): ventana ampliada a 90 dias solo para
-# validar el diseno de unificacion de saldo en dev. Revertir a 1 dia despues.
-start_date_range = datetime.now() - timedelta(days=90)
+# Ventana de 31 dias (antes 1 dia): un dia solo revisa "ayer", asi que una
+# corrida perdida (server down, error) deja un hueco permanente -- la causa
+# mas probable de los huecos historicos de 13 meses y 3-4 anios ya
+# documentados y reparados a mano. 31 dias re-revisa suficiente historial
+# reciente para auto-repararse solo. Alineado con getInputInventory.py.
+# Decision confirmada por el dueno del proyecto (2026-08-27), tras la
+# ventana temporal de 90 dias usada para el Paso 18.22 (ya cerrada).
+start_date_range = datetime.now() - timedelta(days=31)
 end_date_range = datetime.now() - timedelta(days=1)
 #start_date_range = datetime(2025, 1, 1)
 #end_date_range = datetime(2025, 4, 20)
@@ -216,9 +221,9 @@ def generate_insert_queries(salidas_xml, subsidiary_name):
         # Agregar la consulta y los parámetros a las listas
         query_list.append(query)
         params_list.append(params)
-    #confirmo los cambios en la BD    
+    #confirmo los cambios en la BD
     db_connection.commit()
-    return query, params
+    return query, (params_list[-1] if params_list else None)
 
 def print_sql_queries(query_orden, params_orden):
     """Imprime los queries SQL en formato ejecutable"""

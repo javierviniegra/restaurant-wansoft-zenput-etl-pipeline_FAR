@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS getinputinventory_entrada (
     IdUsuario INT,
     NombreUsuario VARCHAR(255),
     FechaReal DATE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_identrada_subsidiary (IdEntrada, subsidiary_name)
 )
 """)
 db_connection.commit()
@@ -102,10 +103,12 @@ from core.clients.wansoft_client import get_wansoft_client
 client = get_wansoft_client()
 
 # 5. Rango de fechas
-# TEMPORAL (Paso 18.22, 2026-08-21): ventana ampliada a 90 dias, alineada con
-# getOutgoingInventory.py, solo para validar el diseno de unificacion de saldo
-# en dev. Revertir a 31 dias despues.
-start_date_range = datetime.now() - timedelta(days=90)
+# Ventana de 31 dias: re-revisa suficiente historial reciente en cada corrida
+# para auto-repararse si se pierde una corrida diaria (server down, error),
+# sin necesidad de un backfill manual despues. Decision confirmada por el
+# dueno del proyecto (2026-08-27), tras la ventana temporal de 90 dias usada
+# para el Paso 18.22 (validacion del unificador de saldo, ya cerrada).
+start_date_range = datetime.now() - timedelta(days=31)
 end_date_range = datetime.now() - timedelta(days=1)
 
 # Funciones de conversión
