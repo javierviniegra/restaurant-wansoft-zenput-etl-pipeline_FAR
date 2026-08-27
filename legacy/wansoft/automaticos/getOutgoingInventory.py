@@ -11,7 +11,9 @@ import os
 from core.database.mysql import get_db_connection
 
 # Fechas de inicio y fin (puedes cambiarlas fuera del loop)
-start_date_range = datetime.now() - timedelta(days=1)
+# TEMPORAL (Paso 18.22, 2026-08-21): ventana ampliada a 90 dias solo para
+# validar el diseno de unificacion de saldo en dev. Revertir a 1 dia despues.
+start_date_range = datetime.now() - timedelta(days=90)
 end_date_range = datetime.now() - timedelta(days=1)
 #start_date_range = datetime(2025, 1, 1)
 #end_date_range = datetime(2025, 4, 20)

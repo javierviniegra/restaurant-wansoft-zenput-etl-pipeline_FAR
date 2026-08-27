@@ -102,7 +102,10 @@ from core.clients.wansoft_client import get_wansoft_client
 client = get_wansoft_client()
 
 # 5. Rango de fechas
-start_date_range = datetime.now() - timedelta(days=31)
+# TEMPORAL (Paso 18.22, 2026-08-21): ventana ampliada a 90 dias, alineada con
+# getOutgoingInventory.py, solo para validar el diseno de unificacion de saldo
+# en dev. Revertir a 31 dias despues.
+start_date_range = datetime.now() - timedelta(days=90)
 end_date_range = datetime.now() - timedelta(days=1)
 
 # Funciones de conversión
