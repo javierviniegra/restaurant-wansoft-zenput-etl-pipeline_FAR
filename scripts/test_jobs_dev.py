@@ -1,7 +1,8 @@
 import os
 
 from pipelines.jobs.sales_job import run_sales_job
-from pipelines.jobs.inventory_job import run_inventory_job
+from pipelines.jobs.input_inventory_job import run_input_inventory_job
+from pipelines.jobs.outgoing_inventory_job import run_outgoing_inventory_job
 from pipelines.jobs.extract_all_orders_xml_job import run_extract_all_orders_xml_job
 from pipelines.jobs.cost_report_semana_pyq_job import run_cost_report_semana_pyq_job
 from pipelines.jobs.download_costs_job import run_download_costs_job
@@ -18,7 +19,8 @@ if __name__ == "__main__":
 
     # Activa uno por uno al principio:
     # run_sales_job()
-    # run_inventory_job()
+    # run_input_inventory_job()
+    # run_outgoing_inventory_job()
     # run_extract_all_orders_xml_job()
     # run_cost_report_semana_pyq_job()
     # run_download_costs_job()
