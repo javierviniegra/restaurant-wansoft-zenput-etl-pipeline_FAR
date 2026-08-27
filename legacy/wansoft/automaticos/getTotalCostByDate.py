@@ -6,6 +6,9 @@ from datetime import datetime, timedelta
 import sys
 import os
 
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
 
 # 2. Ahora sí podemos importar nuestra función
 from core.database.mysql import get_db_connection
@@ -49,7 +52,6 @@ subsidiaries = [
     {"id":4962, "nombreCorto":"Taquería Viaducto", "password": os.getenv("WANSOFT_PWD_4962"),  'name': "Fonda Argentina - Taqueria Viaducto"},
     {"id":5319, "nombreCorto":"San Jeronimo", "password": os.getenv("WANSOFT_PWD_5319"),  'name': "Fonda Argentina – San Jerónimo"},
     {"id":6560, "nombreCorto":"Tepeyac", "password": os.getenv("WANSOFT_PWD_6560"),  'name': "Fonda Argentina - Tepeyac"},
-    {"id":7697, "nombreCorto":"Taq San Fernando", "password": os.getenv("WANSOFT_PWD_7697"),  'name': "Fonda Argentina - Taqueria San Fernando"},
     {"id":6174, "nombreCorto":"Playa del Carmen", "password": os.getenv("WANSOFT_PWD_6174"),  'name': "Fonda Argentina - Playa del Carmen"},
     {"id":5943, "nombreCorto":"Oceanía", "password": os.getenv("WANSOFT_PWD_5943"),  'name': "Fonda Argentina - Oceanía"},
     {"id":6175, "nombreCorto":"Cancun", "password": os.getenv("WANSOFT_PWD_6175"),  'name': "Fonda Argentina - Cancún"},
@@ -62,19 +64,24 @@ subsidiaries = [
 ]
 from core.config.company_filter import is_wansoft_company
 
-subsidiaries = [
+wansoft_subsidiaries = [
     s for s in subsidiaries
     if is_wansoft_company(s["nombreCorto"])
 ]
-print(subsidiaries)
+odoo_subsidiaries = [
+    s for s in subsidiaries
+    if not is_wansoft_company(s["nombreCorto"])
+]
+print(wansoft_subsidiaries)
+print(odoo_subsidiaries)
 
 #--------------------Reviso integridad
 start_date_range = datetime.now() - timedelta(days=31)
 end_date_range = datetime.now() - timedelta(days=1)
 
 
-# Loop para obtener datos de cada subsidiaria
-for subsidiary in subsidiaries:
+# Loop para obtener datos de cada subsidiaria (fuente Wansoft)
+for subsidiary in wansoft_subsidiaries:
     current_date = start_date_range
     while current_date <= end_date_range:
         # Convertir la fecha actual a string
@@ -169,6 +176,58 @@ for subsidiary in subsidiaries:
 
         # Incrementa al siguiente día
         current_date += timedelta(days=1)
+
+# Loop para obtener datos de cada subsidiaria (fuente Odoo)
+if odoo_subsidiaries:
+    from core.database.odoo import get_odoo_connection
+    from extract.costs.odoo_cost_report import resolve_odoo_company_id, get_daily_cost
+
+    odoo_uid, odoo_models, odoo_db, odoo_password = get_odoo_connection()
+
+    for subsidiary in odoo_subsidiaries:
+        odoo_company_id = resolve_odoo_company_id(
+            odoo_models, odoo_uid, odoo_db, odoo_password, subsidiary["nombreCorto"]
+        )
+        if odoo_company_id is None:
+            print(f"[⚠] No se pudo resolver company_id de Odoo para {subsidiary['nombreCorto']}")
+            continue
+
+        df_cost = get_daily_cost(
+            odoo_models, odoo_uid, odoo_db, odoo_password, odoo_company_id,
+            start_date_range.strftime("%Y-%m-%d"), end_date_range.strftime("%Y-%m-%d")
+        )
+
+        for _, row in df_cost.iterrows():
+            lafecha = row["fecha"]
+            total_costo = float(row["CostoTotal"])
+            mes_ano = datetime.strptime(lafecha, "%Y-%m-%d").strftime("%m-%Y")
+
+            cursor.execute("""
+                SELECT id, CostoTotalVenta FROM gettotalcostbydate
+                WHERE subsidiary_id = %s AND CAST(created_at as date) = %s
+            """, (subsidiary["id"], lafecha))
+            existing_row = cursor.fetchone()
+
+            if existing_row:
+                record_id, total_db = existing_row
+                if abs(total_costo - float(total_db)) > 0.01:
+                    cursor.execute("""
+                        UPDATE gettotalcostbydate SET
+                        CostoTotalVenta = %s,
+                        mes_ano = %s
+                        WHERE subsidiary_id = %s AND DATE(created_at) = %s
+                    """, (total_costo, mes_ano, subsidiary["id"], lafecha))
+                    print(f"[🔁] Actualizado (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
+                else:
+                    print(f"[✔] Igual (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
+            else:
+                cursor.execute("""
+                    INSERT INTO getTotalCostByDate (subsidiary_id, subsidiary_name, CostoTotalVenta, mes_ano, created_at)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (subsidiary["id"], subsidiary["name"], total_costo, mes_ano, lafecha))
+                print(f"[🆕] Insertado (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
+
+            db_connection.commit()
 
 # Cerrar la conexión a la base de datos
 cursor.close()

@@ -2,10 +2,14 @@ import mysql.connector
 from zeep import Client
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
+import pandas as pd
 
 import sys
 import os
 
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
 
 # 2. Ahora sí podemos importar nuestra función
 from core.database.mysql import get_db_connection
@@ -40,9 +44,13 @@ subsidiaries = [
 ]
 from core.config.company_filter import is_wansoft_company
 
-subsidiaries = [
+wansoft_subsidiaries = [
     s for s in subsidiaries
     if is_wansoft_company(s["nombreCorto"])
+]
+odoo_subsidiaries = [
+    s for s in subsidiaries
+    if not is_wansoft_company(s["nombreCorto"])
 ]
 
 # Conexion a Base de Datos
@@ -93,8 +101,8 @@ def safe_float(value, default=0.0):
 start_date_range = datetime.now() - timedelta(days=31)
 end_date_range = datetime.now() - timedelta(days=1)
 
-# Loop para obtener datos de cada subsidiaria
-for subsidiary in subsidiaries:
+# Loop para obtener datos de cada subsidiaria (fuente Wansoft)
+for subsidiary in wansoft_subsidiaries:
     current_date = start_date_range
     current_day = start_date_range.day
     contador = 1  # para saber si ya llevo 7 dias
@@ -252,6 +260,91 @@ for subsidiary in subsidiaries:
         #current_date = (start_date.replace(month=next_month, year=start_date.year + year_increment))
         current_date = current_date + timedelta(days=1)
         contador += 1
+
+# Loop para obtener datos de cada subsidiaria (fuente Odoo)
+# CostoTotal/CostoDeProductosVendidos/CostoDeMerma se calculan semana-a-la-fecha
+# (lunes de esa semana -> la fecha), igual que el lado Wansoft. El resto de las
+# columnas (CostoDeCortesias, CostoDeCancelaciones, CostoDeRobo, CostoDeConsumo,
+# AjustePorSobrantes, CostoIdealDeProductosPendientesDeRebaja, UtilidadMarginal)
+# no tienen equivalente confiable en la contabilidad de Odoo actual y se dejan
+# en NULL para estas filas (no se aproximan).
+if odoo_subsidiaries:
+    from core.database.odoo import get_odoo_connection
+    from extract.costs.odoo_cost_report import resolve_odoo_company_id, get_daily_cost
+
+    odoo_uid, odoo_models, odoo_db, odoo_password = get_odoo_connection()
+
+    for subsidiary in odoo_subsidiaries:
+        odoo_company_id = resolve_odoo_company_id(
+            odoo_models, odoo_uid, odoo_db, odoo_password, subsidiary["nombreCorto"]
+        )
+        if odoo_company_id is None:
+            print(f"[⚠] No se pudo resolver company_id de Odoo para {subsidiary['nombreCorto']}")
+            continue
+
+        # Traer un poco antes del rango para poder calcular semana-a-la-fecha
+        # del primer día del rango sin perder los días previos de esa semana.
+        fetch_start = (start_date_range - timedelta(days=7)).strftime("%Y-%m-%d")
+        fetch_end = end_date_range.strftime("%Y-%m-%d")
+        df_daily = get_daily_cost(odoo_models, odoo_uid, odoo_db, odoo_password, odoo_company_id, fetch_start, fetch_end)
+
+        if df_daily.empty:
+            continue
+
+        df_daily["fecha_dt"] = pd.to_datetime(df_daily["fecha"])
+        df_daily["iso_year"] = df_daily["fecha_dt"].dt.isocalendar().year
+        df_daily["iso_week"] = df_daily["fecha_dt"].dt.isocalendar().week
+        df_daily = df_daily.sort_values("fecha_dt")
+        df_daily["CostoTotal_wtd"] = df_daily.groupby(["iso_year", "iso_week"])["CostoTotal"].cumsum()
+        df_daily["CostoDeProductosVendidos_wtd"] = df_daily.groupby(["iso_year", "iso_week"])["CostoDeProductosVendidos"].cumsum()
+        df_daily["CostoDeMerma_wtd"] = df_daily.groupby(["iso_year", "iso_week"])["CostoDeMerma"].cumsum()
+
+        current_date = start_date_range
+        while current_date <= end_date_range:
+            lafecha = current_date.strftime("%Y-%m-%d")
+            mes_ano = current_date.strftime("%m-%Y")
+            row_match = df_daily[df_daily["fecha"] == lafecha]
+
+            if row_match.empty:
+                current_date += timedelta(days=1)
+                continue
+
+            total_costo = float(row_match.iloc[0]["CostoTotal_wtd"])
+            total_productos_costo = float(row_match.iloc[0]["CostoDeProductosVendidos_wtd"])
+            costo_merma = float(row_match.iloc[0]["CostoDeMerma_wtd"])
+
+            cursor.execute("""
+                SELECT id, CostoTotal, CostoDeProductosVendidos FROM costeomensual_semanapyq
+                WHERE subsidiary_id = %s AND DATE(created_at) = %s
+            """, (subsidiary["id"], lafecha))
+            existing_row = cursor.fetchone()
+
+            if existing_row:
+                record_id, total_db, productos_db = existing_row
+                if (abs(total_costo - float(total_db)) > 0.01) or (abs(total_productos_costo - float(productos_db)) > 0.01):
+                    cursor.execute("""
+                        UPDATE costeomensual_semanapyq
+                        SET
+                            subsidiary_name = %s,
+                            CostoTotal = %s,
+                            CostoDeProductosVendidos = %s,
+                            CostoDeMerma = %s,
+                            mes_ano = %s
+                        WHERE DATE(created_at) = %s AND subsidiary_id = %s
+                    """, (subsidiary["name"], total_costo, total_productos_costo, costo_merma, mes_ano, lafecha, subsidiary["id"]))
+                    print(f"[🔁] Actualizado (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
+                else:
+                    print(f"[✔] Igual (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
+            else:
+                cursor.execute("""
+                    INSERT INTO costeomensual_semanapyq
+                        (subsidiary_id, subsidiary_name, CostoTotal, CostoDeProductosVendidos, CostoDeMerma, mes_ano, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (subsidiary["id"], subsidiary["name"], total_costo, total_productos_costo, costo_merma, mes_ano, lafecha))
+                print(f"[🆕] Insertado (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
+
+            db_connection.commit()
+            current_date += timedelta(days=1)
 
 # Cerrar la conexión a la base de datos
 cursor.close()
