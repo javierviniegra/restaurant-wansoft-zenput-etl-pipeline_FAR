@@ -2,7 +2,7 @@
 
 Master continuity document. Generated/updated automatically at the close of major steps, on explicit request ("Generate project context report"), when the conversation gets very long, when consumed context exceeds ~70%, or when a new chat needs to be opened due to token limits. Always regenerated in full, never as an incremental patch.
 
-Last generated: 2026-08-31. **The final acceptance gate (Costs/Purchases/Inventory, Odoo branches) is now formally ACCEPTED** by the project owner, after the cutover checkpoint work and 3 additional real bug fixes this session pushed the evidence from "strong" to "20/20 PASS against live Odoo." This closes the gate opened on 2026-08-27.
+Last generated: 2026-08-31, end of day. **The final acceptance gate (Costs/Purchases/Inventory, Odoo branches) is formally ACCEPTED**, and the four backlog items opened at gate close (Receipts filter, Costs date offset, Inventory auto-correction design, Puebla rollout) are all resolved — three fixed/activated, one resolved as a deliberate "stay manual" decision. Nothing gate- or backlog-blocking remains open.
 
 ---
 
@@ -10,11 +10,11 @@ Last generated: 2026-08-31. **The final acceptance gate (Costs/Purchases/Invento
 
 **Overall project goal:** build a unified analytical layer in MySQL that integrates Wansoft, Odoo, and Zenput, hiding from the end user which system originates each piece of data.
 
-**Current state:** Inventory, Costs, and Purchases are functionally complete and **formally accepted** for the 6 branches currently active on Odoo (Antenas, La Esquina Coyoacán, CentroMyJ, Acoxpa, Tepeyac, Oceanía; Puebla documented as a future rollout, `is_active=0`). The acceptance gate (started 2026-08-27, accepted 2026-08-31) is closed.
+**Current state:** Inventory, Costs, and Purchases are functionally complete and **formally accepted** for the 7 branches now active on Odoo (Antenas, La Esquina Coyoacán, CentroMyJ, Acoxpa, Tepeyac, Oceanía, and — activated today — Puebla). The acceptance gate (started 2026-08-27, accepted 2026-08-31) is closed, and the four backlog items opened at close are also resolved.
 
-**Estimated progress:** 100% for the scope defined by the gate (Costs/Purchases/Inventory functional migration + acceptance for the 6 active Odoo branches). Remaining work is backlog-level, not gate-blocking (see Section 11-12): Receipts canceled/draft filter, Inventory auto-correction design, Costs date-offset reconciliation, Puebla rollout activation.
+**Estimated progress:** 100% for the scope defined by the gate, plus its backlog. Nothing gate-blocking or backlog-blocking remains open. Any further work is new scope, not carryover.
 
-**Current block:** none blocking. All accumulated work (2026-08-27 gate session + 2026-08-31 session) is committed and pushed to `main`. Next work is backlog-driven, at the user's pace.
+**Current block:** none. All accumulated work (2026-08-27 gate session + 2026-08-31 session, including the backlog closeout) is committed and pushed to `main`.
 
 ## What was done this session (2026-08-31), in order:
 
@@ -49,13 +49,16 @@ Last generated: 2026-08-31. **The final acceptance gate (Costs/Purchases/Invento
 18. Real bug #6 found: `classify_location()` in `build_analytics_inventory_snapshot.py` already computed `is_virtual_location`/`is_partner_location`, but `build_row()` never consulted them when deciding `include_in_business_views` — Odoo virtual locations ("Virtual Locations/Inventory adjustment", "Virtual Locations/Production", double-entry counterparts, not real physical stock) were being summed as if they were real stock on hand. Confirmed on Acoxpa: virtual-location rows alone totaled 1,893.92 against 596.71 from real internal locations.
 19. Fixed: exclude `is_virtual_location`/`is_partner_location` from `include_in_business_views`. Both tables rebuilt. Result: **20/20 checkpoints PASS** (Purchases + Inventory, T+7 and T+30, all 6 branches), several with an exact match (diff=0.0000). `validate_analytics_inventory_balance` confirmed 9/9 PASS, no regression.
 
-**Open risks (active, unresolved):**
-- `canonical_purchase_receipt_snapshot`/`_receipt_move_snapshot` also have unfiltered `cancel` rows (217) and `cancel` rows (2,228) — same pattern as Bug #5 but in Receipts, not confirmed whether it affects anything measured today. Flagged, not investigated further.
-- Promotion of new Inventory mappings (the `not_found` backlog) remains 100% manual — a correct decision (not to be touched), but it means mapped-product coverage doesn't grow on its own.
-- Date offset `created_at = date+1` (Wansoft) vs `created_at = date` (Odoo) in `costeomensual_semanapyq` — inherited from the gate session, still unreconciled.
-**Pending relevant decisions:**
-- Whether it's worth applying the same canceled/draft fix to Receipts.
-- Whether to design a real auto-correction mechanism for Inventory (beyond alerting), or leave it as permanent manual review.
+**Part 7 — Gate backlog closeout, all four items:**
+20. **Receipts canceled/draft filter:** applied the same `exclude_cancelled_draft` fix already used for Purchase Orders/Lines to `canonical_purchase_receipt_snapshot`/`_receipt_move_snapshot`. Confirmed first that no downstream consumer currently aggregates money/quantity from these two tables (only `build_dim_vendor.py` reads them, state-agnostic) — so this had zero measurable impact today, purely consistency/prevention. Reloaded, validated (8/8 PASS).
+21. **Costs date offset:** the Odoo path for `costeomensual_semanapyq` (both `getCostReport_SemanaPyQ.py`'s daily block and `scripts/backfill_odoo_cost.py`) stored `created_at = real_date`, while the Wansoft path has always stored `created_at = real_date + 1 day`. Aligned the Odoo path to the older, already-in-production Wansoft convention (not the other way — too much else could depend on it) in both scripts. Backfilled the 613 already-loaded Odoo rows affected via one bulk `UPDATE` (verified safe: no unique constraint on the table, only PK on `id`).
+22. Backfilling surfaced a **new real bug (#7)**: `backfill_odoo_cost.py` was pulling Odoo cost data from each company's *earliest posted line in Odoo*, with no floor at `operational_start_date` — the same no-overlap governance already enforced in the Purchases canonical layer was missing here. This had created 4 real Wansoft/Odoo overlaps in `costeomensual_semanapyq` (Antenas 2026-04-27, Acoxpa/Oceanía/Tepeyac 2026-07-27), only visible once the date-offset fix made both rows land on the same day. User decision: Odoo wins for existing overlaps (consistent with the project's established governance). Deleted the 4 stale Wansoft rows; added a governance clamp (`get_operational_start_date`) to `backfill_odoo_cost.py` so it can't happen again.
+23. **Puebla rollout activation:** found Puebla was already effectively live in canonical/analytics tables (250 purchase orders as `final_odoo_enabled`, 36 inventory rows) *despite* `odoo_company_migration_policy.is_active = 0` — without an active policy row, the ETL was silently falling through to a generic env-fallback start date instead of a governed one. Confirmed first (0 rows in `getinputinventory_entrada`/`getOutgoingInventory_Salida` for Puebla, ever) that it's a pure `new_odoo_branch`, same pattern as CentroMyJ, no Wansoft history to protect. Formalized: `is_active` 0→1, `include_odoo_history` 0→1 (was inconsistent with CentroMyJ's row and unused by the actual filter, fixed for consistency), `operational_start_date` kept at the value already governing production (2026-06-10, not the original seed's 2026-07-22 — same "keep what's already active" policy used for Acoxpa/Tepeyac/Oceanía). `ROLLOUT_COMPANY_EXPECTATIONS` activated in the validator. Re-ran governance test, Odoo ETL, canonical ETL, full validation (8/8 PASS).
+24. **Inventory auto-correction design:** discussed a 3-tier design (auto-correct staleness / classify mapping-gap vs unexplained / alert). User pushed back with a key constraint: mapping an unmapped Odoo product to a Wansoft code can cross into other areas' catalogs and isn't retroactive — so it's inherently a periodic human review, not something to automate further, and the user considers current impact on Sales/Purchases reporting low since catalogs are "mostly correct." Resolution: **keep the checkpoint alert-only for Inventory, no new automation.** Only concrete change: removed `--skip-diagnostics` from the scheduled 1pm job so the `not_found` backlog reports stay current for whenever that periodic review happens, instead of only updating on a manual full run (adds ~2s).
+
+**Open risks (active, unresolved):** none carried over from the gate or its backlog. Anything found from here is new scope.
+
+**Pending relevant decisions:** none carried over. The user reviews the Inventory `not_found` backlog periodically, at their own pace, and coordinates with other areas as needed — that's an ongoing operational rhythm now, not a pending decision.
 
 ---
 
@@ -73,7 +76,7 @@ Last generated: 2026-08-31. **The final acceptance gate (Costs/Purchases/Invento
 
 **Source governance (`core/config/companies.py`):** `COMPANY_SOURCE` decides Purchases/Inventory per branch (authoritative). `odoo_company_migration_policy` (MySQL table, `is_active` + `operational_start_date`) decides whether the rollout is actually activated yet, and since when. Sales is always Wansoft, no exceptions.
 
-**Branches currently active on Odoo (Purchases + Inventory):** Antenas, La Esquina Coyoacán, CentroMyJ, Acoxpa, Tepeyac, Oceanía. Puebla: `COMPANY_SOURCE=odoo` but rollout not activated (`is_active=0`), documented as future work.
+**Branches currently active on Odoo (Purchases + Inventory):** Antenas, La Esquina Coyoacán, CentroMyJ, Acoxpa, Tepeyac, Oceanía, and Puebla (activated 2026-08-31, `new_odoo_branch` pattern — no Wansoft purchase/inventory history ever existed for it).
 
 **Cutover checkpoint (new, this session):**
 ```
@@ -109,19 +112,20 @@ GetCostReport_Xml (Wansoft, Wansoft-only branches)                   -> cost-wei
 - Lock/reconciliation job (`extractAllOrdersByDay.py`) fixed this session: forces a real re-download before correcting, instead of reusing the cached XML that might have caused the mismatch in the first place.
 
 ### Purchases
-- `canonical_purchase_order_snapshot`/`_line_snapshot` now exclude `cancel`/`draft` (real bug fixed this session, affected all 6 branches). Validated 8/8 PASS.
-- Cutover checkpoint with auto-correction active. Validated 20/20 PASS (Inventory included) after today's 3 fixes.
-- Receipts/receipt moves: same unfiltered-`cancel` pattern detected but not fixed (open risk).
+- `canonical_purchase_order_snapshot`/`_line_snapshot`/`_receipt_snapshot`/`_receipt_move_snapshot` all now exclude `cancel`/`draft` (real bug, affected all 7 branches for Orders/Lines; Receipts/Receipt Moves fixed preventively, no measured current impact). Validated 8/8 PASS.
+- Cutover checkpoint with auto-correction active. Validated 20/20 PASS (Inventory included).
+- Puebla activated (`new_odoo_branch`, no Wansoft history) — `is_active=1`, `ROLLOUT_COMPANY_EXPECTATIONS` active, validated 8/8 PASS.
 
 ### Inventory
-- `analytics_inventory_snapshot`/`analytics_inventory_balance` now exclude virtual/partner locations (real bug fixed this session). Both tables now rebuild daily via the scheduler (1pm), something that didn't exist before.
-- Cutover checkpoint in alert-only mode (does not auto-correct), a deliberate user decision.
+- `analytics_inventory_snapshot`/`analytics_inventory_balance` now exclude virtual/partner locations (real bug fixed this session). Both tables rebuild daily via the scheduler (1pm), including the `not_found` backlog diagnostics, something that didn't exist before.
+- Cutover checkpoint in alert-only mode (does not auto-correct) — deliberate, permanent decision: mapping new products can cross into other areas' catalogs and isn't retroactive, so it stays a periodic manual review by the project owner.
 
 ### Costs
-- No changes this session. See the gate session (2026-08-27) for full detail.
+- `costeomensual_semanapyq`'s Odoo path (`getCostReport_SemanaPyQ.py`, `backfill_odoo_cost.py`) now stores `created_at` with the same `+1 day` offset as the Wansoft path. `backfill_odoo_cost.py` also gained a governance clamp at `operational_start_date` (was pulling from Odoo's earliest posted line unconditionally).
 
 ### Configuration / Governance
 - `scripts/build_dim_company_analytical.py`: `MIGRATED_FROM_WANSOFT_COMPANIES` fixed to include Acoxpa/Tepeyac/Oceanía (real bug fixed this session). `dim_company_analytical` table rebuilt and validated 10/10 PASS.
+- `odoo_company_migration_policy`: Puebla activated (see Purchases above).
 
 *(Remaining domains unchanged this session — see the previous report in commit history for full Zenput/Wansoft/Odoo/Analytics detail if needed.)*
 
@@ -140,6 +144,11 @@ GetCostReport_Xml (Wansoft, Wansoft-only branches)                   -> cost-wei
 | `build_row()` excludes `is_virtual_location`/`is_partner_location` locations from `include_in_business_views` | Those flags were already computed but never used; virtual locations (adjustments, production) were counted as real physical stock | `scripts/build_analytics_inventory_snapshot.py` |
 | `run_inventory_pipeline.py` gains steps 06-07 (build snapshot/balance) | They don't promote the dictionary (verified); the pipeline was stopping one step short for no real reason | Same module |
 | Inventory pipeline scheduled at 1pm, cutover checkpoint at 3pm | Neither pipeline (Purchases/Inventory) had anything scheduled — the root cause of the 11-day staleness found today | `pipelines/scheduler.py`, `schedule_daily_at()` (new) |
+| Receipts/Receipt Moves also exclude `cancel`/`draft` | Consistency with the Orders/Lines fix; preventive, no current downstream consumer measured | `extract/purchases/canonical_purchase_etl.py` |
+| Odoo path of `costeomensual_semanapyq` aligned to Wansoft's `created_at = date+1` convention, not the reverse | The Wansoft convention is older and already in production; too much could depend on it to change it instead | `getCostReport_SemanaPyQ.py`, `scripts/backfill_odoo_cost.py` |
+| `backfill_odoo_cost.py` clamps its earliest backfill date at `operational_start_date` | Was pulling from Odoo's earliest posted line unconditionally, creating real Wansoft/Odoo overlap once dates aligned | Same module, `get_operational_start_date()` (new) |
+| Puebla activated as `new_odoo_branch`, `operational_start_date` kept at the value already governing production (not the original seed) | Confirmed zero Wansoft purchase/inventory history ever existed for Puebla; same "don't overwrite already-active governance" policy used for Acoxpa/Tepeyac/Oceanía | `odoo_company_migration_policy`, `scripts/validate_purchases_canonical_layer.py` |
+| Inventory checkpoint stays alert-only, permanently — no auto-correction mechanism built | Mapping decisions can cross into other areas' catalogs and aren't retroactive; the project owner reviews the backlog periodically instead | User decision, no code change beyond keeping diagnostics fresh in the daily job |
 
 ---
 
@@ -159,7 +168,7 @@ GetCostReport_Xml (Wansoft, Wansoft-only branches)                   -> cost-wei
 - A bug "fixed" in a diagnostic/gate script isn't fixed in production until it's verified in the real canonical ETL — this happened twice this session (canceled orders in Purchases, virtual locations in Inventory) with bugs already believed resolved since the gate.
 - Before killing a process that looks orphaned, verify which command/file it actually is — don't assume it's yours just because it coincides in time.
 
-**Git state:** branch `main`, up to date with `origin/main`. Both the gate session (2026-08-27) and this session (2026-08-31) are now committed and pushed (commits `e7366f0`, `0974f97`, `e60dbf9`, `6756fc8` — the first three have Spanish commit messages, a one-time regression from the English-only convention, left as-is rather than rewriting pushed history; see project memory `feedback_github_content_english_only`). Files included:
+**Git state:** branch `main`, up to date with `origin/main`. Both the gate session (2026-08-27) and this session (2026-08-31, including the full backlog closeout) are committed and pushed: `e7366f0`, `0974f97`, `e60dbf9` (Spanish commit messages, a one-time regression from the English-only convention, left as-is rather than rewriting already-pushed history — see project memory `feedback_github_content_english_only`), `6756fc8`, `d65c5bb`, `a7d3e27`, `6536baf`, `62ac106`. Files included across the session:
 
 *From the gate session (2026-08-27):*
 - `extract/costs/odoo_cost_report.py` — Merma fix + account audit.
@@ -178,6 +187,13 @@ GetCostReport_Xml (Wansoft, Wansoft-only branches)                   -> cost-wei
 - `scripts/build_dim_company_analytical.py` — missing migrated branches fix.
 - `scripts/build_analytics_inventory_snapshot.py` — virtual locations fix.
 - `scripts/run_inventory_pipeline.py` — steps 06-07 (build snapshot/balance) added.
+- `PROJECT_CONTEXT_REPORT.md` — translated to English, gate acceptance recorded.
+- `extract/purchases/canonical_purchase_etl.py` — Receipts/Receipt Moves canceled/draft fix (second edit).
+- `legacy/wansoft/automaticos/getCostReport_SemanaPyQ.py` — date offset fix (Odoo path).
+- `scripts/backfill_odoo_cost.py` — date offset fix + `operational_start_date` governance clamp.
+- `scripts/validate_purchases_canonical_layer.py` — Puebla rollout activated.
+- `sql/seeds/seed_odoo_company_migration_policy.sql` — Puebla `is_active=1`, corrected `operational_start_date`.
+- `pipelines/jobs/inventory_pipeline_job.py` — keep `not_found` backlog diagnostics in the daily run.
 
 *Never committed (project convention):*
 - `inventory_not_found_analysis.csv`.
@@ -196,6 +212,7 @@ See the previous report (commit `21078c8` or earlier) for the full gate session 
 | 4 | `created_at+1` date offset, Wansoft vs Odoo | `getCostReport_SemanaPyQ.py` | Documented, not fixed (open risk) |
 | 5 | Canceled orders inflating the **real** Purchases canonical ETL | `canonical_purchase_etl.py` (the #2 fix was never propagated) | `extract/purchases/canonical_purchase_etl.py` (2026-08-31) |
 | 6 | Odoo virtual locations counted as real stock | `build_analytics_inventory_snapshot.py` | Same module (2026-08-31) |
+| 7 | Odoo cost backfill ignored `operational_start_date`, created real Wansoft/Odoo overlap for 4 dates | `scripts/backfill_odoo_cost.py` | Same module (2026-08-31) |
 
 **Gate result after today's fixes:** Purchases and Inventory, each compared independently against live Odoo, are at **20/20 PASS** for the 6 active branches (T+7 and T+30), several with an exact match. **The gate was formally accepted by the project owner on 2026-08-31.**
 
@@ -213,16 +230,15 @@ See the previous report (commit `21078c8` or earlier) for the full gate session 
 - **New:** commit and push all accumulated work.
 - **New:** all commits and documentation pushed to GitHub must be in English, even though the working conversation is in Spanish (see project memory `feedback_github_content_english_only`).
 - **New:** the final acceptance gate (Costs/Purchases/Inventory, Odoo branches) is formally **ACCEPTED** as of 2026-08-31.
+- **New:** for the 4 real Wansoft/Odoo overlap dates found in `costeomensual_semanapyq`, Odoo wins (consistent with existing project governance) — the 4 stale Wansoft rows were deleted.
+- **New:** Puebla rollout activated — it's a `new_odoo_branch` with no Wansoft purchase/inventory history.
+- **New:** Inventory's checkpoint stays alert-only permanently, no auto-correction mechanism — mapping decisions cross into other areas and aren't retroactive; the project owner reviews the backlog periodically and coordinates with those areas directly.
 
 ---
 
 # 11-12. Identified Legacy / Consolidated Backlog
 
-**Backlog:**
-- Evaluate whether to apply the canceled/draft fix to `canonical_purchase_receipt_snapshot`/`_receipt_move_snapshot` as well.
-- Evaluate a real auto-correction mechanism for Inventory (beyond alerting), if the volume of FAILs justifies it over time.
-- Evaluate whether to reconcile the `created_at` date offset in `costeomensual_semanapyq` (inherited from the gate).
-- Unresolved items from previous sessions: chaining legacy scripts into `pipelines/scheduler.py` (deferred).
+**Backlog:** empty — all four items opened at gate close (2026-08-27/31) were resolved the same day (see Part 7). The only unresolved item from earlier sessions: chaining legacy scripts into `pipelines/scheduler.py` (deferred, no urgency attached).
 
 ---
 
@@ -230,7 +246,7 @@ See the previous report (commit `21078c8` or earlier) for the full gate session 
 
 No handoff to a new chat is needed right now (the commit/push closes this session naturally, not due to a context limit). If a new chat is opened later to continue, use Section 1 (full narrative) and Section 9 (gate summary table) of this document as the starting point.
 
-**Suggested title for the next chat**, when applicable (format `FONDA (short project): Paso N[-M]: <short description>`): `FONDA (Wansoft): Paso 19: Formal gate decision and next steps`
+**Suggested title for the next chat**, when applicable (format `FONDA (short project): Paso N[-M]: <short description>`): `FONDA (Wansoft): Paso 20: New scope, post-gate`
 
 ---
 
