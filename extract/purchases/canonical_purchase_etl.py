@@ -100,7 +100,7 @@ def build_canonical_odoo_purchase_lines() -> pd.DataFrame:
 
 def build_canonical_odoo_purchase_receipts() -> pd.DataFrame:
     df = load_table("odoo_purchase_receipt_snapshot")
-    return filter_final_odoo_enabled(df)
+    return filter_final_odoo_enabled(df, exclude_cancelled_draft=True)
 
 
 def build_canonical_odoo_purchase_receipt_moves() -> pd.DataFrame:
@@ -113,7 +113,7 @@ def build_canonical_odoo_purchase_receipt_moves() -> pd.DataFrame:
     df_moves = load_table("odoo_purchase_receipt_move_snapshot")
     df_lines = load_table("odoo_purchase_order_line_snapshot")
 
-    df_moves = filter_final_odoo_enabled(df_moves)
+    df_moves = filter_final_odoo_enabled(df_moves, exclude_cancelled_draft=True)
 
     if df_moves is None or df_moves.empty:
         return df_moves

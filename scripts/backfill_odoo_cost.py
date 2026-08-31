@@ -33,6 +33,27 @@ CUTOFF_DATE = (datetime.now() - timedelta(days=32)).strftime("%Y-%m-%d")
 SUBSIDIARY_ID_BY_KEY = {key: int(sid) for sid, key in WANSOFT_SUBSIDIARY_SOURCE_KEY.items()}
 
 
+def get_operational_start_date(cursor, odoo_company_id):
+    """
+    Governance floor: never backfill Odoo cost data from before the
+    company's operational_start_date. Without this, this script pulled
+    from Odoo's earliest posted cost-of-sale line unconditionally, which
+    can predate the real migration cutover (test/setup entries, or Odoo
+    simply having older accounting history than the company's actual
+    Wansoft-to-Odoo switch) and created real Wansoft/Odoo overlap in
+    costeomensual_semanapyq. Confirmed 2026-08-31 on Antenas/Acoxpa/
+    Oceanía/Tepeyac -- 4 dates with both a stale Wansoft row and an
+    Odoo row for the same day, the Odoo row from data that predated
+    operational_start_date.
+    """
+    cursor.execute(
+        "SELECT operational_start_date FROM odoo_company_migration_policy WHERE odoo_company_id = %s AND is_active = 1",
+        (odoo_company_id,),
+    )
+    row = cursor.fetchone()
+    return row[0].strftime("%Y-%m-%d") if row else None
+
+
 def get_known_subsidiary_name(cursor, subsidiary_id):
     cursor.execute(
         "SELECT subsidiary_name FROM gettotalcostbydate WHERE subsidiary_id = %s LIMIT 1",
@@ -88,6 +109,14 @@ def backfill_costeomensual_semanapyq(cursor, subsidiary_id, subsidiary_name, df_
     inserted = updated = unchanged = 0
     for _, row in df.iterrows():
         lafecha = row["fecha"]
+        # costeomensual_semanapyq stores created_at = real_date + 1 day on
+        # its Wansoft side (legacy/wansoft/automaticos/getCostReport_
+        # SemanaPyQ.py); mirror that offset here so backfilled Odoo rows
+        # land on the same created_at date as Wansoft rows for the same
+        # real-world day. gettotalcostbydate (the other table this script
+        # backfills) has no such offset -- see backfill_gettotalcostbydate
+        # above, unaffected.
+        fecha_created_at = (row["fecha_dt"] + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
         mes_ano = row["fecha_dt"].strftime("%m-%Y")
         total_costo = float(row["CostoTotal_wtd"])
         total_productos_costo = float(row["CostoDeProductosVendidos_wtd"])
@@ -95,7 +124,7 @@ def backfill_costeomensual_semanapyq(cursor, subsidiary_id, subsidiary_name, df_
 
         cursor.execute(
             "SELECT id, CostoTotal, CostoDeProductosVendidos FROM costeomensual_semanapyq WHERE subsidiary_id = %s AND DATE(created_at) = %s",
-            (subsidiary_id, lafecha),
+            (subsidiary_id, fecha_created_at),
         )
         existing = cursor.fetchone()
 
@@ -108,7 +137,7 @@ def backfill_costeomensual_semanapyq(cursor, subsidiary_id, subsidiary_name, df_
                     SET subsidiary_name = %s, CostoTotal = %s, CostoDeProductosVendidos = %s, CostoDeMerma = %s, mes_ano = %s
                     WHERE DATE(created_at) = %s AND subsidiary_id = %s
                     """,
-                    (subsidiary_name, total_costo, total_productos_costo, costo_merma, mes_ano, lafecha, subsidiary_id),
+                    (subsidiary_name, total_costo, total_productos_costo, costo_merma, mes_ano, fecha_created_at, subsidiary_id),
                 )
                 updated += 1
             else:
@@ -120,7 +149,7 @@ def backfill_costeomensual_semanapyq(cursor, subsidiary_id, subsidiary_name, df_
                     (subsidiary_id, subsidiary_name, CostoTotal, CostoDeProductosVendidos, CostoDeMerma, mes_ano, created_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
-                (subsidiary_id, subsidiary_name, total_costo, total_productos_costo, costo_merma, mes_ano, lafecha),
+                (subsidiary_id, subsidiary_name, total_costo, total_productos_costo, costo_merma, mes_ano, fecha_created_at),
             )
             inserted += 1
 
@@ -155,6 +184,15 @@ def main():
         if earliest_date is None:
             print(f"[SKIP] {key}: sin lineas de costo posted en Odoo")
             continue
+
+        operational_start_date = get_operational_start_date(cursor, odoo_company_id)
+        if operational_start_date and operational_start_date > earliest_date:
+            print(
+                f"[GOVERNANCE] {key}: earliest Odoo line ({earliest_date}) predates "
+                f"operational_start_date ({operational_start_date}) -- clamping to "
+                f"operational_start_date, Wansoft stays authoritative before it."
+            )
+            earliest_date = operational_start_date
 
         if earliest_date >= CUTOFF_DATE:
             print(f"[OK] {key}: earliest_date={earliest_date} ya cubierto por la ventana diaria de 31 dias, nada que rellenar")

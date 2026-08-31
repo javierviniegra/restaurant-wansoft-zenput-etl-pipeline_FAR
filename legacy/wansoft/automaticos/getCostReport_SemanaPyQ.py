@@ -305,6 +305,13 @@ if odoo_subsidiaries:
         current_date = start_date_range
         while current_date <= end_date_range:
             lafecha = current_date.strftime("%Y-%m-%d")
+            # created_at mirrors the Wansoft side's fecha = current_date + 1
+            # day convention (see loop above, line ~127) so both sources sit
+            # on the same created_at date for the same real-world day. Only
+            # the created_at value is shifted; the df_daily lookup below
+            # still uses the unshifted lafecha, matching Odoo's real cost
+            # date.
+            fecha_created_at = (current_date + timedelta(days=1)).strftime("%Y-%m-%d")
             mes_ano = current_date.strftime("%m-%Y")
             row_match = df_daily[df_daily["fecha"] == lafecha]
 
@@ -319,7 +326,7 @@ if odoo_subsidiaries:
             cursor.execute("""
                 SELECT id, CostoTotal, CostoDeProductosVendidos FROM costeomensual_semanapyq
                 WHERE subsidiary_id = %s AND DATE(created_at) = %s
-            """, (subsidiary["id"], lafecha))
+            """, (subsidiary["id"], fecha_created_at))
             existing_row = cursor.fetchone()
 
             if existing_row:
@@ -334,17 +341,17 @@ if odoo_subsidiaries:
                             CostoDeMerma = %s,
                             mes_ano = %s
                         WHERE DATE(created_at) = %s AND subsidiary_id = %s
-                    """, (subsidiary["name"], total_costo, total_productos_costo, costo_merma, mes_ano, lafecha, subsidiary["id"]))
-                    print(f"[🔁] Actualizado (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
+                    """, (subsidiary["name"], total_costo, total_productos_costo, costo_merma, mes_ano, fecha_created_at, subsidiary["id"]))
+                    print(f"[🔁] Actualizado (Odoo): {subsidiary['nombreCorto']} - {fecha_created_at}")
                 else:
-                    print(f"[✔] Igual (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
+                    print(f"[✔] Igual (Odoo): {subsidiary['nombreCorto']} - {fecha_created_at}")
             else:
                 cursor.execute("""
                     INSERT INTO costeomensual_semanapyq
                         (subsidiary_id, subsidiary_name, CostoTotal, CostoDeProductosVendidos, CostoDeMerma, mes_ano, created_at)
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """, (subsidiary["id"], subsidiary["name"], total_costo, total_productos_costo, costo_merma, mes_ano, lafecha))
-                print(f"[🆕] Insertado (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
+                """, (subsidiary["id"], subsidiary["name"], total_costo, total_productos_costo, costo_merma, mes_ano, fecha_created_at))
+                print(f"[🆕] Insertado (Odoo): {subsidiary['nombreCorto']} - {fecha_created_at}")
 
             db_connection.commit()
             current_date += timedelta(days=1)
