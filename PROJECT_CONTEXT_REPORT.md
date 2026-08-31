@@ -2,7 +2,7 @@
 
 Master continuity document. Generated/updated automatically at the close of major steps, on explicit request ("Generate project context report"), when the conversation gets very long, when consumed context exceeds ~70%, or when a new chat needs to be opened due to token limits. Always regenerated in full, never as an incremental patch.
 
-Last generated: 2026-08-31, end of day. **The final acceptance gate (Costs/Purchases/Inventory, Odoo branches) is formally ACCEPTED**, and the four backlog items opened at gate close (Receipts filter, Costs date offset, Inventory auto-correction design, Puebla rollout) are all resolved — three fixed/activated, one resolved as a deliberate "stay manual" decision. Nothing gate- or backlog-blocking remains open.
+Last generated: 2026-08-31, end of day, closing this chat to open a new one (no context/token pressure — this is a clean "major step closed" handoff, per the user's own call). **The final acceptance gate (Costs/Purchases/Inventory, Odoo branches) is formally ACCEPTED**, its four backlog items are resolved, Puebla is activated, and Isabel La Católica/San Jerónimo/Vía Vallejo are staged for a 2026-10-01 launch. See Section 13 for the handoff prompt and new chat title.
 
 ---
 
@@ -10,11 +10,13 @@ Last generated: 2026-08-31, end of day. **The final acceptance gate (Costs/Purch
 
 **Overall project goal:** build a unified analytical layer in MySQL that integrates Wansoft, Odoo, and Zenput, hiding from the end user which system originates each piece of data.
 
-**Current state:** Inventory, Costs, and Purchases are functionally complete and **formally accepted** for the 7 branches now active on Odoo (Antenas, La Esquina Coyoacán, CentroMyJ, Acoxpa, Tepeyac, Oceanía, and — activated today — Puebla). The acceptance gate (started 2026-08-27, accepted 2026-08-31) is closed, and the four backlog items opened at close are also resolved.
+**Current state:** Inventory, Costs, and Purchases are functionally complete and **formally accepted** for the 7 branches now active on Odoo (Antenas, La Esquina Coyoacán, CentroMyJ, Acoxpa, Tepeyac, Oceanía, Puebla). The acceptance gate (started 2026-08-27, accepted 2026-08-31) is closed, its backlog is resolved, and Isabel La Católica/San Jerónimo/Vía Vallejo are staged (governance-ready, `COMPANY_SOURCE` still Wansoft) for a 2026-10-01 launch.
 
-**Estimated progress:** 100% for the scope defined by the gate, plus its backlog. Nothing gate-blocking or backlog-blocking remains open. Any further work is new scope, not carryover.
+**Scope decision (2026-08-31):** the project owner explicitly narrowed current active scope to **11 branches** — the 7 live + the 3 staged for October + Metepec (a known special case, data-reliability issue, needs a decision before it can even be scheduled). The remaining 7 Wansoft branches (Aeropuerto, Cancún, Playa del Carmen, Taquería Viaducto, Taquería Parroquia, Versalles, Viaducto) are explicitly **out of scope for now** — they'll join Odoo later, not part of current progress tracking. Napoles is permanently excluded from Odoo in all domains (franchise, confirmed by the owner) and isn't counted in either number.
 
-**Current block:** none. All accumulated work (2026-08-27 gate session + 2026-08-31 session, including the backlog closeout) is committed and pushed to `main`.
+**Estimated progress:** **7 of 11** in-scope branches fully live and gate-validated on Odoo (Purchases/Inventory) — **~64%**. Counting the 3 staged-for-October branches as in-motion: **10 of 11 — ~91%**. (The user's own quick estimate mid-conversation was "62%", essentially the same number.) Metepec is the one truly unresolved item in current scope — needs a data-reliability decision before it can be staged like the others.
+
+**Current block:** none. All accumulated work is committed and pushed to `main`.
 
 ## What was done this session (2026-08-31), in order:
 
@@ -56,9 +58,22 @@ Last generated: 2026-08-31, end of day. **The final acceptance gate (Costs/Purch
 23. **Puebla rollout activation:** found Puebla was already effectively live in canonical/analytics tables (250 purchase orders as `final_odoo_enabled`, 36 inventory rows) *despite* `odoo_company_migration_policy.is_active = 0` — without an active policy row, the ETL was silently falling through to a generic env-fallback start date instead of a governed one. Confirmed first (0 rows in `getinputinventory_entrada`/`getOutgoingInventory_Salida` for Puebla, ever) that it's a pure `new_odoo_branch`, same pattern as CentroMyJ, no Wansoft history to protect. Formalized: `is_active` 0→1, `include_odoo_history` 0→1 (was inconsistent with CentroMyJ's row and unused by the actual filter, fixed for consistency), `operational_start_date` kept at the value already governing production (2026-06-10, not the original seed's 2026-07-22 — same "keep what's already active" policy used for Acoxpa/Tepeyac/Oceanía). `ROLLOUT_COMPANY_EXPECTATIONS` activated in the validator. Re-ran governance test, Odoo ETL, canonical ETL, full validation (8/8 PASS).
 24. **Inventory auto-correction design:** discussed a 3-tier design (auto-correct staleness / classify mapping-gap vs unexplained / alert). User pushed back with a key constraint: mapping an unmapped Odoo product to a Wansoft code can cross into other areas' catalogs and isn't retroactive — so it's inherently a periodic human review, not something to automate further, and the user considers current impact on Sales/Purchases reporting low since catalogs are "mostly correct." Resolution: **keep the checkpoint alert-only for Inventory, no new automation.** Only concrete change: removed `--skip-diagnostics` from the scheduled 1pm job so the `not_found` backlog reports stay current for whenever that periodic review happens, instead of only updating on a manual full run (adds ~2s).
 
-**Open risks (active, unresolved):** none carried over from the gate or its backlog. Anything found from here is new scope.
+**Part 8 — Full project status review, and staging the October migration wave:**
+25. The user asked for a full project status: where are we, how much is left, what's missing. Investigated live (not from memory/docs, since those can go stale): `COMPANY_SOURCE` shows 7 branches on Odoo, 12 on Wansoft. Cross-checked `odoo_company_migration_policy` and found **Isabel La Católica and San Jerónimo already had *active* policy rows** (operational_start_date 2026-06-23/24) with substantial, recent-looking Odoo purchase.order activity (78 and 131 orders respectively, through August) running alongside real ongoing Wansoft data — at first read, this looked like the same "genuine parallel operation, ready to migrate" pattern Acoxpa/Tepeyac/Oceanía were in before their cutover.
+26. **The user corrected this reading**: that Odoo activity (for Isabel, San Jerónimo, and also noted for Taquería Parroquia, Versalles/"Exhibimex", Cancún, and Playa del Carmen) is leftover noise from a **2024 Odoo pilot that didn't continue** — not real current operation. For Isabel/San Jerónimo specifically, that data will be **wiped**, and October 1 is a genuine fresh start for those two, same readiness level as Vía Vallejo (which had only 1 Odoo purchase.order total, also 2024-dated, and no policy row at all). This was an important correction to a conclusion drawn from data alone, without the business context — logged in project memory (`project_october_migration_wave`) so it isn't rediscovered the hard way later.
+27. **User decision: Isabel La Católica, Vía Vallejo, and San Jerónimo launch on Odoo (Purchases/Inventory) on 2026-10-01**, all three together, all as a fresh start. Explored scheduling options for a literal "set and forget" automation a month out: ruled out both a cloud routine (no access to the local MySQL/Odoo credentials this project depends on) and session-local cron (dies with the session, 7-day max) — neither can reliably survive a month. Agreed instead to **stage the governance now, execute the real cutover later** when working together near the date, after confirming the data wipe happened and real Odoo activity has actually started.
+28. Staged (governance only, zero production effect — verified `COMPANY_SOURCE` untouched and `canonical_purchase_order_snapshot` still `final_wansoft_enabled` for all three, `validate_purchases_canonical_layer` still 8/8 PASS): `odoo_company_migration_policy` rows for all three set to `operational_start_date='2026-10-01'`, `is_active=1`, `migrated_from_wansoft` (Isabel/San Jerónimo's stale June dates corrected; Vallejo's row created new). `ROLLOUT_COMPANY_EXPECTATIONS` in `validate_purchases_canonical_layer.py` given entries for all three with `active: False` (documented, not enforced). Seed SQL updated to match.
+29. Clarified for the user how the mechanism actually works going forward: `operational_start_date` governs the no-overlap data *boundary* once a company is Odoo-sourced, but it does **not** trigger the `COMPANY_SOURCE` switch itself on that date — nothing in this project auto-flips `COMPANY_SOURCE` by calendar date. Someone has to actively perform that switch on/after 2026-10-01, following the same rollout sequence used for Acoxpa/Tepeyac/Oceanía/Puebla.
+30. **Scope decision**: the user explicitly deprioritized the remaining 7 untouched Wansoft branches (Aeropuerto, Cancún, Playa del Carmen, Taquería Viaducto, Taquería Parroquia, Versalles, Viaducto) — not part of current progress tracking, will join later. Current in-scope denominator is 11 branches (7 live + 3 staged + Metepec). Decided to close this chat here and continue in a new one.
 
-**Pending relevant decisions:** none carried over. The user reviews the Inventory `not_found` backlog periodically, at their own pace, and coordinates with other areas as needed — that's an ongoing operational rhythm now, not a pending decision.
+**Open risks (active, unresolved):**
+- Metepec: known data-reliability issue (franchise doesn't upload Wansoft purchases correctly — see project memory `project_metepec_franchise_data_gap`), needs a decision before it can be staged like Isabel/San Jerónimo/Vallejo.
+- The October cutover for Isabel/San Jerónimo/Vallejo is staged but **not executed** — `COMPANY_SOURCE` is still Wansoft for all three, and the actual switch requires live confirmation (data wipe done? real Odoo activity started?) that hasn't happened yet.
+
+**Pending relevant decisions:**
+- When to actually perform the Isabel/San Jerónimo/Vallejo cutover (some point at/after 2026-10-01, not before).
+- What to do about Metepec's data-reliability problem before it can be scheduled.
+- Which of the 7 deprioritized branches (if any) comes after this wave, and when — explicitly not decided, out of scope for now.
 
 ---
 
@@ -77,6 +92,14 @@ Last generated: 2026-08-31, end of day. **The final acceptance gate (Costs/Purch
 **Source governance (`core/config/companies.py`):** `COMPANY_SOURCE` decides Purchases/Inventory per branch (authoritative). `odoo_company_migration_policy` (MySQL table, `is_active` + `operational_start_date`) decides whether the rollout is actually activated yet, and since when. Sales is always Wansoft, no exceptions.
 
 **Branches currently active on Odoo (Purchases + Inventory):** Antenas, La Esquina Coyoacán, CentroMyJ, Acoxpa, Tepeyac, Oceanía, and Puebla (activated 2026-08-31, `new_odoo_branch` pattern — no Wansoft purchase/inventory history ever existed for it).
+
+**Branches staged for 2026-10-01 (governance ready, `COMPANY_SOURCE` still `"wansoft"`):** Isabel La Católica, San Jerónimo, Vía Vallejo — see project memory `project_october_migration_wave` for full detail and the pre-cutover checklist. `operational_start_date` does not itself trigger the `COMPANY_SOURCE` switch; that's a manual step to perform on/after the date.
+
+**Out of current scope (deprioritized 2026-08-31, will join Odoo later):** Aeropuerto, Cancún, Playa del Carmen, Taquería Viaducto, Taquería Parroquia, Versalles, Viaducto.
+
+**Special case, unresolved:** Metepec — known Wansoft purchase-data reliability issue (franchise doesn't upload correctly), needs a decision before it can be staged.
+
+**Permanently Wansoft, all domains:** Napoles (franchise, confirmed by the owner — will never migrate to Odoo).
 
 **Cutover checkpoint (new, this session):**
 ```
@@ -149,6 +172,9 @@ GetCostReport_Xml (Wansoft, Wansoft-only branches)                   -> cost-wei
 | `backfill_odoo_cost.py` clamps its earliest backfill date at `operational_start_date` | Was pulling from Odoo's earliest posted line unconditionally, creating real Wansoft/Odoo overlap once dates aligned | Same module, `get_operational_start_date()` (new) |
 | Puebla activated as `new_odoo_branch`, `operational_start_date` kept at the value already governing production (not the original seed) | Confirmed zero Wansoft purchase/inventory history ever existed for Puebla; same "don't overwrite already-active governance" policy used for Acoxpa/Tepeyac/Oceanía | `odoo_company_migration_policy`, `scripts/validate_purchases_canonical_layer.py` |
 | Inventory checkpoint stays alert-only, permanently — no auto-correction mechanism built | Mapping decisions can cross into other areas' catalogs and aren't retroactive; the project owner reviews the backlog periodically instead | User decision, no code change beyond keeping diagnostics fresh in the daily job |
+| Isabel La Católica/San Jerónimo/Vallejo staged for 2026-10-01 as a fresh start, ignoring their pre-existing Odoo data | That data is 2024-pilot noise (confirmed by the owner, corrected an initial misread from data alone) — will be wiped or is already irrelevant | `odoo_company_migration_policy`, `scripts/validate_purchases_canonical_layer.py`, `sql/seeds/seed_odoo_company_migration_policy.sql` |
+| No literal calendar-triggered automation built for the October cutover | Neither a cloud routine (no local MySQL/Odoo credential access) nor session-local cron (dies with the session, 7-day cap) can reliably survive a month; the actual switch needs live readiness confirmation anyway | Staged governance now, execute manually later — project memory `project_october_migration_wave` |
+| Current progress scope narrowed to 11 branches (7 live + 3 staged + Metepec) | Explicit owner decision — the other 7 untouched Wansoft branches join later, not tracked as pending work right now | Section 1, "Scope decision" |
 
 ---
 
@@ -168,7 +194,7 @@ GetCostReport_Xml (Wansoft, Wansoft-only branches)                   -> cost-wei
 - A bug "fixed" in a diagnostic/gate script isn't fixed in production until it's verified in the real canonical ETL — this happened twice this session (canceled orders in Purchases, virtual locations in Inventory) with bugs already believed resolved since the gate.
 - Before killing a process that looks orphaned, verify which command/file it actually is — don't assume it's yours just because it coincides in time.
 
-**Git state:** branch `main`, up to date with `origin/main`. Both the gate session (2026-08-27) and this session (2026-08-31, including the full backlog closeout) are committed and pushed: `e7366f0`, `0974f97`, `e60dbf9` (Spanish commit messages, a one-time regression from the English-only convention, left as-is rather than rewriting already-pushed history — see project memory `feedback_github_content_english_only`), `6756fc8`, `d65c5bb`, `a7d3e27`, `6536baf`, `62ac106`. Files included across the session:
+**Git state:** branch `main`, up to date with `origin/main`. Both the gate session (2026-08-27) and this session (2026-08-31, gate backlog closeout + October staging) are committed and pushed: `e7366f0`, `0974f97`, `e60dbf9` (Spanish commit messages, a one-time regression from the English-only convention, left as-is rather than rewriting already-pushed history — see project memory `feedback_github_content_english_only`), `6756fc8`, `d65c5bb`, `a7d3e27`, `6536baf`, `62ac106`, `0de24c7`, `8f4b6f2`. Files included across the session:
 
 *From the gate session (2026-08-27):*
 - `extract/costs/odoo_cost_report.py` — Merma fix + account audit.
@@ -194,6 +220,8 @@ GetCostReport_Xml (Wansoft, Wansoft-only branches)                   -> cost-wei
 - `scripts/validate_purchases_canonical_layer.py` — Puebla rollout activated.
 - `sql/seeds/seed_odoo_company_migration_policy.sql` — Puebla `is_active=1`, corrected `operational_start_date`.
 - `pipelines/jobs/inventory_pipeline_job.py` — keep `not_found` backlog diagnostics in the daily run.
+- `scripts/validate_purchases_canonical_layer.py` — Isabel La Católica/San Jerónimo/Vallejo staged (`active: False`).
+- `sql/seeds/seed_odoo_company_migration_policy.sql` — same three staged, `operational_start_date='2026-10-01'`.
 
 *Never committed (project convention):*
 - `inventory_not_found_analysis.csv`.
@@ -233,20 +261,57 @@ See the previous report (commit `21078c8` or earlier) for the full gate session 
 - **New:** for the 4 real Wansoft/Odoo overlap dates found in `costeomensual_semanapyq`, Odoo wins (consistent with existing project governance) — the 4 stale Wansoft rows were deleted.
 - **New:** Puebla rollout activated — it's a `new_odoo_branch` with no Wansoft purchase/inventory history.
 - **New:** Inventory's checkpoint stays alert-only permanently, no auto-correction mechanism — mapping decisions cross into other areas and aren't retroactive; the project owner reviews the backlog periodically and coordinates with those areas directly.
+- **New:** Isabel La Católica, Vía Vallejo, and San Jerónimo launch on Odoo (Purchases/Inventory) on **2026-10-01**, all three as a genuine fresh start — their pre-existing Odoo data is 2024-pilot noise, not real activity to preserve.
+- **New:** current progress scope is 11 branches (7 live + 3 staged + Metepec) — the remaining 7 untouched Wansoft branches are explicitly deprioritized for now, not part of active tracking.
+- **New:** close this chat here and continue in a new one — a deliberate "major step closed" handoff, not a context-limit forced one.
 
 ---
 
 # 11-12. Identified Legacy / Consolidated Backlog
 
-**Backlog:** empty — all four items opened at gate close (2026-08-27/31) were resolved the same day (see Part 7). The only unresolved item from earlier sessions: chaining legacy scripts into `pipelines/scheduler.py` (deferred, no urgency attached).
+**Backlog:**
+- Execute the real Isabel La Católica/San Jerónimo/Vallejo cutover, at/after 2026-10-01 — confirm the Odoo data wipe happened and real activity has started (especially Vallejo), then flip `COMPANY_SOURCE` and run the standard rollout sequence. See project memory `project_october_migration_wave` for the full checklist.
+- Decide what to do about Metepec's Wansoft purchase-data reliability issue before it can be staged like the others.
+- (Deferred, no urgency) chaining legacy scripts into `pipelines/scheduler.py`.
+- (Explicitly out of scope for now, revisit later) the 7 deprioritized branches: Aeropuerto, Cancún, Playa del Carmen, Taquería Viaducto, Taquería Parroquia, Versalles, Viaducto.
 
 ---
 
-# 13. Next Steps
+# 13. Next Steps — HANDOFF PROMPT FOR THE NEW CHAT
 
-No handoff to a new chat is needed right now (the commit/push closes this session naturally, not due to a context limit). If a new chat is opened later to continue, use Section 1 (full narrative) and Section 9 (gate summary table) of this document as the starting point.
+**Paste this as the first message in the new chat:**
 
-**Suggested title for the next chat**, when applicable (format `FONDA (short project): Paso N[-M]: <short description>`): `FONDA (Wansoft): Paso 20: New scope, post-gate`
+```
+Continúo el proyecto Wansoft + Odoo + Zenput Data Warehouse & ETL Pipeline.
+Lee completo PROJECT_CONTEXT_REPORT.md en la raíz del repositorio antes de
+responder, especialmente la Sección 1 (narrativa completa de la sesión
+anterior) y la Sección 9 (tabla resumen del gate, ya cerrado).
+
+Resumen rápido: el gate de aceptación final (Costos/Compras/Inventario)
+quedó formalmente ACEPTADO, con su backlog completo resuelto (incluidos
+2 bugs reales más encontrados en el camino) y Puebla activada en
+producción. Alcance actual acotado a 11 sucursales: 7 ya viven en Odoo,
+3 más (Isabel La Católica, San Jerónimo, Vía Vallejo) quedaron
+preparadas -- gobernanza lista con fecha 2026-10-01 -- para un arranque
+limpio ese día (su actividad previa en Odoo es ruido de un piloto de
+2024, no operación real). Metepec sigue como caso especial sin resolver
+(datos de compras Wansoft poco confiables). Las otras 7 sucursales
+Wansoft quedan fuera de alcance por ahora, a propósito.
+
+Hoy toca: lo que el usuario decida. No hay nada bloqueando ni pendiente
+de esta sesión -- todo está comiteado y pusheado a main. El siguiente
+trabajo natural sería avanzar el caso de Metepec, o esperar a acercarse
+al 1 de octubre para ejecutar el corte real de Isabel/San Jerónimo/
+Vallejo (ver Sección 11-12 y la memoria de proyecto
+project_october_migration_wave para el checklist completo).
+
+Todo el trabajo es en dev (ENV=dev en PowerShell); producción solo se
+toca en modo lectura. No hace falta pedir autorización para acciones de
+dev. Todo commit y documentación que vaya a GitHub debe quedar en
+inglés, aunque hablemos en español.
+```
+
+**Suggested title for the new chat**: `FONDA (Wansoft): Paso 19: Post-gate — October migration wave staged`
 
 ---
 
