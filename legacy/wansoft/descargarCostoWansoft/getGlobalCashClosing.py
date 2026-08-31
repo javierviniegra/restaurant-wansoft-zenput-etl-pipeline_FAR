@@ -7,6 +7,9 @@ from datetime import datetime, timedelta
 
 import sys
 
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
 
 # 2. Ahora sí podemos importar nuestra función
 from core.database.mysql import get_db_connection
@@ -41,12 +44,11 @@ subsidiaries = [
     {"id":12802, "nombreCorto": "CentroMyJ", "name":"Fonda Argentina - Centro Mario y July", "password": os.getenv("WANSOFT_PWD_12802")},
     {"id":12806, "nombreCorto": "Puebla", "name":"Fonda Argentina - Puebla", "password": os.getenv("WANSOFT_PWD_12806")}
 ]
-from core.config.company_filter import is_wansoft_company
-
-subsidiaries = [
-    s for s in subsidiaries
-    if is_wansoft_company(s["nombreCorto"])
-]
+# GetGlobalCashClosing_Xml lee del corte de caja/POS, que siempre vive en
+# Wansoft (Ventas nunca migra a Odoo, ver ALWAYS_WANSOFT_DOMAINS en
+# core/config/companies.py) -- aplica a las 19 sucursales por igual, sin
+# filtrar por COMPANY_SOURCE. Confirmado 2026-08-27: Puebla (100% Odoo salvo
+# Ventas) devuelve datos reales (Cortesias/Cancelaciones/Anulaciones no-cero).
 
 # Configuración de la conexión a MySQL
 db_connection = get_db_connection(target="wansoft")

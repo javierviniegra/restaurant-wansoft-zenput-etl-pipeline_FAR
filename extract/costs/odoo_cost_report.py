@@ -11,19 +11,37 @@ Source of truth: account.move.line, filtered to accounts with
 account_type = 'expense_direct_cost' (Odoo's standard, company-agnostic
 cost-of-revenue classification -- account.account.code is NOT reliable
 across companies, some have it populated with a dotted numbering scheme,
-others leave it empty and rely on account name only), move_type =
-'out_invoice' (customer invoice, i.e. cost recognized at time of sale,
-matching the project owner's description: "el costo se debe obtener de
-las facturas de clientes"), parent_state = 'posted'.
+others leave it empty and rely on account name only), parent_state =
+'posted'.
+
+CostoTotal / CostoDeProductosVendidos use move_type = 'out_invoice'
+(customer invoice, i.e. cost recognized at time of sale, matching the
+project owner's description: "el costo se debe obtener de las facturas
+de clientes"). CostoDeMerma does NOT filter by move_type: found during
+the acceptance-gate check against production Power BI (Acoxpa, 2026-08-27)
+that merma/shrinkage is posted to Odoo as a manual journal entry
+(move_type = 'entry'), never as an out_invoice line -- restricting to
+out_invoice silently produced zero merma cost for every branch.
 
 Category split (verified against Puebla id 34 and CentroMyJ id 35, same
 account names in both, 2026-08-26):
-- CostoTotal: sum of every expense_direct_cost account.
+- CostoTotal: sum of every expense_direct_cost account, out_invoice only.
 - CostoDeProductosVendidos: sum of the food/beverage category accounts
   plus "Gastos de venta" (project owner decision, 2026-08-26: should be
   part of product cost). Excludes packaging, gas, cleaning, platform
   commissions, logistics -- those stay operational, not product cost.
-- CostoDeMerma: the "Mermas y Desperdicios" account specifically.
+  PRODUCT_COST_ACCOUNT_NAMES is a name whitelist, and account names are
+  NOT identical across all 7 COMPANY_SOURCE=="odoo" companies -- audited
+  2026-08-27 across all of them (41 unique expense_direct_cost account
+  names total): "Pizza" (3/7 companies) and "Masa para Pizza" (4/7) are
+  the same product under two different names; "Sopes" (2/7) and "Canasta
+  de Hojaldre" (some) are food categories that were missing entirely.
+  All added. If a new branch migrates with yet another account-name
+  variant, re-run this audit (list expense_direct_cost account names for
+  the new company_id, diff against PRODUCT_COST_ACCOUNT_NAMES) rather
+  than assuming the existing whitelist covers it.
+- CostoDeMerma: the "Mermas y Desperdicios" account specifically, any
+  move_type (see above).
 - CostoDeCortesias, CostoDeCancelaciones, CostoDeRobo, CostoDeConsumo,
   AjustePorSobrantes, CostoIdealDeProductosPendientesDeRebaja,
   UtilidadMarginal: no reliable Odoo equivalent found (no theft/
@@ -55,6 +73,9 @@ PRODUCT_COST_ACCOUNT_NAMES = {
     "Empanadas",
     "Postres",
     "Pizza",
+    "Masa para Pizza",
+    "Sopes",
+    "Canasta de Hojaldre",
     "Con Alcohol",
     "Sin Alcohol",
     "Gastos de venta",
@@ -168,25 +189,51 @@ def get_daily_cost(
         {"fields": ["date", "account_id", "balance"]}
     )
 
-    if not lines:
+    merma_lines = []
+    if accounts["merma_ids"]:
+        merma_lines = models.execute_kw(
+            db, uid, password, "account.move.line", "search_read",
+            [[
+                ["company_id", "=", odoo_company_id],
+                ["account_id", "in", accounts["merma_ids"]],
+                ["parent_state", "=", "posted"],
+                ["date", ">=", date_from],
+                ["date", "<=", date_to],
+            ]],
+            {"fields": ["date", "balance"]}
+        )
+
+    if not lines and not merma_lines:
         return pd.DataFrame(columns=["fecha", "CostoTotal", "CostoDeProductosVendidos", "CostoDeMerma"])
 
-    df = pd.DataFrame(lines)
-    df["account_id"] = df["account_id"].apply(lambda v: v[0] if isinstance(v, list) else v)
-
     product_set = set(accounts["product_ids"])
-    merma_set = set(accounts["merma_ids"])
 
-    df["is_product"] = df["account_id"].isin(product_set)
-    df["is_merma"] = df["account_id"].isin(merma_set)
+    if lines:
+        df = pd.DataFrame(lines)
+        df["account_id"] = df["account_id"].apply(lambda v: v[0] if isinstance(v, list) else v)
+        df["is_product"] = df["account_id"].isin(product_set)
 
-    grouped = df.groupby("date").apply(
-        lambda g: pd.Series({
-            "CostoTotal": g["balance"].sum(),
-            "CostoDeProductosVendidos": g.loc[g["is_product"], "balance"].sum(),
-            "CostoDeMerma": g.loc[g["is_merma"], "balance"].sum(),
-        }),
-        include_groups=False,
-    ).reset_index().rename(columns={"date": "fecha"})
+        grouped = df.groupby("date").apply(
+            lambda g: pd.Series({
+                "CostoTotal": g["balance"].sum(),
+                "CostoDeProductosVendidos": g.loc[g["is_product"], "balance"].sum(),
+            }),
+            include_groups=False,
+        ).reset_index().rename(columns={"date": "fecha"})
+    else:
+        grouped = pd.DataFrame(columns=["fecha", "CostoTotal", "CostoDeProductosVendidos"])
 
-    return grouped
+    if merma_lines:
+        df_merma = pd.DataFrame(merma_lines)
+        merma_by_date = df_merma.groupby("date")["balance"].sum().reset_index().rename(
+            columns={"date": "fecha", "balance": "CostoDeMerma"}
+        )
+    else:
+        merma_by_date = pd.DataFrame(columns=["fecha", "CostoDeMerma"])
+
+    result = pd.merge(grouped, merma_by_date, on="fecha", how="outer")
+    result["CostoTotal"] = result["CostoTotal"].fillna(0.0)
+    result["CostoDeProductosVendidos"] = result["CostoDeProductosVendidos"].fillna(0.0)
+    result["CostoDeMerma"] = result["CostoDeMerma"].fillna(0.0)
+
+    return result.sort_values("fecha").reset_index(drop=True)

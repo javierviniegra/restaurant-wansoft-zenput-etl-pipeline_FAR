@@ -7,6 +7,10 @@ from datetime import datetime, timedelta
 
 import sys
 
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 # 2. Ahora sí podemos importar nuestra función
 from core.database.mysql import get_db_connection
 
@@ -17,8 +21,6 @@ cursor = db_connection.cursor()
 # Fechas de inicio y fin (puedes cambiarlas fuera del loop)
 start_date_range = datetime.now() - timedelta(days=30)  # Fecha inicial
 end_date_range = datetime.now() - timedelta(days=1)    # Fecha final
-#start_date_range = datetime(2025, 6,3)  # Fecha inicial
-#end_date_range = datetime(2025, 6, 3)    # Fecha final
 
 # Verificar si la tabla cost_reports existe y si no, crearla
 cursor.execute("""
@@ -71,14 +73,19 @@ subsidiaries = [
 ]
 from core.config.company_filter import is_wansoft_company
 
-subsidiaries = [
+wansoft_subsidiaries = [
     s for s in subsidiaries
     if is_wansoft_company(s["nombreCorto"])
 ]
-print(subsidiaries)
+odoo_subsidiaries = [
+    s for s in subsidiaries
+    if not is_wansoft_company(s["nombreCorto"])
+]
+print(wansoft_subsidiaries)
+print(odoo_subsidiaries)
 
-# Loop para obtener datos de cada subsidiaria
-for subsidiary in subsidiaries:
+# Loop para obtener datos de cada subsidiaria (fuente Wansoft)
+for subsidiary in wansoft_subsidiaries:
     current_date = start_date_range
     while current_date <= end_date_range:
         # Calcular las fechas de inicio y fin del mes
@@ -231,6 +238,93 @@ for subsidiary in subsidiaries:
         # Incrementa el current_date al siguiente mes
         #current_date = (start_date.replace(month=next_month, year=start_date.year + year_increment))
         current_date = current_date + timedelta(days=1)
+
+# Loop para obtener datos de cada subsidiaria (fuente Odoo)
+# CostoTotal/CostoDeProductosVendidos/CostoDeMerma se calculan mes-a-la-fecha
+# (dia 1 del mes -> la fecha), igual que el lado Wansoft, desde la
+# contabilidad de Odoo. El resto de las columnas (CostoDeCortesias,
+# CostoDeCancelaciones, CostoDeRobo, CostoDeConsumo, AjustePorSobrantes,
+# CostoIdealDeProductosPendientesDeRebaja, UtilidadMarginal) no tienen
+# equivalente confiable en la contabilidad de Odoo actual y se dejan en
+# NULL para estas filas (no se aproximan). Mismo patron que
+# getTotalCostByDate.py / getCostReport_SemanaPyQ.py.
+if odoo_subsidiaries:
+    import pandas as pd
+    from core.database.odoo import get_odoo_connection
+    from extract.costs.odoo_cost_report import resolve_odoo_company_id, get_daily_cost
+
+    odoo_uid, odoo_models, odoo_db, odoo_password = get_odoo_connection()
+
+    for subsidiary in odoo_subsidiaries:
+        odoo_company_id = resolve_odoo_company_id(
+            odoo_models, odoo_uid, odoo_db, odoo_password, subsidiary["nombreCorto"]
+        )
+        if odoo_company_id is None:
+            print(f"[⚠] No se pudo resolver company_id de Odoo para {subsidiary['nombreCorto']}")
+            continue
+
+        # Traer desde el dia 1 del mes de start_date_range para poder calcular
+        # mes-a-la-fecha del primer dia del rango sin perder el inicio del mes.
+        fetch_start = start_date_range.replace(day=1).strftime("%Y-%m-%d")
+        fetch_end = end_date_range.strftime("%Y-%m-%d")
+        df_daily = get_daily_cost(odoo_models, odoo_uid, odoo_db, odoo_password, odoo_company_id, fetch_start, fetch_end)
+
+        if df_daily.empty:
+            continue
+
+        df_daily["fecha_dt"] = pd.to_datetime(df_daily["fecha"])
+        df_daily["anio_mes"] = df_daily["fecha_dt"].dt.strftime("%Y-%m")
+        df_daily = df_daily.sort_values("fecha_dt")
+        df_daily["CostoTotal_mtd"] = df_daily.groupby("anio_mes")["CostoTotal"].cumsum()
+        df_daily["CostoDeProductosVendidos_mtd"] = df_daily.groupby("anio_mes")["CostoDeProductosVendidos"].cumsum()
+        df_daily["CostoDeMerma_mtd"] = df_daily.groupby("anio_mes")["CostoDeMerma"].cumsum()
+
+        current_date = start_date_range
+        while current_date <= end_date_range:
+            lafecha = current_date.strftime("%Y-%m-%d")
+            mes_ano = current_date.strftime("%m-%Y")
+            row_match = df_daily[df_daily["fecha"] == lafecha]
+
+            if row_match.empty:
+                current_date += timedelta(days=1)
+                continue
+
+            total_costo = float(row_match.iloc[0]["CostoTotal_mtd"])
+            total_productos_costo = float(row_match.iloc[0]["CostoDeProductosVendidos_mtd"])
+            costo_merma = float(row_match.iloc[0]["CostoDeMerma_mtd"])
+
+            cursor.execute("""
+                SELECT id, CostoTotal, CostoDeProductosVendidos FROM costeoMensual
+                WHERE subsidiary_id = %s AND DATE(created_at) = %s
+            """, (subsidiary["id"], lafecha))
+            existing_row = cursor.fetchone()
+
+            if existing_row:
+                record_id, total_db, productos_db = existing_row
+                if (abs(total_costo - float(total_db)) > 0.01) or (abs(total_productos_costo - float(productos_db)) > 0.01):
+                    cursor.execute("""
+                        UPDATE costeoMensual
+                        SET
+                            subsidiary_name = %s,
+                            CostoTotal = %s,
+                            CostoDeProductosVendidos = %s,
+                            CostoDeMerma = %s,
+                            mes_ano = %s
+                        WHERE DATE(created_at) = %s AND subsidiary_id = %s
+                    """, (subsidiary["name"], total_costo, total_productos_costo, costo_merma, mes_ano, lafecha, subsidiary["id"]))
+                    print(f"[🔁] Actualizado (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
+                else:
+                    print(f"[✔] Igual (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
+            else:
+                cursor.execute("""
+                    INSERT INTO costeoMensual
+                        (subsidiary_id, subsidiary_name, CostoTotal, CostoDeProductosVendidos, CostoDeMerma, mes_ano, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (subsidiary["id"], subsidiary["name"], total_costo, total_productos_costo, costo_merma, mes_ano, lafecha))
+                print(f"[🆕] Insertado (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
+
+            db_connection.commit()
+            current_date += timedelta(days=1)
 
 # Cerrar la conexión a la base de datos
 cursor.close()

@@ -267,7 +267,10 @@ for subsidiary in wansoft_subsidiaries:
 # columnas (CostoDeCortesias, CostoDeCancelaciones, CostoDeRobo, CostoDeConsumo,
 # AjustePorSobrantes, CostoIdealDeProductosPendientesDeRebaja, UtilidadMarginal)
 # no tienen equivalente confiable en la contabilidad de Odoo actual y se dejan
-# en NULL para estas filas (no se aproximan).
+# en NULL para estas filas (no se aproximan). Cortesias/Cancelaciones/
+# Anulaciones "de venta" (valor crudo, no ponderado por costo) se cubren
+# aparte via getGlobalCashClosing.py sobre la tabla getglobalcashclosing,
+# no en este reporte.
 if odoo_subsidiaries:
     from core.database.odoo import get_odoo_connection
     from extract.costs.odoo_cost_report import resolve_odoo_company_id, get_daily_cost
