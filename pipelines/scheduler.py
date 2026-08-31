@@ -11,6 +11,8 @@ from pipelines.jobs.global_cash_closing_job import run_global_cash_closing_job
 from pipelines.jobs.expenses_job import run_expenses_job
 from pipelines.jobs.tablajeria_report_job import run_tablajeria_report_job
 from pipelines.jobs.total_cost_by_date_job import run_total_cost_by_date_job
+from pipelines.jobs.zenput_forms_job import run_zenput_forms_job
+from pipelines.jobs.zenput_tasks_job import run_zenput_tasks_job
 from pipelines.jobs.odoo_cutover_validation_job import run_odoo_cutover_validation_job
 from pipelines.jobs.inventory_pipeline_job import run_inventory_pipeline_job
 
@@ -46,24 +48,61 @@ def schedule_daily_at(job, hour, minute=0):
     threading.Thread(target=loop).start()
 
 
+DAILY_LEGACY_CHAIN_STEPS = [
+    ("Ventas (Candado real)", run_extract_all_orders_xml_job),
+    ("Inventario - entradas", run_input_inventory_job),
+    ("Inventario - salidas", run_outgoing_inventory_job),
+    ("Costos - semana PyQ", run_cost_report_semana_pyq_job),
+    ("Costos - descarga Wansoft", run_download_costs_job),
+    ("Costos - cierre global de caja", run_global_cash_closing_job),
+    ("Compras - facturas/gastos", run_expenses_job),
+    ("Costos - tablajería", run_tablajeria_report_job),
+    ("Costos - costo total por fecha", run_total_cost_by_date_job),
+    ("Zenput - forms", run_zenput_forms_job),
+    ("Zenput - tasks", run_zenput_tasks_job),
+]
+
+
+def run_daily_legacy_chain():
+    """
+    Corre los scripts legacy (Wansoft: Ventas/Inventario/Costos, y Zenput:
+    forms/tasks) uno tras otro, en orden, sin traslape: varios no pueden
+    correr en paralelo (SOAP de Wansoft / MySQL), así que cada paso
+    arranca solo cuando el anterior terminó, en vez de horarios fijos
+    escalonados.
+
+    Los pasos de Zenput llaman a los scripts legacy directamente
+    (legacy/zenput/zenput_mysql_forms.py, zenput_mysql_tasks.py), sin
+    pasar por el safety gate documentado en
+    docs/production-orchestration-plan.md (scripts/run_zenput_pipeline.py
+    --allow-legacy-writes). Incluidos aquí por decisión explícita del
+    dueño del proyecto (2026-08-31).
+
+    Un paso que falla no detiene la cadena — se registra el error y se
+    sigue con el siguiente, igual que cuando cada job corría de forma
+    independiente.
+    """
+    print("=== Wansoft daily chain: starting ===")
+    for name, job in DAILY_LEGACY_CHAIN_STEPS:
+        print(f"--- {name}: starting ---")
+        try:
+            job()
+            print(f"--- {name}: done ---")
+        except Exception as e:
+            print(f"--- {name}: FAILED - {e} ---")
+    print("=== Wansoft daily chain: finished ===")
+
+
 def start():
 
     print("Scheduler running...")
 
-    # Wansoft automaticos legacy, una corrida diaria de madrugada (01:00-02:20),
-    # escalonados para no saturar el SOAP de Wansoft con las ~19 cuentas en paralelo.
-    # extractAllOrdersByDay.py es el Candado real (compara contra Cierre Z y
-    # corrige); getAllOrdersByDay.py (el downloader con rango de fechas fijo)
-    # queda deliberadamente fuera de este agendado.
-    schedule_daily_at(run_extract_all_orders_xml_job, hour=1, minute=0)   # Ventas (Candado)
-    schedule_daily_at(run_input_inventory_job, hour=1, minute=10)         # Inventario - entradas
-    schedule_daily_at(run_outgoing_inventory_job, hour=1, minute=20)      # Inventario - salidas
-    schedule_daily_at(run_cost_report_semana_pyq_job, hour=1, minute=30)  # Costos - semana PyQ
-    schedule_daily_at(run_download_costs_job, hour=1, minute=40)         # Costos - descarga Wansoft
-    schedule_daily_at(run_global_cash_closing_job, hour=1, minute=50)     # Costos - cierre global de caja
-    schedule_daily_at(run_expenses_job, hour=2, minute=0)                 # Compras - facturas/gastos
-    schedule_daily_at(run_tablajeria_report_job, hour=2, minute=10)       # Costos - tablajería
-    schedule_daily_at(run_total_cost_by_date_job, hour=2, minute=20)      # Costos - costo total por fecha
+    # Legacy Wansoft + Zenput, una sola corrida diaria a partir de la 1am,
+    # en cadena secuencial (ver run_daily_legacy_chain arriba).
+    # extractAllOrdersByDay.py es el Candado real (compara contra Cierre Z
+    # y corrige); getAllOrdersByDay.py (el downloader con rango de fechas
+    # fijo) queda deliberadamente fuera de este agendado.
+    schedule_daily_at(run_daily_legacy_chain, hour=1, minute=0)
 
     # refresco diario de analytics_inventory_snapshot/_balance (mecánico,
     # no promueve mapeos nuevos) a la 1pm, antes del checkpoint de cutover
