@@ -60,6 +60,9 @@ KNOWN_FUTURE_ROLLOUTS = {
 MIGRATED_FROM_WANSOFT_COMPANIES = {
     "Antenas",
     "La Esquina Coyoacán",
+    "Acoxpa",
+    "Tepeyac",
+    "Oceanía",
 }
 
 NEW_ODOO_BRANCH_COMPANIES = {

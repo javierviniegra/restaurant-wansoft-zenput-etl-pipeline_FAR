@@ -56,10 +56,22 @@ def delete_existing_odoo_rows(table_name: str):
     conn.close()
 
 
-def filter_final_odoo_enabled(df: pd.DataFrame) -> pd.DataFrame:
+EXCLUDED_ORDER_STATES = ("cancel", "draft")
+
+
+def filter_final_odoo_enabled(df: pd.DataFrame, exclude_cancelled_draft: bool = False) -> pd.DataFrame:
     """
     Applies company source governance and keeps only rows eligible
     for the final Odoo purchase canonical layer.
+
+    exclude_cancelled_draft: drops rows whose Odoo `state` is 'cancel' or
+    'draft'. These are not committed purchases and were inflating
+    canonical_purchase_order_snapshot / _line_snapshot totals (confirmed
+    on Tepeyac: 54 cancelled orders / $693k out of a ~14.5% gap against
+    live Odoo -- the same "canceled orders inflate the total" bug found
+    and fixed for the standalone diagnostic module
+    extract/purchases/odoo_purchase_category_totals.py during the
+    acceptance gate, but never applied here).
     """
     if df is None or df.empty:
         return df
@@ -70,17 +82,20 @@ def filter_final_odoo_enabled(df: pd.DataFrame) -> pd.DataFrame:
         flagged["final_purchase_source_status"] == FINAL_ODOO_STATUS
     ].copy()
 
+    if exclude_cancelled_draft and "state" in out.columns:
+        out = out[~out["state"].isin(EXCLUDED_ORDER_STATES)]
+
     return out
 
 
 def build_canonical_odoo_purchase_orders() -> pd.DataFrame:
     df = load_table("odoo_purchase_order_snapshot")
-    return filter_final_odoo_enabled(df)
+    return filter_final_odoo_enabled(df, exclude_cancelled_draft=True)
 
 
 def build_canonical_odoo_purchase_lines() -> pd.DataFrame:
     df = load_table("odoo_purchase_order_line_snapshot")
-    return filter_final_odoo_enabled(df)
+    return filter_final_odoo_enabled(df, exclude_cancelled_draft=True)
 
 
 def build_canonical_odoo_purchase_receipts() -> pd.DataFrame:

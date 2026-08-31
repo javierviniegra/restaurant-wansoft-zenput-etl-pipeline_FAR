@@ -7,11 +7,23 @@ Purpose:
 This script is intentionally conservative:
     - Runs already validated inventory scripts.
     - Stops on critical failures.
+    - Rebuilds analytics_inventory_snapshot / analytics_inventory_balance
+      (final steps) using the inventory mapping dictionary as it currently
+      stands -- it reads dictionary state, it never writes to it.
     - Does not perform dictionary promotions automatically.
     - Does not update Odoo.
     - Does not change COMPANY_SOURCE.
-    - Does not schedule itself.
     - Does not replace manual governance review.
+
+Scheduling:
+    Wired into pipelines/scheduler.py for a daily automatic run (see
+    pipelines/jobs/inventory_pipeline_job.py) so analytics_inventory_balance
+    doesn't go stale between manual runs -- confirmed 2026-08-31 that
+    nothing was scheduling this before, and some branches' balances were
+    5-11 days old as a result. Promoting NEW dictionary entries (closing
+    the not_found backlog) stays a separate, manual, human-reviewed step
+    (scripts/test_promote_inventory_not_found_*.py) -- this pipeline does
+    not touch that.
 
 Execution:
     python -m scripts.run_inventory_pipeline
@@ -300,6 +312,41 @@ def build_pipeline_steps(
                 ),
             )
         )
+
+    steps.append(
+        PipelineStep(
+            step_id=f"{len(steps) + 1:02d}",
+            name="Build analytics inventory snapshot",
+            module="scripts.build_analytics_inventory_snapshot",
+            required=True,
+            group="analytics_build",
+            description=(
+                "Rebuilds analytics_inventory_snapshot from the current Odoo "
+                "inventory ETL output and the already-approved inventory "
+                "mapping dictionary. Reads the dictionary as-is; does not "
+                "promote or modify any dictionary rows."
+            ),
+        )
+    )
+
+    steps.append(
+        PipelineStep(
+            step_id=f"{len(steps) + 1:02d}",
+            name="Build analytics inventory balance",
+            module="scripts.build_analytics_inventory_balance",
+            required=True,
+            group="analytics_build",
+            description=(
+                "Rebuilds analytics_inventory_balance (current stock balance per "
+                "company/product, Wansoft and Odoo sides) from "
+                "analytics_inventory_snapshot and the Wansoft entrada/salida "
+                "tables. This is the table BI and the Odoo cutover checkpoint "
+                "read as the current inventory position -- without this step "
+                "the pipeline validated everything upstream but never "
+                "refreshed the number anyone actually looks at."
+            ),
+        )
+    )
 
     steps.append(
         PipelineStep(

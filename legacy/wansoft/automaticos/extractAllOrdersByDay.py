@@ -568,6 +568,16 @@ def verificar_y_sincronizar(fecha_referencia=None, dias_atras=5, es_modo_hoy=Fal
 
             print(f"  [PASO 4] ✗ Diferencia: ${diferencia:,.2f} — sincronizando...")
 
+            # ── Forzar re-descarga antes de corregir ──────────────────
+            # El XML local (usado en PASO 1) puede ser una copia vieja;
+            # si se detectó diferencia, hay que corregir con datos frescos
+            # de Wansoft, no repetir la misma fuente que pudo originar
+            # el desfase.
+            print(f"  [PASO 4] Forzando re-descarga desde Wansoft antes de corregir...")
+            redescarga_ok = descargar_xml(id_sucursal, password, sucursal, fecha, ruta_xml)
+            if not redescarga_ok:
+                print(f"  [ALERTA] No se pudo re-descargar XML fresco — usando copia local existente")
+
             # ── Eliminar y reescribir ─────────────────────────────────
             eliminar_registros_dia(sucursal, fecha)
             reescribir_desde_xml(ruta_xml, sucursal)

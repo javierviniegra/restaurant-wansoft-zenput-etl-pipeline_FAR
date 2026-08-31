@@ -549,6 +549,19 @@ def build_row(
         include_in_business_views = False
         exclude_reason = append_reason(exclude_reason, "mapping_not_approved")
 
+    # Virtual/partner locations (e.g. "Virtual Locations/Inventory
+    # adjustment", "Virtual Locations/Production", or a vendor/customer
+    # counterpart location) are Odoo's double-entry bookkeeping
+    # counterparts, not real physical stock on hand. classify_location()
+    # already flags them; this was never checked here, so
+    # analytics_inventory_balance was summing them alongside real
+    # warehouse stock. Confirmed on Acoxpa 2026-08-31: virtual-location
+    # rows alone (1893.92) roughly tripled the real internal-location
+    # total (596.71) versus live Odoo (566.96, internal locations only).
+    if location.get("is_virtual_location") or location.get("is_partner_location"):
+        include_in_business_views = False
+        exclude_reason = append_reason(exclude_reason, "non_internal_location")
+
     normalized_source_location_id = normalize_text(source_row.get("source_location_id"))
 
     (
