@@ -45,9 +45,9 @@ VALUES
     'migrated_from_wansoft',
     'wansoft',
     0,
-    '2026-06-24',
+    '2026-10-01',
     1,
-    'Initial policy seed from current purchase snapshot. Review company type before production.'
+    'Staged 2026-08-31 for the 2026-10-01 launch wave (with Vallejo and San Jeronimo). Pre-October Odoo data for this company is 2024-pilot noise, not real operation -- will be wiped before launch. operational_start_date updated from the old 2026-06-24 (stale, from that noise) to the real planned cutover.'
 ),
 (
     36,
@@ -105,9 +105,19 @@ VALUES
     'migrated_from_wansoft',
     'wansoft',
     0,
-    '2026-06-23',
+    '2026-10-01',
     1,
-    'Initial policy seed from current purchase snapshot. Review company type before production.'
+    'Staged 2026-08-31 for the 2026-10-01 launch wave (with Vallejo and Isabel La Catolica). Pre-October Odoo data for this company is 2024-pilot noise, not real operation -- will be wiped before launch. operational_start_date updated from the old 2026-06-23 (stale, from that noise) to the real planned cutover.'
+),
+(
+    17,
+    'FONDA ARGENTINA VALLEJO',
+    'migrated_from_wansoft',
+    'wansoft',
+    0,
+    '2026-10-01',
+    1,
+    'Staged 2026-08-31 for the 2026-10-01 launch wave (with Isabel La Catolica and San Jeronimo). No prior policy row existed. Only 1 purchase.order in Odoo total (2024-10-21, pilot noise) as of staging -- real Odoo activity needs to start before launch.'
 ),
 (
     7,

@@ -78,6 +78,24 @@ ROLLOUT_COMPANY_EXPECTATIONS = [
         "active": True,
         "description": "Activated 2026-08-31. No Wansoft purchase/inventory history ever existed for Puebla (confirmed: 0 rows in getinputinventory_entrada / getOutgoingInventory_Salida), so this is a pure new_odoo_branch, same pattern as CentroMyJ.",
     },
+    {
+        "company_source_key": "Isabel La Católica",
+        "rollout_type": "migrated_from_wansoft",
+        "active": False,
+        "description": "Staged 2026-08-31 for the 2026-10-01 launch wave (with Vallejo and San Jeronimo). odoo_company_migration_policy already updated (operational_start_date=2026-10-01), but COMPANY_SOURCE stays wansoft until the real cutover -- do not activate this expectation before then.",
+    },
+    {
+        "company_source_key": "San Jeronimo",
+        "rollout_type": "migrated_from_wansoft",
+        "active": False,
+        "description": "Staged 2026-08-31 for the 2026-10-01 launch wave (with Isabel La Catolica and Vallejo). odoo_company_migration_policy already updated (operational_start_date=2026-10-01), but COMPANY_SOURCE stays wansoft until the real cutover -- do not activate this expectation before then.",
+    },
+    {
+        "company_source_key": "Vía Vallejo",
+        "rollout_type": "migrated_from_wansoft",
+        "active": False,
+        "description": "Staged 2026-08-31 for the 2026-10-01 launch wave (with Isabel La Catolica and San Jeronimo). odoo_company_migration_policy already updated (operational_start_date=2026-10-01), but COMPANY_SOURCE stays wansoft until the real cutover -- do not activate this expectation before then. As of staging, Vallejo has almost no real Odoo activity (1 purchase.order, 2024-10-21, pilot noise) -- confirm real usage has started before activating.",
+    },
 ]
 
 
