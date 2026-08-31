@@ -2,7 +2,7 @@
 
 Master continuity document. Generated/updated automatically at the close of major steps, on explicit request ("Generate project context report"), when the conversation gets very long, when consumed context exceeds ~70%, or when a new chat needs to be opened due to token limits. Always regenerated in full, never as an incremental patch.
 
-Last generated: 2026-08-31, closing the "cutover checkpoint + per-branch scope audit" session, before committing all accumulated work (this session and the 2026-08-27 gate session, which had been left uncommitted). The acceptance gate still has **no explicit formal close** from the user, but the supporting evidence got meaningfully stronger today: 3 additional real bugs were found and fixed, all in the direction of "the system is more reliable than the dirty comparisons suggested."
+Last generated: 2026-08-31. **The final acceptance gate (Costs/Purchases/Inventory, Odoo branches) is now formally ACCEPTED** by the project owner, after the cutover checkpoint work and 3 additional real bug fixes this session pushed the evidence from "strong" to "20/20 PASS against live Odoo." This closes the gate opened on 2026-08-27.
 
 ---
 
@@ -10,11 +10,11 @@ Last generated: 2026-08-31, closing the "cutover checkpoint + per-branch scope a
 
 **Overall project goal:** build a unified analytical layer in MySQL that integrates Wansoft, Odoo, and Zenput, hiding from the end user which system originates each piece of data.
 
-**Current state:** Inventory, Costs, and Purchases are functionally complete for the 6 branches currently active on Odoo (Antenas, La Esquina Coyoacán, CentroMyJ, Acoxpa, Tepeyac, Oceanía; Puebla documented as a future rollout, `is_active=0`). The acceptance gate (started 2026-08-27) has strong and now cleaner evidence, but the user never gave an explicit "yes, accepted" — it was deferred on the 28th ("let me get back to you, we'll continue tomorrow") and the session on the 31st was redirected toward two new user requests that ended up surfacing and fixing additional real bugs.
+**Current state:** Inventory, Costs, and Purchases are functionally complete and **formally accepted** for the 6 branches currently active on Odoo (Antenas, La Esquina Coyoacán, CentroMyJ, Acoxpa, Tepeyac, Oceanía; Puebla documented as a future rollout, `is_active=0`). The acceptance gate (started 2026-08-27, accepted 2026-08-31) is closed.
 
-**Estimated progress:** 97% (up from 94%; the automated cutover checkpoint was built, tested with real data, and is at 20/20 PASS; 3 real production bugs found and fixed; Inventory automation that didn't exist before, added. Missing: explicit "gate accepted" decision, and committing/pushing everything — the latter is resolved within this same session).
+**Estimated progress:** 100% for the scope defined by the gate (Costs/Purchases/Inventory functional migration + acceptance for the 6 active Odoo branches). Remaining work is backlog-level, not gate-blocking (see Section 11-12): Receipts canceled/draft filter, Inventory auto-correction design, Costs date-offset reconciliation, Puebla rollout activation.
 
-**Current block:** commit and push all accumulated work (2026-08-27 gate session + this session). See Section 8.
+**Current block:** none blocking. All accumulated work (2026-08-27 gate session + 2026-08-31 session) is committed and pushed to `main`. Next work is backlog-driven, at the user's pace.
 
 ## What was done this session (2026-08-31), in order:
 
@@ -50,14 +50,10 @@ Last generated: 2026-08-31, closing the "cutover checkpoint + per-branch scope a
 19. Fixed: exclude `is_virtual_location`/`is_partner_location` from `include_in_business_views`. Both tables rebuilt. Result: **20/20 checkpoints PASS** (Purchases + Inventory, T+7 and T+30, all 6 branches), several with an exact match (diff=0.0000). `validate_analytics_inventory_balance` confirmed 9/9 PASS, no regression.
 
 **Open risks (active, unresolved):**
-- The final acceptance gate **still has no explicit "yes, accepted"** from the user — the evidence is now stronger than on 2026-08-27 (3 additional real bugs fixed, all reducing differences, not increasing them), but the formal decision hasn't been made.
 - `canonical_purchase_receipt_snapshot`/`_receipt_move_snapshot` also have unfiltered `cancel` rows (217) and `cancel` rows (2,228) — same pattern as Bug #5 but in Receipts, not confirmed whether it affects anything measured today. Flagged, not investigated further.
 - Promotion of new Inventory mappings (the `not_found` backlog) remains 100% manual — a correct decision (not to be touched), but it means mapped-product coverage doesn't grow on its own.
 - Date offset `created_at = date+1` (Wansoft) vs `created_at = date` (Odoo) in `costeomensual_semanapyq` — inherited from the gate session, still unreconciled.
-- Nothing from this session or the gate session (2026-08-27) was committed before this regeneration — resolved in the same step that generates this document (see Section 8).
-
 **Pending relevant decisions:**
-- Explicit gate acceptance decision (never came, not on the 28th nor the 31st).
 - Whether it's worth applying the same canceled/draft fix to Receipts.
 - Whether to design a real auto-correction mechanism for Inventory (beyond alerting), or leave it as permanent manual review.
 
@@ -163,7 +159,7 @@ GetCostReport_Xml (Wansoft, Wansoft-only branches)                   -> cost-wei
 - A bug "fixed" in a diagnostic/gate script isn't fixed in production until it's verified in the real canonical ETL — this happened twice this session (canceled orders in Purchases, virtual locations in Inventory) with bugs already believed resolved since the gate.
 - Before killing a process that looks orphaned, verify which command/file it actually is — don't assume it's yours just because it coincides in time.
 
-**Git state:** branch `main`, last push `21078c8` (2026-08-27, before the gate session). Neither the gate session (2026-08-27) nor this session (2026-08-31) had been committed — resolved in this same step. Files included in today's commit:
+**Git state:** branch `main`, up to date with `origin/main`. Both the gate session (2026-08-27) and this session (2026-08-31) are now committed and pushed (commits `e7366f0`, `0974f97`, `e60dbf9`, `6756fc8` — the first three have Spanish commit messages, a one-time regression from the English-only convention, left as-is rather than rewriting pushed history; see project memory `feedback_github_content_english_only`). Files included:
 
 *From the gate session (2026-08-27):*
 - `extract/costs/odoo_cost_report.py` — Merma fix + account audit.
@@ -201,7 +197,7 @@ See the previous report (commit `21078c8` or earlier) for the full gate session 
 | 5 | Canceled orders inflating the **real** Purchases canonical ETL | `canonical_purchase_etl.py` (the #2 fix was never propagated) | `extract/purchases/canonical_purchase_etl.py` (2026-08-31) |
 | 6 | Odoo virtual locations counted as real stock | `build_analytics_inventory_snapshot.py` | Same module (2026-08-31) |
 
-**Gate result after today's fixes:** Purchases and Inventory, each compared independently against live Odoo, are at **20/20 PASS** for the 6 active branches (T+7 and T+30), several with an exact match. The evidence today is stronger and cleaner than on August 27 — but the formal "gate accepted" decision still hasn't happened explicitly.
+**Gate result after today's fixes:** Purchases and Inventory, each compared independently against live Odoo, are at **20/20 PASS** for the 6 active branches (T+7 and T+30), several with an exact match. **The gate was formally accepted by the project owner on 2026-08-31.**
 
 **Don't reopen without a new reason:** the Total Cost recognition lag in fresh weeks (original gate, bugs #1-#4) remains the same finding confirmed with 4 weeks of real data — not touched or re-investigated this session.
 
@@ -215,13 +211,14 @@ See the previous report (commit `21078c8` or earlier) for the full gate session 
 - **New:** Purchases self-corrects in the checkpoint; Inventory alerts only (explicit decision after understanding the real correction mechanism wasn't ready).
 - **New:** build the missing Inventory automation ("let's go for it").
 - **New:** commit and push all accumulated work.
+- **New:** all commits and documentation pushed to GitHub must be in English, even though the working conversation is in Spanish (see project memory `feedback_github_content_english_only`).
+- **New:** the final acceptance gate (Costs/Purchases/Inventory, Odoo branches) is formally **ACCEPTED** as of 2026-08-31.
 
 ---
 
 # 11-12. Identified Legacy / Consolidated Backlog
 
 **Backlog:**
-- Explicit gate acceptance decision (still pending).
 - Evaluate whether to apply the canceled/draft fix to `canonical_purchase_receipt_snapshot`/`_receipt_move_snapshot` as well.
 - Evaluate a real auto-correction mechanism for Inventory (beyond alerting), if the volume of FAILs justifies it over time.
 - Evaluate whether to reconcile the `created_at` date offset in `costeomensual_semanapyq` (inherited from the gate).
