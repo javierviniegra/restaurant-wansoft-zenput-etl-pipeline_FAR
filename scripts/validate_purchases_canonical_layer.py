@@ -75,8 +75,8 @@ ROLLOUT_COMPANY_EXPECTATIONS = [
     {
         "company_source_key": "Puebla",
         "rollout_type": "new_odoo_branch",
-        "active": False,
-        "description": "Future Odoo rollout branch. Documented but not enforced yet.",
+        "active": True,
+        "description": "Activated 2026-08-31. No Wansoft purchase/inventory history ever existed for Puebla (confirmed: 0 rows in getinputinventory_entrada / getOutgoingInventory_Salida), so this is a pure new_odoo_branch, same pattern as CentroMyJ.",
     },
 ]
 

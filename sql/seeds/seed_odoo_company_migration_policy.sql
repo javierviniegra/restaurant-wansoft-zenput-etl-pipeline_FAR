@@ -95,9 +95,9 @@ VALUES
     'new_odoo_branch',
     'odoo',
     1,
-    '2026-07-22',
-    0,
-    'Initial policy seed from current purchase snapshot. Review company type before production.'
+    '2026-06-10',
+    1,
+    'Activated 2026-08-31. No Wansoft purchase/inventory history ever existed for Puebla (confirmed: 0 rows in getinputinventory_entrada / getOutgoingInventory_Salida) -- pure new_odoo_branch, same pattern as CentroMyJ. operational_start_date matches the value already active in production (differs from the original seed of 2026-07-22, kept as-is per the same policy already used for Acoxpa/Tepeyac/Oceania).'
 ),
 (
     6,
