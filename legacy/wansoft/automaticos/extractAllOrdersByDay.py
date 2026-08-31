@@ -8,6 +8,10 @@ import html
 import sys
 import os
 
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 # 2. Ahora sí podemos importar nuestra función
 from core.database.mysql import get_db_connection
 
