@@ -103,7 +103,7 @@ subsidiaries = [
     s for s in subsidiaries
     if is_wansoft_company(s["nombreCorto"])
 ]
-print(subsidiaries)
+print([s["nombreCorto"] for s in subsidiaries])
 
 # Función auxiliar para convertir valores a float eliminando comas
 def safe_float(value, default=0.0):
