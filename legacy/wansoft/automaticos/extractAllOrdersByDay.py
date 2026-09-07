@@ -91,12 +91,11 @@ cuentas_sucursales = [
     ("12806", "Puebla", os.getenv("WANSOFT_PWD_12806"))
 ]
 
-from core.config.company_filter import is_wansoft_company
-
-cuentas_sucursales = [
-    cuenta for cuenta in cuentas_sucursales
-    if is_wansoft_company(cuenta[1])
-]
+# Sales stays on Wansoft for all 19 branches regardless of COMPANY_SOURCE
+# (ALWAYS_WANSOFT_DOMAINS = {"sales"} in core/config/companies.py) --
+# no is_wansoft_company() filter here, unlike the Purchases/Inventory
+# scripts. That filter used to be applied here too and silently dropped
+# the 7 Odoo-migrated branches from the Candado.
 
 ## ─────────────────────────────────────────────
 # UTILIDADES DE BASE DE DATOS
