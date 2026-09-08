@@ -16,6 +16,7 @@ from pipelines.jobs.zenput_tasks_job import run_zenput_tasks_job
 from pipelines.jobs.odoo_cutover_validation_job import run_odoo_cutover_validation_job
 from pipelines.jobs.inventory_pipeline_job import run_inventory_pipeline_job
 from pipelines.jobs.purchases_pipeline_job import run_purchases_pipeline_job
+from pipelines.jobs.analytics_purchase_pipeline_job import run_analytics_purchase_pipeline_job
 
 
 def schedule_job(job, delay_seconds):
@@ -113,6 +114,15 @@ def start():
     # a la 1:30pm -- nunca había quedado agendado; sin esto, el lado Odoo
     # de Compras se queda congelado en la fecha de la última corrida manual
     schedule_daily_at(run_purchases_pipeline_job, hour=13, minute=30)
+
+    # rebuild diario de la capa analítica de Compras para Power BI
+    # (analytics_purchase_order_lines -> analytics_purchase_orders ->
+    # analytics_purchase_daily_company_product), a la 1:50pm -- corre
+    # después del refresco de canonical_purchase_order_snapshot de arriba,
+    # con margen de tiempo. Nunca había quedado agendado; sin esto, Power
+    # BI no puede repuntarse a analytics_purchase_orders porque se queda
+    # congelado en la última corrida manual (ver docs/power-bi-source-migration.md)
+    schedule_daily_at(run_analytics_purchase_pipeline_job, hour=13, minute=50)
 
     # checkpoint T+7/T+30 de sucursales migradas a Odoo (Compras/Inventario)
     # a las 3pm, fuera del horario de los procesos diarios de arriba
