@@ -104,22 +104,48 @@ def safe_float(value, default=0.0):
     except (ValueError, AttributeError):
         return default
 
-def generate_insert_queries(salidas_xml, subsidiary_name):
+def generate_insert_queries(salidas_xml, subsidiary_name, current_date_str):
     """
-    Genera y muestra los queries INSERT para las salidas de inventario y sus detalles.
+    Inserta o actualiza las salidas de inventario, verificando primero si el
+    registro ya existe (por IdSalida) -- igual que getInputInventory.py.
+    Antes hacia INSERT puro sin verificar, lo que duplicaba cada registro en
+    cada corrida diaria dentro de la ventana de 31 dias que se re-procesa
+    (bug real, encontrado 2026-09-08 comparando dev vs productivo: dev
+    traia ~3x los registros de productivo).
+
+    La tabla no tiene indice en IdSalida (36M+ filas -- agregarlo tumbo el
+    MySQL local de XAMPP, buffer pool de solo 16MB, 2026-09-08), asi que en
+    vez de una consulta por cada registro (miles por dia, cada una
+    escaneando la sucursal completa), se hace UNA sola consulta por
+    (sucursal, fecha) usando el indice existente en subsidiary_name, y la
+    comparacion contra lo ya insertado se hace en memoria con un dict.
     Args:
         salidas_xml (str): Contenido del XML.
         subsidiary_name (str): Nombre de la subsidiaria.
+        current_date_str (str): Fecha del dia que se esta procesando
+            (YYYY-MM-DD), para acotar la consulta de pre-carga.
     Returns:
-        tuple: (query_list, params_list)
+        tuple: (query, ultimos params) -- mantenido por compatibilidad con
+        el llamador, que no usa el valor mas que para imprimir si se quiere.
     """
     # Parsear el XML
     salidas = salidas_xml.findall(".//Salida")
-    # Lista para almacenar las consultas y parámetros
-    query_list = []
-    params_list = []
-    # Consulta INSERT para la tabla getOutgoingInventory_Salida
-    query = """
+
+    if not salidas:
+        return None, None
+
+    preload_query = """
+        SELECT IdSalida, Cantidad, CostoUnitario, TipoSalida
+        FROM getOutgoingInventory_Salida
+        WHERE subsidiary_name = %s AND Fecha = %s
+    """
+    cursor.execute(preload_query, (subsidiary_name, current_date_str))
+    existing_by_id = {
+        row[0]: (row[1], row[2], row[3])
+        for row in cursor.fetchall()
+    }
+
+    insert_query = """
         INSERT INTO getOutgoingInventory_Salida (
             subsidiary_name,
             IdSalida,
@@ -152,6 +178,21 @@ def generate_insert_queries(salidas_xml, subsidiary_name):
             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         );
     """
+
+    update_query = """
+        UPDATE getOutgoingInventory_Salida SET
+            IdEntrada=%s, IdAlmacen=%s, Almacen=%s, CuentaContableAlmacen=%s,
+            CuentaContableDepartamento=%s, Departamento=%s, IdProducto=%s,
+            CodigoProducto=%s, NombreProducto=%s, CodigoUnidadDeMedida=%s,
+            IdUnidadDeMedida=%s, UnidadDeMedida=%s, TipoSalida=%s, Cantidad=%s,
+            CostoUnitario=%s, Caducidad=%s, FechaSalida=%s, IdTransferencia=%s,
+            FolioTransferencia=%s, Orden=%s, Fecha=%s, IdDetalleVenta=%s,
+            IdUsuario=%s, NombreUsuario=%s, FechaReal=%s
+        WHERE IdSalida=%s AND subsidiary_name=%s
+    """
+
+    last_params = None
+
     for salida in salidas:
         # Extraer datos del XML/JSON
         IdSalida = salida.get("IdSalida")
@@ -161,69 +202,67 @@ def generate_insert_queries(salidas_xml, subsidiary_name):
         CuentaContableAlmacen = salida.get("CuentaContableAlmacen")
         CuentaContableDepartamento = salida.get("CuentaContableDepartamento")
         Departamento = salida.get("Departamento")
-        
+
         IdProducto = int(salida.get("IdProducto", 0))
         CodigoProducto = salida.get("CodigoProducto")
         NombreProducto = salida.get("NombreProducto")
-        
+
         CodigoUnidadDeMedida = salida.get("CodigoUnidadDeMedida")
         IdUnidadDeMedida = int(salida.get("IdUnidadDeMedida", 0))
         UnidadDeMedida = salida.get("UnidadDeMedida")
-        
+
         TipoSalida = salida.get("TipoSalida")
         Cantidad = float(salida.get("Cantidad", 0))
         CostoUnitario = float(salida.get("CostoUnitario", 0))
-        
+
         Caducidad = salida.get("Caducidad") or None
         FechaSalida = salida.get("FechaSalida")
-        
+
         IdTransferencia = salida.get("IdTransferencia") or None
         FolioTransferencia = salida.get("FolioTransferencia")
-        
+
         Orden = salida.get("Orden")
         Fecha = salida.get("Fecha")
         IdDetalleVenta = salida.get("IdDetalleVenta")
-        
+
         IdUsuario = salida.get("IdUsuario") or None
         NombreUsuario = salida.get("NombreUsuario")
         FechaReal = salida.get("FechaReal")
-        # Preparar parámetros para la consulta
-        params = (
-            subsidiary_name,
-            IdSalida,
-            IdEntrada,
-            IdAlmacen,
-            Almacen,
-            CuentaContableAlmacen,
-            CuentaContableDepartamento,
-            Departamento,
-            IdProducto,
-            CodigoProducto,
-            NombreProducto,
-            CodigoUnidadDeMedida,
-            IdUnidadDeMedida,
-            UnidadDeMedida,
-            TipoSalida,
-            Cantidad,
-            CostoUnitario,
-            Caducidad,
-            FechaSalida,
-            IdTransferencia,
-            FolioTransferencia,
-            Orden,
-            Fecha,
-            IdDetalleVenta,
-            IdUsuario,
-            NombreUsuario,
-            FechaReal
+
+        row = existing_by_id.get(IdSalida)
+
+        detail_fields = (
+            IdEntrada, IdAlmacen, Almacen, CuentaContableAlmacen,
+            CuentaContableDepartamento, Departamento, IdProducto,
+            CodigoProducto, NombreProducto, CodigoUnidadDeMedida,
+            IdUnidadDeMedida, UnidadDeMedida, TipoSalida, Cantidad,
+            CostoUnitario, Caducidad, FechaSalida, IdTransferencia,
+            FolioTransferencia, Orden, Fecha, IdDetalleVenta,
+            IdUsuario, NombreUsuario, FechaReal,
         )
-        cursor.execute(query, params)
-        # Agregar la consulta y los parámetros a las listas
-        query_list.append(query)
-        params_list.append(params)
+
+        if row:
+            cantidad_db, costo_unitario_db, tipo_salida_db = row
+            if (
+                abs(float(cantidad_db) - Cantidad) > 0.01 or
+                abs(float(costo_unitario_db) - CostoUnitario) > 0.01 or
+                tipo_salida_db != TipoSalida
+            ):
+                update_params = detail_fields + (IdSalida, subsidiary_name)
+                cursor.execute(update_query, update_params)
+                print(f"[🔁] Actualizado: {IdSalida}")
+                last_params = update_params
+            else:
+                print(f"[✔] Sin cambios: {IdSalida}")
+        else:
+            insert_params = (subsidiary_name, IdSalida) + detail_fields
+            cursor.execute(insert_query, insert_params)
+            print(f"[🆕] Insertado: {IdSalida}")
+            last_params = insert_params
+
     #confirmo los cambios en la BD
     db_connection.commit()
-    return query, (params_list[-1] if params_list else None)
+    return insert_query, last_params
 
 def print_sql_queries(query_orden, params_orden):
     """Imprime los queries SQL en formato ejecutable"""
@@ -281,7 +320,7 @@ def get_from_soap(client, subsidiaries, start_date, end_date):
                     for salidas in root.findall('.//Salidas'):
                         # Generar los queries
                         query_inventario, params_inventario = generate_insert_queries(
-                            salidas, subsidiary['id']
+                            salidas, subsidiary['id'], current_date_str
                         )
                         #print("El query: " + query_inventario)
                         #print_sql_queries(query_inventario, params_inventario)
