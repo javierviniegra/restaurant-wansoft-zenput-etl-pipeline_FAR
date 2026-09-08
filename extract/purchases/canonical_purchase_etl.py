@@ -1,4 +1,9 @@
+import sys
 import pandas as pd
+
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
 
 from core.database.mysql import get_mysql_connection as get_db_connection
 from extract.purchases.odoo_purchase_etl import (

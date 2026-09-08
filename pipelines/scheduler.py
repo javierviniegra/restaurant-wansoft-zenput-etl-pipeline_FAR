@@ -15,6 +15,7 @@ from pipelines.jobs.zenput_forms_job import run_zenput_forms_job
 from pipelines.jobs.zenput_tasks_job import run_zenput_tasks_job
 from pipelines.jobs.odoo_cutover_validation_job import run_odoo_cutover_validation_job
 from pipelines.jobs.inventory_pipeline_job import run_inventory_pipeline_job
+from pipelines.jobs.purchases_pipeline_job import run_purchases_pipeline_job
 
 
 def schedule_job(job, delay_seconds):
@@ -107,6 +108,11 @@ def start():
     # refresco diario de analytics_inventory_snapshot/_balance (mecánico,
     # no promueve mapeos nuevos) a la 1pm, antes del checkpoint de cutover
     schedule_daily_at(run_inventory_pipeline_job, hour=13, minute=0)
+
+    # refresco diario de canonical_purchase_order_snapshot (Odoo + Wansoft)
+    # a la 1:30pm -- nunca había quedado agendado; sin esto, el lado Odoo
+    # de Compras se queda congelado en la fecha de la última corrida manual
+    schedule_daily_at(run_purchases_pipeline_job, hour=13, minute=30)
 
     # checkpoint T+7/T+30 de sucursales migradas a Odoo (Compras/Inventario)
     # a las 3pm, fuera del horario de los procesos diarios de arriba
