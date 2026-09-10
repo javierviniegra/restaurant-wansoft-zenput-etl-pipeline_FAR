@@ -1,12 +1,17 @@
 from pathlib import Path
 import runpy
 import os
+import sys
 
 from core.config.env_loader import load_environment
 
 
 # ✅ cargar UNA vez
 load_environment()
+
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
 
 
 def run_legacy_script(script_relative_path: str, company_name: str = None):
