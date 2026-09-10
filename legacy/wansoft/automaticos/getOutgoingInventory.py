@@ -260,6 +260,13 @@ def generate_insert_queries(salidas_xml, subsidiary_name, current_date_str):
             print(f"[🆕] Insertado: {IdSalida}")
             last_params = insert_params
 
+        # Reflejar el insert/update en el dict en memoria: si el mismo
+        # IdSalida vuelve a aparecer mas adelante en este mismo lote (visto
+        # 2026-09-09, Aeropuerto 2026-08-30 -- Wansoft repitio registros
+        # dentro de la misma llamada), debe verse como existente, no
+        # volver a insertarse como si fuera nuevo.
+        existing_by_id[IdSalida] = (Cantidad, CostoUnitario, TipoSalida)
+
     #confirmo los cambios en la BD
     db_connection.commit()
     return insert_query, last_params
