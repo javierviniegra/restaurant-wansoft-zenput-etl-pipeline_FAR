@@ -704,6 +704,9 @@ def load_wansoft_operational_start_dates():
     return result
 
 
+WANSOFT_CANONICAL_INCREMENTAL_WINDOW_DAYS = 35
+
+
 def load_wansoft_input_inventory_facturas():
     """
     Loads Wansoft purchase-like inventory inputs.
@@ -713,13 +716,21 @@ def load_wansoft_input_inventory_facturas():
 
     Filter:
         TipoEntrada = 'Factura'
+        FechaEntrada within the last WANSOFT_CANONICAL_INCREMENTAL_WINDOW_DAYS
+        days -- this table holds Wansoft's full history back to 2021 with no
+        index on TipoEntrada; reloading and re-aggregating all of it on every
+        run made this single step take 17+ hours (measured 2026-09-08 and
+        2026-09-10). Older canonical rows are left untouched by
+        delete_existing_wansoft_rows(), so history beyond this window is
+        preserved, just not re-verified daily -- per the user, only the last
+        ~month needs to be checked for completeness on each run.
 
     FechaEntrada is used as the operational purchase/input date.
     FechaReal is preserved as reference date for Wansoft upload/capture timing.
     """
     conn = get_db_connection(target="wansoft")
 
-    query = """
+    query = f"""
     SELECT
         id,
         subsidiary_name,
@@ -756,6 +767,7 @@ def load_wansoft_input_inventory_facturas():
         created_at
     FROM getinputinventory_entrada
     WHERE TipoEntrada = 'Factura'
+      AND FechaEntrada >= DATE_SUB(CURDATE(), INTERVAL {WANSOFT_CANONICAL_INCREMENTAL_WINDOW_DAYS} DAY)
     """
 
     df = pd.read_sql(query, conn)
@@ -1112,11 +1124,15 @@ def build_wansoft_canonical_receipts(df_base: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def delete_existing_wansoft_rows(table_name: str):
+def delete_existing_wansoft_rows(table_name: str, date_column: str):
     """
-    Deletes only Wansoft rows from a canonical table.
+    Deletes only recent Wansoft rows from a canonical table -- the last
+    WANSOFT_CANONICAL_INCREMENTAL_WINDOW_DAYS days, matching the load window
+    in load_wansoft_input_inventory_facturas(). Older Wansoft rows are left
+    untouched, so the full purchase history is preserved even though only
+    the recent window gets re-verified/reloaded on each run.
 
-    Existing source_system = 'odoo' rows are preserved.
+    Existing source_system = 'odoo' rows are always preserved regardless.
     """
     conn = get_db_connection(target="wansoft")
     cursor = conn.cursor()
@@ -1125,6 +1141,7 @@ def delete_existing_wansoft_rows(table_name: str):
         f"""
         DELETE FROM {table_name}
         WHERE source_system = %s
+          AND {date_column} >= DATE_SUB(CURDATE(), INTERVAL {WANSOFT_CANONICAL_INCREMENTAL_WINDOW_DAYS} DAY)
         """,
         (SOURCE_SYSTEM_WANSOFT,)
     )
@@ -1190,7 +1207,7 @@ def ensure_unique_wansoft_orders_for_insert(df: pd.DataFrame) -> pd.DataFrame:
 def save_wansoft_canonical_orders(df: pd.DataFrame):
     table_name = "canonical_purchase_order_snapshot"
 
-    delete_existing_wansoft_rows(table_name)
+    delete_existing_wansoft_rows(table_name, "order_date")
 
     if df is None or df.empty:
         print("No hay órdenes Wansoft elegibles para capa canónica.")
@@ -1277,7 +1294,7 @@ def save_wansoft_canonical_orders(df: pd.DataFrame):
 
 def save_wansoft_canonical_lines(df: pd.DataFrame):
     table_name = "canonical_purchase_order_line_snapshot"
-    delete_existing_wansoft_rows(table_name)
+    delete_existing_wansoft_rows(table_name, "order_date")
 
     if df is None or df.empty:
         print("No hay líneas Wansoft elegibles para capa canónica.")
@@ -1441,7 +1458,7 @@ def ensure_unique_wansoft_receipts_for_insert(df: pd.DataFrame) -> pd.DataFrame:
 def save_wansoft_canonical_receipts(df: pd.DataFrame):
     table_name = "canonical_purchase_receipt_snapshot"
 
-    delete_existing_wansoft_rows(table_name)
+    delete_existing_wansoft_rows(table_name, "date_done")
 
     if df is None or df.empty:
         print("No hay recepciones Wansoft elegibles para capa canónica.")
@@ -1526,7 +1543,7 @@ def save_wansoft_canonical_receipts(df: pd.DataFrame):
 
 def save_wansoft_canonical_receipt_moves(df: pd.DataFrame):
     table_name = "canonical_purchase_receipt_move_snapshot"
-    delete_existing_wansoft_rows(table_name)
+    delete_existing_wansoft_rows(table_name, "move_date")
 
     if df is None or df.empty:
         print("No hay movimientos Wansoft elegibles para capa canónica.")
