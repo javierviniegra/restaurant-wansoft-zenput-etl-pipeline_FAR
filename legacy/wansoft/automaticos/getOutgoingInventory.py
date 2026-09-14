@@ -106,24 +106,27 @@ def safe_float(value, default=0.0):
 
 def generate_insert_queries(salidas_xml, subsidiary_name, current_date_str):
     """
-    Inserta o actualiza las salidas de inventario, verificando primero si el
-    registro ya existe (por IdSalida) -- igual que getInputInventory.py.
-    Antes hacia INSERT puro sin verificar, lo que duplicaba cada registro en
-    cada corrida diaria dentro de la ventana de 31 dias que se re-procesa
-    (bug real, encontrado 2026-09-08 comparando dev vs productivo: dev
-    traia ~3x los registros de productivo).
+    Inserta o actualiza las salidas de inventario usando
+    INSERT ... ON DUPLICATE KEY UPDATE contra el indice unico real
+    uq_subsidiary_fecha_idsalida (subsidiary_name, Fecha, IdSalida)
+    (2026-09-14).
 
-    La tabla no tiene indice en IdSalida (36M+ filas -- agregarlo tumbo el
-    MySQL local de XAMPP, buffer pool de solo 16MB, 2026-09-08), asi que en
-    vez de una consulta por cada registro (miles por dia, cada una
-    escaneando la sucursal completa), se hace UNA sola consulta por
-    (sucursal, fecha) usando el indice existente en subsidiary_name, y la
-    comparacion contra lo ya insertado se hace en memoria con un dict.
+    Reemplaza el enfoque anterior de precargar existentes en un dict de
+    Python y decidir INSERT vs UPDATE ahi: ese dict se demostro insuficiente
+    dos veces -- una vez para duplicados dentro del mismo lote (arreglado
+    2026-09-09 actualizando el dict en el loop) y otra vez para duplicados
+    entre corridas distintas (encontrado 2026-09-10, nunca explicado del
+    todo: una fila insertada el 2026-09-08 no fue reconocida por la
+    precarga de la corrida del 2026-09-10, aun con el fix de 2026-09-09 ya
+    aplicado). En vez de seguir cazando la causa exacta en memoria, la
+    unicidad ahora la garantiza MySQL mismo -- sin importar que pase en
+    Python, un duplicado real es imposible de insertar.
+
     Args:
         salidas_xml (str): Contenido del XML.
         subsidiary_name (str): Nombre de la subsidiaria.
         current_date_str (str): Fecha del dia que se esta procesando
-            (YYYY-MM-DD), para acotar la consulta de pre-carga.
+            (YYYY-MM-DD), solo se usa para logging.
     Returns:
         tuple: (query, ultimos params) -- mantenido por compatibilidad con
         el llamador, que no usa el valor mas que para imprimir si se quiere.
@@ -134,18 +137,7 @@ def generate_insert_queries(salidas_xml, subsidiary_name, current_date_str):
     if not salidas:
         return None, None
 
-    preload_query = """
-        SELECT IdSalida, Cantidad, CostoUnitario, TipoSalida
-        FROM getOutgoingInventory_Salida
-        WHERE subsidiary_name = %s AND Fecha = %s
-    """
-    cursor.execute(preload_query, (subsidiary_name, current_date_str))
-    existing_by_id = {
-        row[0]: (row[1], row[2], row[3])
-        for row in cursor.fetchall()
-    }
-
-    insert_query = """
+    upsert_query = """
         INSERT INTO getOutgoingInventory_Salida (
             subsidiary_name,
             IdSalida,
@@ -176,19 +168,21 @@ def generate_insert_queries(salidas_xml, subsidiary_name, current_date_str):
             FechaReal
         ) VALUES (
             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-        );
-    """
-
-    update_query = """
-        UPDATE getOutgoingInventory_Salida SET
-            IdEntrada=%s, IdAlmacen=%s, Almacen=%s, CuentaContableAlmacen=%s,
-            CuentaContableDepartamento=%s, Departamento=%s, IdProducto=%s,
-            CodigoProducto=%s, NombreProducto=%s, CodigoUnidadDeMedida=%s,
-            IdUnidadDeMedida=%s, UnidadDeMedida=%s, TipoSalida=%s, Cantidad=%s,
-            CostoUnitario=%s, Caducidad=%s, FechaSalida=%s, IdTransferencia=%s,
-            FolioTransferencia=%s, Orden=%s, Fecha=%s, IdDetalleVenta=%s,
-            IdUsuario=%s, NombreUsuario=%s, FechaReal=%s
-        WHERE IdSalida=%s AND subsidiary_name=%s
+        )
+        ON DUPLICATE KEY UPDATE
+            IdEntrada=VALUES(IdEntrada), IdAlmacen=VALUES(IdAlmacen),
+            Almacen=VALUES(Almacen), CuentaContableAlmacen=VALUES(CuentaContableAlmacen),
+            CuentaContableDepartamento=VALUES(CuentaContableDepartamento),
+            Departamento=VALUES(Departamento), IdProducto=VALUES(IdProducto),
+            CodigoProducto=VALUES(CodigoProducto), NombreProducto=VALUES(NombreProducto),
+            CodigoUnidadDeMedida=VALUES(CodigoUnidadDeMedida),
+            IdUnidadDeMedida=VALUES(IdUnidadDeMedida), UnidadDeMedida=VALUES(UnidadDeMedida),
+            TipoSalida=VALUES(TipoSalida), Cantidad=VALUES(Cantidad),
+            CostoUnitario=VALUES(CostoUnitario), Caducidad=VALUES(Caducidad),
+            FechaSalida=VALUES(FechaSalida), IdTransferencia=VALUES(IdTransferencia),
+            FolioTransferencia=VALUES(FolioTransferencia), Orden=VALUES(Orden),
+            IdDetalleVenta=VALUES(IdDetalleVenta), IdUsuario=VALUES(IdUsuario),
+            NombreUsuario=VALUES(NombreUsuario), FechaReal=VALUES(FechaReal)
     """
 
     last_params = None
@@ -229,47 +223,30 @@ def generate_insert_queries(salidas_xml, subsidiary_name, current_date_str):
         NombreUsuario = salida.get("NombreUsuario")
         FechaReal = salida.get("FechaReal")
 
-        row = existing_by_id.get(IdSalida)
-
-        detail_fields = (
-            IdEntrada, IdAlmacen, Almacen, CuentaContableAlmacen,
-            CuentaContableDepartamento, Departamento, IdProducto,
-            CodigoProducto, NombreProducto, CodigoUnidadDeMedida,
+        upsert_params = (
+            subsidiary_name, IdSalida, IdEntrada, IdAlmacen, Almacen,
+            CuentaContableAlmacen, CuentaContableDepartamento, Departamento,
+            IdProducto, CodigoProducto, NombreProducto, CodigoUnidadDeMedida,
             IdUnidadDeMedida, UnidadDeMedida, TipoSalida, Cantidad,
             CostoUnitario, Caducidad, FechaSalida, IdTransferencia,
             FolioTransferencia, Orden, Fecha, IdDetalleVenta,
             IdUsuario, NombreUsuario, FechaReal,
         )
-
-        if row:
-            cantidad_db, costo_unitario_db, tipo_salida_db = row
-            if (
-                abs(float(cantidad_db) - Cantidad) > 0.01 or
-                abs(float(costo_unitario_db) - CostoUnitario) > 0.01 or
-                tipo_salida_db != TipoSalida
-            ):
-                update_params = detail_fields + (IdSalida, subsidiary_name)
-                cursor.execute(update_query, update_params)
-                print(f"[🔁] Actualizado: {IdSalida}")
-                last_params = update_params
-            else:
-                print(f"[✔] Sin cambios: {IdSalida}")
-        else:
-            insert_params = (subsidiary_name, IdSalida) + detail_fields
-            cursor.execute(insert_query, insert_params)
+        cursor.execute(upsert_query, upsert_params)
+        # MySQL/MariaDB rowcount para INSERT ... ON DUPLICATE KEY UPDATE:
+        # 1 = insertado nuevo, 2 = ya existia y algun valor cambio,
+        # 0 = ya existia y los valores son identicos (no-op real).
+        if cursor.rowcount == 1:
             print(f"[🆕] Insertado: {IdSalida}")
-            last_params = insert_params
-
-        # Reflejar el insert/update en el dict en memoria: si el mismo
-        # IdSalida vuelve a aparecer mas adelante en este mismo lote (visto
-        # 2026-09-09, Aeropuerto 2026-08-30 -- Wansoft repitio registros
-        # dentro de la misma llamada), debe verse como existente, no
-        # volver a insertarse como si fuera nuevo.
-        existing_by_id[IdSalida] = (Cantidad, CostoUnitario, TipoSalida)
+        elif cursor.rowcount == 2:
+            print(f"[🔁] Actualizado: {IdSalida}")
+        else:
+            print(f"[✔] Sin cambios: {IdSalida}")
+        last_params = upsert_params
 
     #confirmo los cambios en la BD
     db_connection.commit()
-    return insert_query, last_params
+    return upsert_query, last_params
 
 def print_sql_queries(query_orden, params_orden):
     """Imprime los queries SQL en formato ejecutable"""
