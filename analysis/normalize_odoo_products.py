@@ -25,8 +25,14 @@ def normalize_odoo_products(df: pd.DataFrame) -> pd.DataFrame:
     # limpiar nombres
     out["product_name"] = out["product_name"].astype(str).str.strip()
 
-    # limpiar códigos
-    out["odoo_code"] = out["odoo_code"].apply(
+    # limpiar códigos -- integration_code ya prioriza x_wansoft_code (referencia
+    # explícita) sobre default_code, per docs/purchases-product-mapping-policy.md.
+    # extract_odoo_products() dejó de emitir una columna "odoo_code" cuando se
+    # agregó soporte a x_wansoft_code; este normalizador nunca se actualizó,
+    # por lo que build_product_mapping() truena con KeyError en cualquier
+    # corrida actual (confirmado 2026-09-15).
+    source_col = "integration_code" if "integration_code" in out.columns else "odoo_code"
+    out["odoo_code"] = out[source_col].apply(
         lambda x: None if pd.isna(x) or x in [False, "", "False"] else str(x).strip()
     )
 
