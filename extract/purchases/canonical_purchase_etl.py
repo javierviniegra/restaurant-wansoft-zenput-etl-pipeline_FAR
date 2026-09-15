@@ -1458,7 +1458,14 @@ def ensure_unique_wansoft_receipts_for_insert(df: pd.DataFrame) -> pd.DataFrame:
 def save_wansoft_canonical_receipts(df: pd.DataFrame):
     table_name = "canonical_purchase_receipt_snapshot"
 
-    delete_existing_wansoft_rows(table_name, "date_done")
+    # Must match the date column the eligibility query filters on
+    # (FechaEntrada -> scheduled_date here), not date_done (FechaReal):
+    # those two dates can diverge per row, so deleting by date_done left
+    # rows in the table whose scheduled_date still fell inside the
+    # incremental window, and the re-insert crashed on a real duplicate
+    # key (confirmed 2026-09-15, e.g. Aeropuerto receipts scheduled_date
+    # 2026-08-12 but date_done 2026-08-05, outside the delete window).
+    delete_existing_wansoft_rows(table_name, "scheduled_date")
 
     if df is None or df.empty:
         print("No hay recepciones Wansoft elegibles para capa canónica.")
