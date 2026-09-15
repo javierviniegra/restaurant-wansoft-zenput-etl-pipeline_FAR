@@ -450,13 +450,22 @@ def build_analytics_row(
         is_internal_vendor = bool(vendor_row.get("is_internal_vendor"))
         include_vendor_in_business_views = bool(vendor_row.get("include_in_business_views"))
 
-        if is_internal_vendor:
-            include_in_business_views = False
-            exclude_reason = append_reason(exclude_reason, "internal_vendor")
-
-        if not include_vendor_in_business_views:
-            include_in_business_views = False
-            exclude_reason = append_reason(exclude_reason, "vendor_excluded")
+        # Do NOT exclude a line just because the vendor is an internal
+        # provider (Bodegón/Empanadas) -- dim_vendor's own
+        # include_in_business_views is set to False for every internal
+        # vendor unconditionally (build_dim_vendor.py), which contradicts
+        # docs/purchases-product-mapping-policy.md: "Exclude internal
+        # providers when they appear as company_name. Keep them when they
+        # appear as vendor_name and the buying company is final-eligible."
+        # A real branch (company_source_key) buying from the internal
+        # kitchen is a real purchase for that branch -- confirmed 2026-09-15
+        # against Power BI: this exclusion alone accounted for ~$385K
+        # (Acoxpa) / ~$121K (Coyoacán) of legitimate August purchases
+        # missing from include_in_business_views. The buying company being
+        # internal is already excluded separately above
+        # (company_row.is_internal_provider); is_internal_vendor /
+        # include_vendor_in_business_views are still tracked on the row for
+        # reporting, just no longer used to force exclusion here.
     else:
         include_in_business_views = False
         exclude_reason = append_reason(exclude_reason, "orphan_vendor")
