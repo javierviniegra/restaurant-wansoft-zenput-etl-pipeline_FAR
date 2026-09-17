@@ -95,8 +95,21 @@ COMPANY_SOURCE_CONTROLLED_DOMAINS = {
 
 
 # Domains that must always use Wansoft
+# "costs" added 2026-09-17: Costs was never actually migrated (see
+# docs/power-bi-source-migration.md, "No unified analytics table exists
+# yet for Costs") -- confirmed live that the user's Power BI still reads
+# Costs entirely from Wansoft for every branch, including the 7 already
+# migrated to Odoo for purchases/inventory. The 3 cost scripts
+# (descargarCostoWansoft.py, getTotalCostByDate.py,
+# getCostReport_SemanaPyQ.py) were incorrectly reusing COMPANY_SOURCE
+# (which only governs purchases/inventory) via is_wansoft_company(), so
+# an Odoo-migrated branch silently lost CostoDeCortesias/CostoDeCancelaciones
+# (no Odoo equivalent, left NULL) and got a slightly different
+# CostoTotal/CostoDeProductosVendidos/CostoDeMerma (computed from Odoo
+# accounting instead of Wansoft's).
 ALWAYS_WANSOFT_DOMAINS = {
     "sales",
+    "costs",
 }
 
 

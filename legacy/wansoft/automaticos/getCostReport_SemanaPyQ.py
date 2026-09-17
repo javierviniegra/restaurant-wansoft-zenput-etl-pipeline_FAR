@@ -42,15 +42,18 @@ subsidiaries = [
     {"id":12802, "nombreCorto": "CentroMyJ", "name":"Fonda Argentina - Centro Mario y July", "password": os.getenv("WANSOFT_PWD_12802")},
     {"id":12806, "nombreCorto": "Puebla", "name":"Fonda Argentina - Puebla", "password": os.getenv("WANSOFT_PWD_12806")}
 ]
-from core.config.company_filter import is_wansoft_company
+from core.config.companies import is_company_wansoft_source
 
+# Costs is in ALWAYS_WANSOFT_DOMAINS (core/config/companies.py) -- it has
+# never actually been migrated, unlike purchases/inventory, so every
+# branch stays on the Wansoft path here regardless of COMPANY_SOURCE.
 wansoft_subsidiaries = [
     s for s in subsidiaries
-    if is_wansoft_company(s["nombreCorto"])
+    if is_company_wansoft_source(s["nombreCorto"], "costs")
 ]
 odoo_subsidiaries = [
     s for s in subsidiaries
-    if not is_wansoft_company(s["nombreCorto"])
+    if not is_company_wansoft_source(s["nombreCorto"], "costs")
 ]
 
 # Conexion a Base de Datos

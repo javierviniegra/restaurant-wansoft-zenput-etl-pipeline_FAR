@@ -77,11 +77,17 @@ subsidiaries = [
     {"id":12802, "nombreCorto": "CentroMyJ", "name":"Fonda Argentina - Centro Mario y July", "password": os.getenv("WANSOFT_PWD_12802")},
     {"id":12806, "nombreCorto": "Puebla", "name":"Fonda Argentina - Puebla", "password": os.getenv("WANSOFT_PWD_12806")}
 ]
-from core.config.company_filter import is_wansoft_company
+from core.config.companies import is_company_wansoft_source
 
+# Tablajería (costos de carnicería/corte) is part of Costs, which is in
+# ALWAYS_WANSOFT_DOMAINS (core/config/companies.py) -- it has never
+# actually been migrated, so every branch stays on the Wansoft path here
+# regardless of COMPANY_SOURCE. Before this fix (2026-09-17), this filter
+# used the purchases/inventory-only COMPANY_SOURCE check and silently
+# dropped all 7 Odoo-migrated branches from this report entirely.
 subsidiaries = [
     s for s in subsidiaries
-    if is_wansoft_company(s["nombreCorto"])
+    if is_company_wansoft_source(s["nombreCorto"], "costs")
 ]
 print([s["nombreCorto"] for s in subsidiaries])
 
