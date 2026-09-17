@@ -71,18 +71,20 @@ subsidiaries = [
     {"id":12802, "nombreCorto": "CentroMyJ", "name":"Fonda Argentina - Centro Mario y July", "password": os.getenv("WANSOFT_PWD_12802")},
     {"id":12806, "nombreCorto": "Puebla", "name":"Fonda Argentina - Puebla", "password": os.getenv("WANSOFT_PWD_12806")}
 ]
-from core.config.companies import is_company_wansoft_source
+from core.config.companies import is_company_wansoft_source_for_costs
 
-# Costs is in ALWAYS_WANSOFT_DOMAINS (core/config/companies.py) -- it has
-# never actually been migrated, unlike purchases/inventory, so every
-# branch stays on the Wansoft path here regardless of COMPANY_SOURCE.
+# Costs routing (see COSTS_ODOO_SOURCE_COMPANIES in core/config/companies.py):
+# Wansoft still has real cost data for branches migrated FROM Wansoft, but
+# genuinely has nothing for branches that started directly on Odoo
+# (Puebla, CentroMyJ) -- those go through the odoo_subsidiaries path below
+# instead (extract/costs/odoo_cost_report.py).
 wansoft_subsidiaries = [
     s for s in subsidiaries
-    if is_company_wansoft_source(s["nombreCorto"], "costs")
+    if is_company_wansoft_source_for_costs(s["nombreCorto"])
 ]
 odoo_subsidiaries = [
     s for s in subsidiaries
-    if not is_company_wansoft_source(s["nombreCorto"], "costs")
+    if not is_company_wansoft_source_for_costs(s["nombreCorto"])
 ]
 print(wansoft_subsidiaries)
 print(odoo_subsidiaries)

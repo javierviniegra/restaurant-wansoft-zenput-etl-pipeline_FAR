@@ -95,22 +95,53 @@ COMPANY_SOURCE_CONTROLLED_DOMAINS = {
 
 
 # Domains that must always use Wansoft
-# "costs" added 2026-09-17: Costs was never actually migrated (see
-# docs/power-bi-source-migration.md, "No unified analytics table exists
-# yet for Costs") -- confirmed live that the user's Power BI still reads
-# Costs entirely from Wansoft for every branch, including the 7 already
-# migrated to Odoo for purchases/inventory. The 3 cost scripts
-# (descargarCostoWansoft.py, getTotalCostByDate.py,
-# getCostReport_SemanaPyQ.py) were incorrectly reusing COMPANY_SOURCE
-# (which only governs purchases/inventory) via is_wansoft_company(), so
-# an Odoo-migrated branch silently lost CostoDeCortesias/CostoDeCancelaciones
-# (no Odoo equivalent, left NULL) and got a slightly different
-# CostoTotal/CostoDeProductosVendidos/CostoDeMerma (computed from Odoo
-# accounting instead of Wansoft's).
 ALWAYS_WANSOFT_DOMAINS = {
     "sales",
-    "costs",
 }
+
+
+# Costs governance, 2026-09-17: Costs was never actually migrated as a
+# domain the way purchases/inventory were (see
+# docs/power-bi-source-migration.md, "No unified analytics table exists
+# yet for Costs"), but it is NOT a simple "always Wansoft" either --
+# unlike sales. Two different situations exist among the 7
+# COMPANY_SOURCE=="odoo" companies:
+#
+# - Branches migrated FROM Wansoft (Acoxpa, Antenas, Tepeyac, Oceania,
+#   La Esquina Coyoacan): Wansoft's own cost report still has real,
+#   complete data for these (confirmed live 2026-09-17 -- CostoTotal,
+#   CostoDeProductosVendidos, CostoDeCortesias, CostoDeCancelaciones,
+#   CostoDeMerma all match the project owner's Power BI exactly for
+#   Acoxpa, both Aug and Sept 2026). Use Wansoft.
+# - Branches that started life directly on Odoo (Puebla, CentroMyJ):
+#   Wansoft's cost report genuinely returns 0.0 for these (confirmed
+#   live in the SOAP response itself, not a bug) -- they were never
+#   onboarded into Wansoft's product/recipe costing catalog. The only
+#   real source is extract/costs/odoo_cost_report.py (account.move.line,
+#   audited against both of these companies 2026-08-26/27). That module's
+#   own docstring already establishes CostoDeCortesias/CostoDeCancelaciones/
+#   CostoDeRobo/etc. have no reliable Odoo equivalent and must stay NULL
+#   for these rows -- not something to approximate.
+#
+# A first pass at this (2026-09-17, same day) put "costs" in
+# ALWAYS_WANSOFT_DOMAINS above, which was right for the 5 migrated
+# branches but silently broke Puebla/CentroMyJ's only working cost
+# source. This explicit set is the fix: check it before falling back to
+# ALWAYS_WANSOFT_DOMAINS-style ("costs" is intentionally NOT in that set).
+COSTS_ODOO_SOURCE_COMPANIES = {
+    "Puebla",
+    "CentroMyJ",
+}
+
+
+def is_company_wansoft_source_for_costs(company_name: str) -> bool:
+    """
+    Costs-domain routing: True unless the company is in
+    COSTS_ODOO_SOURCE_COMPANIES (branches with no Wansoft cost data at
+    all). See the comment above COSTS_ODOO_SOURCE_COMPANIES for why this
+    can't just be "always Wansoft" or a plain COMPANY_SOURCE check.
+    """
+    return company_name not in COSTS_ODOO_SOURCE_COMPANIES
 
 
 

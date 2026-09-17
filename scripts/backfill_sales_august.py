@@ -5,15 +5,16 @@ PROJECT_CONTEXT_REPORT.md 2026-09-15 session). Sales is always
 Wansoft-sourced regardless of Purchases/Inventory migration status, so
 this gap is purely a dev history gap, not a live pipeline issue.
 
-Backfills Aug 1-28 for a given branch by calling the real Candado
-(verificar_y_sincronizar) with a manual reference date, same
+Backfills Aug 1-28 for the given branch id(s) by calling the real
+Candado (verificar_y_sincronizar) with a manual reference date, same
 Cierre-Z-validated sync logic the daily job uses -- just pointed at
 history instead of "today". Does NOT modify extractAllOrdersByDay.py's
 own MODO/FECHA_MANUAL globals (those stay "hoy" for the real daily job);
 this monkey-patches the branch list on the already-imported module for
 the duration of this one call only.
 
-Usage: python -m scripts.backfill_sales_august_acoxpa
+Usage: python -m scripts.backfill_sales_august <subsidiary_id> [<subsidiary_id> ...]
+Example (Puebla): python -m scripts.backfill_sales_august 12806
 """
 
 import sys
@@ -25,7 +26,11 @@ sys.path.insert(0, str(ROOT))
 
 from legacy.wansoft.automaticos import extractAllOrdersByDay as candado  # noqa: E402
 
-TARGET_BRANCH_IDS = {"5320"}  # Acoxpa -- cuentas_sucursales stores ids as strings
+if len(sys.argv) < 2:
+    print("Usage: python -m scripts.backfill_sales_august <subsidiary_id> [<subsidiary_id> ...]")
+    raise SystemExit(1)
+
+TARGET_BRANCH_IDS = set(sys.argv[1:])  # cuentas_sucursales stores ids as strings
 
 original_accounts = candado.cuentas_sucursales
 candado.cuentas_sucursales = [
