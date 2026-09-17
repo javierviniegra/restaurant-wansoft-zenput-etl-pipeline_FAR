@@ -137,19 +137,56 @@ for subsidiary in wansoft_subsidiaries:
                     total_costo = float(cost_detail_dict['CostoTotal'])
                     total_productos_costo = float(cost_detail_dict['CostoDeProductosVendidos'])
 
+                    # CostoDeCortesias/CostoDeCancelaciones: overridden from
+                    # getGlobalCashClosing (month-to-date sum of
+                    # cortesias/cancelaciones en_cuentas + en_platillos)
+                    # instead of GetCostReport_Xml's own value, for all 19
+                    # branches uniformly -- project owner's explicit call
+                    # 2026-09-17: these are a Sales-domain value (the sale
+                    # price forfeited on the comped/cancelled item), and
+                    # Sales is always Wansoft-sourced regardless of which
+                    # system a branch uses for Purchases/Inventory/Costs,
+                    # same principle as ALWAYS_WANSOFT_DOMAINS. This is the
+                    # sale value, not a food-cost calculation -- accepted
+                    # knowingly, not an approximation error.
+                    cursor.execute("""
+                        SELECT SUM(cortesias_en_cuentas + cortesias_en_platillos) AS cortesias,
+                               SUM(cancelaciones_en_cuentas + cancelaciones_en_platillos) AS cancelaciones
+                        FROM getglobalcashclosing
+                        WHERE subsidiary_id = %s
+                          AND fecha_corte >= %s AND fecha_corte <= %s
+                    """, (subsidiary['id'], fecha.replace(day=1).strftime("%Y-%m-%d"), fecha.strftime("%Y-%m-%d 23:59:59")))
+                    cash_closing_row = cursor.fetchone()
+                    if cash_closing_row and cash_closing_row[0] is not None:
+                        cost_detail_dict['CostoDeCortesías'] = str(float(cash_closing_row[0]))
+                        cost_detail_dict['CostoDeCancelaciones'] = str(float(cash_closing_row[1] or 0))
+
                     # ----- reviso si el registro ya existe
                     cursor.execute("""
-                        SELECT id,CostoTotal,CostoDeProductosVendidos FROM costeoMensual
+                        SELECT id, CostoTotal, CostoDeProductosVendidos, CostoDeCortesías, CostoDeCancelaciones
+                        FROM costeoMensual
                         WHERE subsidiary_id = %s AND DATE(created_at) = %s
                     """, (subsidiary['id'], fecha.strftime("%Y-%m-%d")))
 
                     row = cursor.fetchone()
                     # -FIN-- reviso si el registro ya existe
 
+                    def _differs(new_str, old_val):
+                        if new_str is None:
+                            return False
+                        if old_val is None:
+                            return True
+                        return abs(float(new_str) - float(old_val)) > 0.01
+
                     if row: # Si existe el registro
-                        record_id, total_db, productos_db = row
+                        record_id, total_db, productos_db, cortesias_db, cancelaciones_db = row
                         print(f"El costo total descargado es: {total_costo}, el costo de productos vendidos descargado es: {total_productos_costo}y el de la bd es {total_db}")
-                        if ((abs(total_costo - float(total_db)) > 0.01) or (abs(total_productos_costo - float(productos_db)) > 0.01)):
+                        if (
+                            abs(total_costo - float(total_db)) > 0.01
+                            or abs(total_productos_costo - float(productos_db)) > 0.01
+                            or _differs(cost_detail_dict.get('CostoDeCortesías'), cortesias_db)
+                            or _differs(cost_detail_dict.get('CostoDeCancelaciones'), cancelaciones_db)
+                        ):
                             # Definir la query para insertar en MySQL
                             query = """
                                 UPDATE costeoMensual
@@ -284,6 +321,26 @@ if odoo_subsidiaries:
         df_daily["CostoDeProductosVendidos_mtd"] = df_daily.groupby("anio_mes")["CostoDeProductosVendidos"].cumsum()
         df_daily["CostoDeMerma_mtd"] = df_daily.groupby("anio_mes")["CostoDeMerma"].cumsum()
 
+        # CostoDeCortesias/CostoDeCancelaciones: no Odoo equivalent exists
+        # (see extract/costs/odoo_cost_report.py docstring), but Cortesias/
+        # Cancelaciones are a Sales/POS concept, and Sales is always
+        # Wansoft-sourced (ALWAYS_WANSOFT_DOMAINS) even for these branches.
+        # getGlobalCashClosing.py already confirmed real, non-zero values
+        # here for Puebla (2026-08-27 comment in that file). This is the
+        # SALE VALUE of the comped/cancelled item (cuentas + platillos),
+        # not its food cost -- project owner's explicit call 2026-09-17:
+        # use it as-is for CostoDeCortesias/CostoDeCancelaciones rather
+        # than trying to convert it to a cost basis.
+        #
+        # Computed fresh per-date inside the loop below (a direct SQL
+        # month-to-date SUM each time) rather than precomputing a second
+        # cumulative series and merging it onto df_daily by date -- the
+        # two frames don't share the same date set (Odoo only has dates
+        # with a posted cost-of-sale line; cash closing has its own dates),
+        # so a merge silently produced gaps/resets on days present in one
+        # but not the other (confirmed 2026-09-17, Puebla Sept 5 and 16
+        # both dropped to 0 despite real cumulative data existing).
+
         current_date = start_date_range
         while current_date <= end_date_range:
             lafecha = current_date.strftime("%Y-%m-%d")
@@ -299,14 +356,37 @@ if odoo_subsidiaries:
             costo_merma = float(row_match.iloc[0]["CostoDeMerma_mtd"])
 
             cursor.execute("""
-                SELECT id, CostoTotal, CostoDeProductosVendidos FROM costeoMensual
+                SELECT SUM(cortesias_en_cuentas + cortesias_en_platillos) AS cortesias,
+                       SUM(cancelaciones_en_cuentas + cancelaciones_en_platillos) AS cancelaciones
+                FROM getglobalcashclosing
+                WHERE subsidiary_id = %s AND fecha_corte >= %s AND fecha_corte <= %s
+            """, (subsidiary["id"], current_date.replace(day=1).strftime("%Y-%m-%d"), lafecha + " 23:59:59"))
+            cash_closing_row = cursor.fetchone()
+            costo_cortesias = float(cash_closing_row[0]) if cash_closing_row and cash_closing_row[0] is not None else None
+            costo_cancelaciones = float(cash_closing_row[1]) if cash_closing_row and cash_closing_row[1] is not None else None
+
+            cursor.execute("""
+                SELECT id, CostoTotal, CostoDeProductosVendidos, CostoDeCortesías, CostoDeCancelaciones
+                FROM costeoMensual
                 WHERE subsidiary_id = %s AND DATE(created_at) = %s
             """, (subsidiary["id"], lafecha))
             existing_row = cursor.fetchone()
 
+            def _differs(new_val, old_val):
+                if new_val is None:
+                    return False
+                if old_val is None:
+                    return True
+                return abs(new_val - float(old_val)) > 0.01
+
             if existing_row:
-                record_id, total_db, productos_db = existing_row
-                if (abs(total_costo - float(total_db)) > 0.01) or (abs(total_productos_costo - float(productos_db)) > 0.01):
+                record_id, total_db, productos_db, cortesias_db, cancelaciones_db = existing_row
+                if (
+                    abs(total_costo - float(total_db)) > 0.01
+                    or abs(total_productos_costo - float(productos_db)) > 0.01
+                    or _differs(costo_cortesias, cortesias_db)
+                    or _differs(costo_cancelaciones, cancelaciones_db)
+                ):
                     cursor.execute("""
                         UPDATE costeoMensual
                         SET
@@ -314,18 +394,23 @@ if odoo_subsidiaries:
                             CostoTotal = %s,
                             CostoDeProductosVendidos = %s,
                             CostoDeMerma = %s,
+                            CostoDeCortesías = %s,
+                            CostoDeCancelaciones = %s,
                             mes_ano = %s
                         WHERE DATE(created_at) = %s AND subsidiary_id = %s
-                    """, (subsidiary["name"], total_costo, total_productos_costo, costo_merma, mes_ano, lafecha, subsidiary["id"]))
+                    """, (subsidiary["name"], total_costo, total_productos_costo, costo_merma,
+                          costo_cortesias, costo_cancelaciones, mes_ano, lafecha, subsidiary["id"]))
                     print(f"[🔁] Actualizado (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
                 else:
                     print(f"[✔] Igual (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
             else:
                 cursor.execute("""
                     INSERT INTO costeoMensual
-                        (subsidiary_id, subsidiary_name, CostoTotal, CostoDeProductosVendidos, CostoDeMerma, mes_ano, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """, (subsidiary["id"], subsidiary["name"], total_costo, total_productos_costo, costo_merma, mes_ano, lafecha))
+                        (subsidiary_id, subsidiary_name, CostoTotal, CostoDeProductosVendidos, CostoDeMerma,
+                         CostoDeCortesías, CostoDeCancelaciones, mes_ano, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (subsidiary["id"], subsidiary["name"], total_costo, total_productos_costo, costo_merma,
+                      costo_cortesias, costo_cancelaciones, mes_ano, lafecha))
                 print(f"[🆕] Insertado (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
 
             db_connection.commit()
