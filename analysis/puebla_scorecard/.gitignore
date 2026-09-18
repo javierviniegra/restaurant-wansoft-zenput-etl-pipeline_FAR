@@ -1,9 +1,0 @@
-# Generated outputs and scratch files -- not source, regenerated on each run.
-# Keep only the .py generators and the reusable brand asset (logo_extract_0.jpeg) tracked.
-chart_*.png
-cost_breakdown_chart.png
-preview_*.png
-ref_page*.png
-*.pdf
-*.xlsx
-odoo_cost_*.csv
