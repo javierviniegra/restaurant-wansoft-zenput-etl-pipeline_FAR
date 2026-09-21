@@ -12,6 +12,7 @@ if sys.stdout.encoding != "utf-8":
 
 # 2. Ahora sí podemos importar nuestra función
 from core.database.mysql import get_db_connection
+from core.config.lookback import WANSOFT_LOOKBACK_DAYS
 
 # Configuración de la conexión a MySQL
 db_connection = get_db_connection(target="wansoft")
@@ -81,7 +82,7 @@ print(wansoft_subsidiaries)
 print(odoo_subsidiaries)
 
 #--------------------Reviso integridad
-start_date_range = datetime.now() - timedelta(days=31)
+start_date_range = datetime.now() - timedelta(days=WANSOFT_LOOKBACK_DAYS)
 end_date_range = datetime.now() - timedelta(days=1)
 
 

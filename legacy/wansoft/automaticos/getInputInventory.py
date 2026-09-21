@@ -13,6 +13,7 @@ if sys.stdout.encoding != "utf-8":
 
 # 2. Ahora sí podemos importar nuestra función
 from core.database.mysql import get_db_connection
+from core.config.lookback import WANSOFT_LOOKBACK_DAYS
 
 # Conexión a MySQL
 db_connection = get_db_connection(target="wansoft")
@@ -111,7 +112,7 @@ client = get_wansoft_client()
 # sin necesidad de un backfill manual despues. Decision confirmada por el
 # dueno del proyecto (2026-08-27), tras la ventana temporal de 90 dias usada
 # para el Paso 18.22 (validacion del unificador de saldo, ya cerrada).
-start_date_range = datetime.now() - timedelta(days=31)
+start_date_range = datetime.now() - timedelta(days=WANSOFT_LOOKBACK_DAYS)
 end_date_range = datetime.now() - timedelta(days=1)
 
 # Funciones de conversión

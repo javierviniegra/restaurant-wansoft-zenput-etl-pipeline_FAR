@@ -14,6 +14,7 @@ if sys.stdout.encoding != "utf-8":
 
 # 2. Ahora sí podemos importar nuestra función
 from core.database.mysql import get_db_connection
+from core.config.lookback import SALES_LOOKBACK_DAYS
 
 
 # ─────────────────────────────────────────────
@@ -36,7 +37,7 @@ from core.database.mysql import get_db_connection
 
 MODO                = "hoy"         # "hoy" | "fecha"
 FECHA_MANUAL        = "2026-03-10"  # solo se usa si MODO = "fecha" (YYYY-MM-DD)
-DIAS_A_REVISAR      = 10            # número de días a revisar hacia atrás
+DIAS_A_REVISAR      = SALES_LOOKBACK_DAYS  # días a revisar hacia atrás (SALES_LOOKBACK_DAYS en .env, default 10)
 
 CARGAR_PAGOS        = False         # True → solo carga pagos | False → candado normal
 PAGOS_FECHA_INICIO  = "2026-04-07"  # rango inicio para carga de pagos (YYYY-MM-DD)

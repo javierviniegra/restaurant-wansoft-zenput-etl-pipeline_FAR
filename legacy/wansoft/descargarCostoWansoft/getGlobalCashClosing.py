@@ -13,13 +13,14 @@ if sys.stdout.encoding != "utf-8":
 
 # 2. Ahora sí podemos importar nuestra función
 from core.database.mysql import get_db_connection
+from core.config.lookback import WANSOFT_LOOKBACK_DAYS
 
 # Fechas de inicio y fin (puedes cambiarlas fuera del loop)
 #start_date_range = datetime.now() - timedelta(days=1)
 #end_date_range = datetime.now() - timedelta(days=1)
 #start_date_range = datetime(2022, 8,1)  # Fecha inicial
 #end_date_range = datetime(2025, 7, 32)    # Fecha final
-start_date_range = datetime.now() - timedelta(days=31)
+start_date_range = datetime.now() - timedelta(days=WANSOFT_LOOKBACK_DAYS)
 end_date_range = datetime.now() #- timedelta(days=1)
 
 # List of subsidiaries and their credentials

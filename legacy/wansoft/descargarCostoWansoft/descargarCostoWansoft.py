@@ -13,13 +13,14 @@ if sys.stdout.encoding != "utf-8":
 
 # 2. Ahora sí podemos importar nuestra función
 from core.database.mysql import get_db_connection
+from core.config.lookback import WANSOFT_LOOKBACK_DAYS
 
 # Configuración de la conexión a MySQL
 db_connection = get_db_connection(target="wansoft")
 cursor = db_connection.cursor()
 
 # Fechas de inicio y fin (puedes cambiarlas fuera del loop)
-start_date_range = datetime.now() - timedelta(days=30)  # Fecha inicial
+start_date_range = datetime.now() - timedelta(days=WANSOFT_LOOKBACK_DAYS)  # Fecha inicial
 end_date_range = datetime.now() - timedelta(days=1)    # Fecha final
 
 # Verificar si la tabla cost_reports existe y si no, crearla

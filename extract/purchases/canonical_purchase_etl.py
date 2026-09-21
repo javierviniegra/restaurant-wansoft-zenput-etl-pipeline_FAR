@@ -583,6 +583,7 @@ import hashlib
 import pandas as pd
 
 from core.database.mysql import get_mysql_connection as get_db_connection
+from core.config.lookback import PURCHASES_LOOKBACK_DAYS
 from core.config.companies import (
     get_company_source_key,
     get_domain_company_source,
@@ -704,7 +705,7 @@ def load_wansoft_operational_start_dates():
     return result
 
 
-WANSOFT_CANONICAL_INCREMENTAL_WINDOW_DAYS = 35
+WANSOFT_CANONICAL_INCREMENTAL_WINDOW_DAYS = PURCHASES_LOOKBACK_DAYS
 
 
 def load_wansoft_input_inventory_facturas():

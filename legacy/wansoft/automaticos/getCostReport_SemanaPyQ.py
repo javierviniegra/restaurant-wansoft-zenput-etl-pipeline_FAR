@@ -13,6 +13,7 @@ if sys.stdout.encoding != "utf-8":
 
 # 2. Ahora sí podemos importar nuestra función
 from core.database.mysql import get_db_connection
+from core.config.lookback import WANSOFT_LOOKBACK_DAYS
 
 # Variables Globales
 
@@ -103,7 +104,7 @@ def safe_float(value, default=0.0):
         return default
 
 #--------------------Reviso integridad
-start_date_range = datetime.now() - timedelta(days=31)
+start_date_range = datetime.now() - timedelta(days=WANSOFT_LOOKBACK_DAYS)
 end_date_range = datetime.now() - timedelta(days=1)
 
 # Loop para obtener datos de cada subsidiaria (fuente Wansoft)

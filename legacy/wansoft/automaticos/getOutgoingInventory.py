@@ -9,6 +9,7 @@ import os
 
 # 2. Ahora sí podemos importar nuestra función
 from core.database.mysql import get_db_connection
+from core.config.lookback import WANSOFT_LOOKBACK_DAYS
 
 # Fechas de inicio y fin (puedes cambiarlas fuera del loop)
 # Ventana de 31 dias (antes 1 dia): un dia solo revisa "ayer", asi que una
@@ -18,7 +19,7 @@ from core.database.mysql import get_db_connection
 # reciente para auto-repararse solo. Alineado con getInputInventory.py.
 # Decision confirmada por el dueno del proyecto (2026-08-27), tras la
 # ventana temporal de 90 dias usada para el Paso 18.22 (ya cerrada).
-start_date_range = datetime.now() - timedelta(days=31)
+start_date_range = datetime.now() - timedelta(days=WANSOFT_LOOKBACK_DAYS)
 end_date_range = datetime.now() - timedelta(days=1)
 #start_date_range = datetime(2025, 1, 1)
 #end_date_range = datetime(2025, 4, 20)
