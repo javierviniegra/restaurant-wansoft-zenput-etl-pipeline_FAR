@@ -405,18 +405,24 @@ The underlying ETL/data-warehouse work (Sections 2-13) is unaffected by this piv
 
 # 17. Production Infrastructure & Migration Action Plan
 
-**Context as stated by the user:** the current production virtual server runs on **Hyper-V**. The plan is to back it up, then rebuild/repurpose it (the user's own words: "respaldarlo antes de tronarlo" — back it up before blowing it away) to host the new pipeline + Django app, with the codebase kept in sync from GitHub on a recurring daily basis, and all old scheduled tasks on the server replaced by a single new one for this pipeline.
+**Context as stated by the user:** the current production virtual server runs on **Hyper-V**. The plan is to back it up, then evolve it in place (the user's own words: "respaldarlo antes de tronarlo" — back it up before blowing it away, referring to retiring the *old legacy scripts/tasks*, not the VM or database itself) to host the new pipeline + Django app, with the codebase kept in sync from GitHub on a recurring daily basis, and all old scheduled tasks on the server replaced by a single new one for this pipeline.
 
-**Important — open questions to resolve before executing any step below (ask the user, don't assume):**
-- Exactly what currently runs on this Hyper-V VM today — is it the same host as the production Wansoft/Zenput MySQL databases (`187.251.203.223` per `.env`), the host that runs the currently-unidentified duplicate Wansoft Purchases/Inventory loader (Section 3.5/5.4), both, or something else entirely?
-- Is the VM being rebuilt from scratch (fresh OS) or repurposed in place (same OS, new application deployment)?
-- Target OS/stack for the new deployment — same as dev (Windows + Anaconda Python), or a fresh choice now that this is a real server (e.g. Linux)?
+## 17.0 Open questions — resolved 2026-09-23
 
-### Step 1 — Back up the Hyper-V VM before any destructive change
+| Question | Answer |
+|---|---|
+| What runs on the Hyper-V VM today? | The legacy Python scripts currently in production, reading only from Wansoft — set up as Windows Scheduled Tasks firing at different times each day. **This is very likely the same process responsible for the still-unidentified duplicate Wansoft Purchases/Inventory loading for the 5 already-Odoo-migrated branches (Section 3.5/13)** — expect Step 5 below to resolve that backlog item as a direct side effect, not a coincidence. |
+| Rebuild from scratch or reuse in place? | **Reuse the VM and its existing database in place** — it holds real historical data that must be preserved. No fresh-OS rebuild. This changes the framing of Step 1 below: the backup is a safety net for an in-place evolution, not a pre-wipe snapshot. |
+| Target OS/stack? | **Windows, same as dev** — no OS migration, same Python/Anaconda-style environment and Windows Task Scheduler as the mechanism. Confirmed, removes a whole axis of risk. |
+| Target go-live date? | **2026-10-01** — deliberately chosen to coincide with the already-planned Odoo cutover for Isabel La Católica, Vía Vallejo, and San Jerónimo (see project memory `project_october_migration_wave`, unrelated in origin to this migration but now explicitly coordinated with it). On that date, all 10 Odoo-sourced branches (the current 7 plus these 3) start fresh with Odoo data flowing through the new production pipeline in the same rollout — no historical Odoo backfill needed for the new branches, and no delay to either plan. |
+
+**Given the reuse-in-place decision, the plan is no longer "rebuild then deploy" — it is "back up, then safely evolve the same VM/DB":** schema gets extended (not replaced), the new pipeline code gets deployed alongside the legacy scripts first, and only once the new pipeline is confirmed working does cutover happen — removing the legacy Scheduled Tasks and the code they ran.
+
+### Step 1 — Back up the VM and the database before touching anything
 1. Take a full **Hyper-V export** (or checkpoint + export) of the VM in its current state — this captures the OS, any locally-installed services, and file system state as a restorable unit.
 2. Independently of the VM-level export, take a **logical backup of every production MySQL database** the server hosts (`mysqldump` per database, or a full binary backup if the databases are large) — a VM export alone is not a substitute for a verified, restorable database dump.
 3. Verify the backup is actually restorable (test-restore the mysqldump into a scratch database, at minimum) before proceeding to any destructive step — do not treat "backup completed" as "backup verified."
-4. Store both the VM export and the database dumps somewhere **off** the VM itself (a backup is worthless if it lives only on the machine being rebuilt).
+4. Store both the VM export and the database dumps somewhere **off** the VM itself (a backup is worthless if it lives only on the machine it protects) — this is a safety net for an in-place change, not a pre-wipe snapshot (Section 17.0: the VM and database are being reused, not rebuilt).
 
 ### Step 2 — Provision the new environment and migrate the schema
 1. Diff the **production** MySQL schema against **dev**'s current schema (dev has months of iteration production doesn't have — new tables like `costeoMensual`, `canonical_purchase_order_snapshot`, `analytics_purchase_daily_company_product`, `dim_company_analytical`, etc., and columns added to existing tables).
@@ -431,7 +437,7 @@ The underlying ETL/data-warehouse work (Sections 2-13) is unaffected by this piv
 3. Deploy the new Django app (Section 16) alongside the existing pipeline codebase — same repo, same server, following the `ControlPresupuestos_AP` precedent of a dedicated port.
 
 ### Step 4 — Link the server to GitHub for recurring daily auto-updates
-1. Add a scheduled task (Windows Task Scheduler if the rebuilt server stays on Windows, or a cron job / systemd timer if it moves to Linux — pending the open question above) that runs `git pull` against `origin/main` on a daily cadence, **before** the daily pipeline run itself, so each day's run reflects that day's latest committed code.
+1. Add a Windows Task Scheduler task (confirmed staying on Windows, Section 17.0) that runs `git pull` against `origin/main` on a daily cadence, **before** the daily pipeline run itself, so each day's run reflects that day's latest committed code.
 2. Decide whether this should be a simple `git pull` step chained in front of `pipelines/scheduler.py`'s existing daily-trigger logic, or a separate, independent scheduled task — recommend chaining it into the same task that launches the daily cycle, so a pull failure is visible in the same place as a pipeline failure, rather than as a silent, separate process.
 3. This mirrors the precedent already used for the `Chatbot_FAR` project's own dev/prod boundary (production deployed via GitHub pull) — reuse that same pattern here rather than inventing a new one.
 
@@ -440,7 +446,21 @@ The underlying ETL/data-warehouse work (Sections 2-13) is unaffected by this piv
 2. Once the new consolidated pipeline (git-pull + daily cycle, Step 4) is confirmed working end-to-end, remove every other scheduled task on the server — including whatever has been driving the duplicate Wansoft Purchases/Inventory loading for the 5 already-migrated branches (Section 3.5/13), resolving that long-standing backlog item as a natural side effect of the migration rather than a separate cleanup project.
 3. Leave exactly one scheduled task in place: the new pipeline's daily trigger.
 
-**This section is a plan, not yet executed.** No infrastructure work has started; this is the agreed shape of the migration, captured for continuity. The open questions at the top of this section should be resolved with the user before Step 1 begins.
+## 17.1 Target timeline — go-live 2026-10-01
+
+Proposed 2026-09-23, not yet confirmed day-by-day with the user beyond the go-live date itself:
+
+| When | What |
+|---|---|
+| Now → 2026-09-26 | Inventory every existing Scheduled Task on the Hyper-V VM (Step 5.1, done early so it informs everything else). In parallel, work the still-open pre-cutover checklist from `project_october_migration_wave` for Isabel La Católica/Vía Vallejo/San Jerónimo: confirm the 2024-pilot Odoo data wipe actually happened, and confirm real Odoo purchase/inventory activity has genuinely started for all three — don't assume from old snapshots. |
+| 2026-09-26 → 2026-09-28 | Step 1: full backup (VM export/checkpoint + verified-restorable `mysqldump` of every production database), stored off-VM. Nothing destructive happens before this is verified. |
+| 2026-09-28 → 2026-09-29 | Step 2: schema diff (prod vs. dev) and migration scripts prepared and reviewed; prod `.env` drafted with the lookback config and any path corrections it needs. |
+| 2026-09-29 → 2026-09-30 | Step 3: deploy the new pipeline codebase (fresh `git clone`) **alongside** the still-running legacy scripts — no cutover yet, this is side-by-side. Apply the schema migration to the real production database. Dry-run the new pipeline against production data in a way that doesn't write anywhere the legacy scripts also write, if at all possible. |
+| 2026-09-30 (evening) | Final backup immediately before cutover. |
+| **2026-10-01** | Go-live, coordinated with the existing Odoo cutover for Isabel La Católica/Vía Vallejo/San Jerónimo: flip `COMPANY_SOURCE` for the 3 new branches per the standard rollout sequence (`project_october_migration_wave`), Step 4 (GitHub daily `git pull` wired in), then Step 5 (remove every legacy Scheduled Task, leave only the new consolidated one). Monitor the first live run closely. |
+| 2026-10-01 → 2026-10-03 | Re-validate against the user's Power BI now that real production data is flowing through the new pipeline for all 10 Odoo-sourced branches at once — same methodology as Section 14/15. |
+
+**This section is a plan, not yet executed.** No infrastructure work has started. The core open questions (VM role, rebuild vs. reuse, target OS, go-live date) were resolved with the user on 2026-09-23 (Section 17.0); the day-by-day timeline above is a proposal pending the user's confirmation before Step 1 begins.
 
 ---
 
