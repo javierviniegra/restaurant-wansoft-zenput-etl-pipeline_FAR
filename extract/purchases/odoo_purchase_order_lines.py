@@ -58,13 +58,19 @@ def extract_odoo_purchase_order_lines():
 
     fields = [f for f in desired_fields if f in available_fields]
 
+    # Only confirmed orders ('purchase', 'done') -- 'sent' is an
+    # unconfirmed RFQ (quotation), not a real purchase commitment, and
+    # counting it as a business purchase overstates Compras (found
+    # 2026-09-22 comparing Acoxpa's Odoo total against Power BI/Wansoft).
+    domain = [["state", "in", ["purchase", "done"]]]
+
     rows = models.execute_kw(
         db,
         uid,
         password,
         model_name,
         "search_read",
-        [[]],
+        [domain],
         {"fields": fields}
     )
 
