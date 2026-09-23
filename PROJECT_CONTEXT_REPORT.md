@@ -462,6 +462,34 @@ Proposed 2026-09-23, not yet confirmed day-by-day with the user beyond the go-li
 
 **This section is a plan, not yet executed.** No infrastructure work has started. The core open questions (VM role, rebuild vs. reuse, target OS, go-live date) were resolved with the user on 2026-09-23 (Section 17.0); the day-by-day timeline above is a proposal pending the user's confirmation before Step 1 begins.
 
+## 17.2 Production VM scheduled-task inventory (exported 2026-09-23 via `Get-ScheduledTask`)
+
+**12 legacy tasks named `FondaCroned_*`**, all daily, all running an older **loose copy** of the legacy scripts from `C:\Users\AnalisisBI\Desktop\CronedJobs_Python\` (not this repository) under the `tf_env` miniconda interpreter:
+
+| Time | Task / script |
+|---|---|
+| 01:00 | `getExpenses.py` |
+| 01:05 | `getInputInventory.py` |
+| 03:15 | `getTotalCostByDate.py` |
+| 03:30 | `descargarCostoWansoft.py` |
+| 03:35 | `getGlobalCashClosing.py` |
+| 03:40 | `getAllOrdersByDay.py` |
+| 04:00 | `extractAllOrdersByDay.py` |
+| 04:30 | `getCostReport_SemanaPyQ.py` |
+| 04:45 | `getTablajeriaReport.py` |
+| 05:15 | `getOutgoingInventory.py` |
+| 06:10 | `zenput_mysql-forms.py` |
+| 06:30 | `zenput_mysql-tasks.py` |
+
+**Findings:**
+1. **This is almost certainly the source of the production duplicate Wansoft Purchases/Inventory loading** (Section 3.5): `getExpenses`, `getInputInventory` and `getOutgoingInventory` run from an older copy that predates the `is_wansoft_company()` routing, so they load all 19 branches including the 5 already on Odoo. Still to verify by reading that copy's code before treating it as confirmed.
+2. **`getAllOrdersByDay.py` (03:40) is still scheduled in production**; dev deliberately excludes it (it downloads a fixed date range; the Candado `extractAllOrdersByDay.py` is the intended Sales job). Retire it at cutover.
+3. Production uses 12 fixed, staggered times between 01:00 and 06:30; dev runs the same steps as a single sequential chain from 01:00 (~27 min end to end). None of the Odoo-side jobs exist in production yet: inventory pipeline, purchases pipeline, analytics purchase rebuild, cutover validation, weekly product mapping.
+4. **The VM also hosts `ControlPresupuestos_AP`** (a different live project, `C:\Apps\ControlPresupuestos_AP`, own `.venv`) with 4 tasks: `Arranque automatico` (`deploy\update.ps1`, an existing git-update pattern on this very VM, reuse it for Step 4), `Catalogos mensual` (next run 2026-10-01 04:00, go-live day), `Gastos reales AM` (05:00) and `Gastos reales PM` (14:00). **These are out of scope for the Step 5 cleanup**: "leave only one task" applies to the Wansoft/Zenput pipeline's tasks only. Pending user confirmation.
+5. Edge and OneDrive tasks are system tasks, untouched.
+
+**Implications for cutover:** remove the 12 `FondaCroned_*` tasks; run the new pipeline from a dedicated venv (not `tf_env`); for the Sept 29-30 rehearsal, restore the verified backup into a staging database on the same VM and run the new pipeline against it, rather than against the live database while the legacy tasks still write to it.
+
 ---
 
 # 18. Next Steps — HANDOFF PROMPT
