@@ -3,13 +3,16 @@
 param(
     [string]$ScriptPath = 'C:\Backups\scripts\backup_mysql.ps1',
     [string]$Time = '07:30',
-    [string]$TaskName = 'Wansoft_Backup_MySQL_Semanal'
+    [string]$TaskName = 'Wansoft_Backup_MySQL_Semanal',
+    [string]$MysqlBin = ''
 )
 
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path $ScriptPath)) { throw "Script not found: $ScriptPath" }
 
-$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -ExecutionPolicy Bypass -File "{0}"' -f $ScriptPath)
+$argList = '-NoProfile -ExecutionPolicy Bypass -File "{0}"' -f $ScriptPath
+if ($MysqlBin) { $argList += (' -MysqlBin "{0}"' -f $MysqlBin) }
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $argList
 $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At $Time
 $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 8)
