@@ -490,6 +490,21 @@ Proposed 2026-09-23, not yet confirmed day-by-day with the user beyond the go-li
 
 **Implications for cutover:** remove the 12 `FondaCroned_*` tasks; run the new pipeline from a dedicated venv (not `tf_env`); for the Sept 29-30 rehearsal, restore the verified backup into a staging database on the same VM and run the new pipeline against it, rather than against the live database while the legacy tasks still write to it.
 
+## 17.3 Weekly backup system (decided 2026-09-23)
+
+**Decision (user):** the dumps stay on the same VM, run weekly, and only the last two are kept. Trade-off: if the VM's disk is lost, the dumps go with it, so the one-time Hyper-V export taken from the host before go-live (Step 1) is still worth doing.
+
+**Facts that shaped it:** production is MariaDB 10.4.28, every table is InnoDB (so `mysqldump --single-transaction` does not block writes and can run while the nightly tasks are working), the `wansoft` schema is 31.01 GB (others: `odoo` 0.06, `zenput` 0.03, `presupuestos_ap` 0.01) and drive C: has 410.6 GB free. Production has 22 tables in `wansoft` against dev's 57 plus 2 views, so the schema migration (Step 2) is bigger than "a few missing columns".
+
+**Implementation, in `deploy/backup/`:**
+- `backup_mysql.ps1`: one gzip'd dump per database (no `--databases`, so a dump can be restored under any name), verifies the dump's completion marker and that the gzip reads back fully, keeps the newest 2 complete runs and prunes only after a run succeeds; a failed run removes its own partial folder and leaves the good backups untouched.
+- `restore_mysql.ps1`: restores one database into a staging database and refuses protected live names.
+- `register_backup_task.ps1`: registers `Wansoft_Backup_MySQL_Semanal` (SYSTEM, Sundays 07:30).
+- Backups use a dedicated read-only MariaDB user; credentials live in `C:\Backups\mysql\backup.cnf` on the VM, outside the repo.
+- Tested on dev against `zenput`: retention keeps exactly 2, the failure path keeps the earlier backups, and a restore reproduces identical row counts.
+
+**Step 5 update:** after go-live the pipeline's daily task is no longer the only new task on the VM; the weekly backup task stays alongside it (plus `ControlPresupuestos_AP` and the system tasks).
+
 ---
 
 # 18. Next Steps — HANDOFF PROMPT
