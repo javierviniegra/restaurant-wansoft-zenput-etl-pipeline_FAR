@@ -38,7 +38,7 @@ function Find-MysqlDump {
 function Test-DumpComplete([string]$path) {
     $fs = [IO.File]::OpenRead($path)
     try {
-        $len = [int][Math]::Min(512, $fs.Length)
+        $len = [int][Math]::Min([long]512, $fs.Length)
         [void]$fs.Seek(-$len, [IO.SeekOrigin]::End)
         $buf = New-Object byte[] $len
         [void]$fs.Read($buf, 0, $len)
