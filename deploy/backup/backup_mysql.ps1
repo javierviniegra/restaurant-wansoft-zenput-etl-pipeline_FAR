@@ -3,7 +3,7 @@
 param(
     [string]$BackupRoot = 'C:\Backups\mysql',
     [string]$ConfigFile = 'C:\Backups\mysql\backup.cnf',
-    [string[]]$Databases = @('wansoft', 'zenput', 'odoo', 'presupuestos_ap'),
+    [string[]]$Databases = @('wansoft', 'zenput', 'odoo', 'presupuestos_ap', 'mysql', 'phpmyadmin', 'test'),
     [string]$MysqlBin = '',
     [int]$Keep = 2,
     [int]$MinFreeGB = 80
