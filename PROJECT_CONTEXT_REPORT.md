@@ -508,6 +508,8 @@ Proposed 2026-09-23, not yet confirmed day-by-day with the user beyond the go-li
 
 **Step 5 update:** after go-live the pipeline's daily task is no longer the only new task on the VM; the weekly backup task stays alongside it (plus `ControlPresupuestos_AP` and the system tasks).
 
+**Status (2026-09-24):** first real backup completed and verified: 7 databases, `wansoft` 3,382.7 MB compressed (about 24 GB of SQL) in 29.8 minutes over the internal network (`192.168.100.183`), 4 backups retained, next automatic run 2026-10-01 18:00. Still to do: restore rehearsal into `wansoft_prueba` (the database machine's free disk space is unchecked), and copy the pre-cutover backup to a folder name outside the pruning pattern.
+
 ---
 
 # 18. Next Steps — HANDOFF PROMPT
