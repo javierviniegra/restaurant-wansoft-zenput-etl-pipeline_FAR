@@ -73,6 +73,14 @@ function Test-Gz([string]$path) {
     finally { $in.Dispose() }
 }
 
+function Get-UnlistedDatabases {
+    $mysql = Join-Path (Split-Path $mysqldump) 'mysql.exe'
+    $names = & $mysql "--defaults-extra-file=$ConfigFile" -N -B -e 'SHOW DATABASES'
+    if ($LASTEXITCODE -ne 0) { throw 'SHOW DATABASES failed' }
+    $skip = @('information_schema', 'performance_schema', 'sys')
+    $names | Where-Object { $_ -and ($skip -notcontains $_) -and ($_ -notmatch '_prueba$') -and ($Databases -notcontains $_) }
+}
+
 $failed = $false
 try {
     if (-not (Test-Path $ConfigFile)) { throw "Config file not found: $ConfigFile" }
@@ -109,6 +117,11 @@ try {
         Where-Object { $_.Name -match '^\d{8}_\d{6}$' -and (Test-Path (Join-Path $_.FullName 'OK.txt')) } |
         Sort-Object Name -Descending)
     $done | Select-Object -Skip $Keep | ForEach-Object { Write-Log "Pruning old backup $($_.Name)"; Remove-Item $_.FullName -Recurse -Force }
+    try {
+        $unlisted = @(Get-UnlistedDatabases)
+        if ($unlisted.Count -gt 0) { Write-Log ('WARNING: databases on the server not in the backup list: ' + ($unlisted -join ', ')) }
+    }
+    catch { Write-Log "WARNING: could not compare against SHOW DATABASES: $($_.Exception.Message)" }
     Write-Log ("Backup finished. Kept: " + ((@($done | Select-Object -First $Keep) | ForEach-Object { $_.Name }) -join ', '))
 }
 catch {

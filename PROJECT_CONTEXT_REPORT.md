@@ -500,6 +500,7 @@ Proposed 2026-09-23, not yet confirmed day-by-day with the user beyond the go-li
 
 **Implementation, in `deploy/backup/`:**
 - `backup_mysql.ps1`: one gzip'd dump per database (no `--databases`, so a dump can be restored under any name), verifies the dump's completion marker and that the gzip reads back fully, keeps the newest 4 complete runs (`-Keep`, raised from 2 by the user on 2026-09-24) and prunes only after a run succeeds; a failed run removes its own partial folder and leaves the good backups untouched.
+- After each successful run it logs a `WARNING` listing any database on the server that is not in the backup list (ignoring `information_schema`, `performance_schema`, `sys` and staging names ending in `_prueba`), so a newly created database, for example the Django app's, cannot silently stay out of the backups. Adding a database means editing the `$Databases` default in `backup_mysql.ps1`.
 - `restore_mysql.ps1`: restores one database into a staging database and refuses protected live names.
 - `register_backup_task.ps1`: registers `Wansoft_Backup_MySQL_Semanal` (SYSTEM, Thursdays 18:00).
 - Backups use a dedicated read-only MariaDB user; credentials live in `C:\Backups\mysql\backup.cnf` on the VM, outside the repo.
