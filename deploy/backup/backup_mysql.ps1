@@ -5,7 +5,7 @@ param(
     [string]$ConfigFile = 'C:\Backups\mysql\backup.cnf',
     [string[]]$Databases = @('wansoft', 'zenput', 'odoo', 'presupuestos_ap', 'mysql', 'phpmyadmin', 'test'),
     [string]$MysqlBin = '',
-    [int]$Keep = 2,
+    [int]$Keep = 4,
     [int]$MinFreeGB = 80
 )
 
