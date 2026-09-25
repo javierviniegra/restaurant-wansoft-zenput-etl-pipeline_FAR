@@ -24,4 +24,5 @@ def run_purchases_pipeline_job():
     subprocess.run(
         [sys.executable, "-m", "scripts.run_purchases_pipeline"],
         env=env,
+        check=True,
     )

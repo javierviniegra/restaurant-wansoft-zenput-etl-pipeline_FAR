@@ -23,4 +23,5 @@ def run_product_mapping_backlog_job():
     subprocess.run(
         [sys.executable, "-m", "scripts.test_save_product_mapping"],
         env=env,
+        check=True,
     )

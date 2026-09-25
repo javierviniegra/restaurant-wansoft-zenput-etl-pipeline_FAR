@@ -25,4 +25,4 @@ def run_analytics_purchase_pipeline_job():
         "scripts.build_analytics_purchase_orders",
         "scripts.build_analytics_purchase_daily_company_product",
     ):
-        subprocess.run([sys.executable, "-m", module], env=env)
+        subprocess.run([sys.executable, "-m", module], env=env, check=True)

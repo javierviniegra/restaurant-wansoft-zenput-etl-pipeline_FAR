@@ -26,4 +26,5 @@ def run_inventory_pipeline_job():
     subprocess.run(
         [sys.executable, "-m", "scripts.run_inventory_pipeline"],
         env=env,
+        check=True,
     )
