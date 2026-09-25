@@ -1,12 +1,15 @@
 # Restores one database from a backup folder into a staging database. Refuses to overwrite live databases.
 # Usage: restore_mysql.ps1 -BackupFolder C:\Backups\mysql\20260927_073000 -SourceDatabase wansoft -TargetDatabase wansoft_prueba
-# Needs a config file for a user that can create databases and set definers (e.g. root).
+# Needs a config file for a user with all privileges on the target database (and SUPER if the dump has views/triggers/routines).
+# -CompareWith <db> compares per-table row counts of the target against that database after loading.
+# Writes restore_<target>.log inside the backup folder, so it can run unattended as a scheduled task.
 param(
     [Parameter(Mandatory = $true)] [string]$BackupFolder,
     [Parameter(Mandatory = $true)] [string]$SourceDatabase,
     [Parameter(Mandatory = $true)] [string]$TargetDatabase,
     [string]$ConfigFile = 'C:\Backups\mysql\restore.cnf',
     [string]$MysqlBin = '',
+    [string]$CompareWith = '',
     [string[]]$ProtectedDatabases = @('wansoft', 'zenput', 'odoo', 'presupuestos_ap', 'mysql', 'information_schema', 'performance_schema', 'sys')
 )
 
@@ -33,6 +36,7 @@ function Find-MysqlClient {
 }
 
 $mysql = Find-MysqlClient
+Start-Transcript -Path (Join-Path $BackupFolder ('restore_{0}.log' -f $TargetDatabase)) -Append | Out-Null
 $tmp = Join-Path $BackupFolder "$SourceDatabase.restore_tmp.sql"
 $sw = [Diagnostics.Stopwatch]::StartNew()
 try {
@@ -58,7 +62,21 @@ try {
 
     $count = & $mysql "--defaults-extra-file=$ConfigFile" -N -e ("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{0}'" -f $TargetDatabase)
     Write-Host ("Restored {0} tables into {1} in {2} min" -f $count, $TargetDatabase, [math]::Round($sw.Elapsed.TotalMinutes, 1))
+
+    if ($CompareWith) {
+        $tables = @(& $mysql "--defaults-extra-file=$ConfigFile" -N -B -e ("SELECT table_name FROM information_schema.tables WHERE table_schema='{0}' AND table_type='BASE TABLE' ORDER BY table_name" -f $TargetDatabase))
+        $diff = 0
+        $q = 'SELECT COUNT(*) FROM `{0}`.`{1}`'
+        foreach ($t in $tables) {
+            $a = (& $mysql "--defaults-extra-file=$ConfigFile" -N -B -e ($q -f $CompareWith, $t)) | Select-Object -First 1
+            $b = (& $mysql "--defaults-extra-file=$ConfigFile" -N -B -e ($q -f $TargetDatabase, $t)) | Select-Object -First 1
+            if ($a -ne $b) { $diff++; Write-Host ("DIFF  {0}: {1}={2} {3}={4}" -f $t, $CompareWith, $a, $TargetDatabase, $b) }
+            else { Write-Host ("SAME  {0}: {1}" -f $t, $a) }
+        }
+        Write-Host ("Compared {0} tables against {1}: {2} differ" -f $tables.Count, $CompareWith, $diff)
+    }
 }
 finally {
     if (Test-Path $tmp) { Remove-Item $tmp -Force }
+    try { Stop-Transcript | Out-Null } catch { }
 }
