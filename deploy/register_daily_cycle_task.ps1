@@ -1,10 +1,10 @@
 # Registers the daily pipeline cycle as a Windows Scheduled Task, DISABLED unless -Enable is passed.
 # Enable it only at go-live: before that the legacy tasks still write to the same production database.
 # Runs as the given Windows account (asks for its password; the password is not stored in any script).
-# Usage (elevated PowerShell): deploy\register_daily_cycle_task.ps1 [-Enable] [-Time 01:00] [-User DOMAIN\user]
+# Usage (elevated PowerShell): deploy\register_daily_cycle_task.ps1 [-Enable] [-Time 01:30] [-User DOMAIN\user]
 param(
     [string]$ScriptPath = (Join-Path $PSScriptRoot 'run_daily_cycle.ps1'),
-    [string]$Time = '01:00',
+    [string]$Time = '01:30',
     [string]$TaskName = 'Wansoft_Pipeline_Diario',
     [string]$User = "$env:USERDOMAIN\$env:USERNAME",
     [switch]$Enable
