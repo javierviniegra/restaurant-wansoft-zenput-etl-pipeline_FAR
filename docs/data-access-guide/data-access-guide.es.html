@@ -1,0 +1,452 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Guía de acceso a datos</title>
+<style>
+  @page {
+    size: letter portrait;
+    margin: 2cm 1.5cm;
+    @frame footer_frame {
+      -pdf-frame-content: footer_content;
+      bottom: 1cm; left: 1.5cm; right: 1.5cm; height: 1cm;
+    }
+  }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #2d2d2d; }
+  .titulo { color: #023f3b; font-size: 18pt; font-weight: bold; margin: 0 0 2px; }
+  h1 { color: #023f3b; font-size: 13pt; margin: 22px 0 8px; border-bottom: 1px solid #e1e0d9; padding-bottom: 4px; }
+  h2 { color: #023f3b; font-size: 11pt; margin: 14px 0 6px; }
+  .subtitulo { color: #666; font-size: 9pt; margin: 0 0 14px; }
+  p { margin: 0 0 8px; line-height: 1.4; }
+  ol, ul { margin: 4px 0 10px; padding-left: 18px; }
+  li { margin-bottom: 4px; line-height: 1.4; }
+  code { font-family: "Courier New", monospace; background: #f0e9d8; padding: 1px 4px; font-size: 8.5pt; }
+  pre.bloque-codigo { font-family: "Courier New", monospace; background: #f0e9d8; padding: 8px 10px; font-size: 8pt; margin: 6px 0 12px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+  th { background-color: #035953; color: #ffffff; text-align: left; padding: 5px 6px; font-size: 8.5pt; }
+  td { padding: 5px 6px; font-size: 8.5pt; border-bottom: 0.5px solid #e0e0e0; vertical-align: top; }
+  table.compacta th, table.compacta td { font-size: 7.5pt; padding: 3px 4px; }
+  table.compacta code { font-size: 7pt; }
+  .nota { font-size: 9pt; background: #f0e9d8; padding: 10px 14px; margin: 10px 0 14px; }
+  .nota-titulo { font-weight: bold; color: #023f3b; }
+  .importante { font-size: 9pt; background: #fbeaea; border-left: 3px solid #ba2121; padding: 10px 14px; margin: 10px 0 14px; }
+  .importante-titulo { font-weight: bold; color: #ba2121; }
+  #footer_content { font-size: 7pt; color: #999; text-align: center; }
+  .logo { width: 90px; }
+  .salto { page-break-before: always; }
+  .indice-titulo { color: #023f3b; font-size: 13pt; font-weight: bold; margin: 18px 0 8px; border-bottom: 1px solid #e1e0d9; padding-bottom: 4px; }
+  pdftoc { color: #2d2d2d; }
+  pdftoc.pdftoclevel0 { font-weight: bold; font-size: 9.5pt; margin-top: 6px; }
+  pdftoc.pdftoclevel1 { font-size: 9pt; margin-left: 14px; }
+</style>
+</head>
+<body>
+
+<table style="border: none; margin-bottom: 4px;">
+  <tr style="border: none;">
+    <td style="border: none; width: 100px; padding: 0;"><img class="logo" src="{{ logo_path }}"></td>
+    <td style="border: none; padding: 0;">
+      <p class="titulo">Guía de acceso a datos</p>
+      <p class="subtitulo">Bases analíticas <code>wansoft</code> y <code>zenput</code> | Fonda Argentina | Versión 2026-09-28</p>
+    </td>
+  </tr>
+</table>
+
+<p>
+Para equipos externos que construirán su propio ETL sobre estas bases (por
+ejemplo, una capa de preguntas y respuestas / chatbot). Indica <b>qué tabla
+usar para cada pregunta de negocio, qué campos importan, cómo se unen las
+tablas y qué trampas evitar</b>. Cada regla se verificó contra el esquema y los
+datos reales el 28 de septiembre de 2026.
+</p>
+
+<p class="indice-titulo">Índice</p>
+<div><pdf:toc /></div>
+
+<div class="salto"></div>
+
+<h1>1. Qué hay y dónde</h1>
+
+<p>Dos bases MySQL (MariaDB 10.4) en el mismo servidor:</p>
+<table>
+  <tr><th style="width: 22%;">Base</th><th>Contenido</th></tr>
+  <tr><td><code>wansoft</code></td><td>Ventas, costos, compras, inventario y la capa analítica unificada</td></tr>
+  <tr><td><code>zenput</code></td><td>Checklists operativos (formularios y respuestas) y tareas de Zenput</td></tr>
+</table>
+
+<p>Sistemas de origen:</p>
+<table>
+  <tr><th style="width: 22%;">Origen</th><th>Qué aporta</th><th style="width: 28%;">Cómo llega</th></tr>
+  <tr><td><b>Wansoft</b> (punto de venta / ERP)</td><td>Ventas de todas las sucursales, costos, cierre de caja, y compras/inventario de las sucursales que aún no están en Odoo</td><td>Descarga diaria por su API SOAP</td></tr>
+  <tr><td><b>Odoo</b></td><td>Compras e inventario de las sucursales migradas a Odoo</td><td>Extracción diaria de solo lectura</td></tr>
+  <tr><td><b>Zenput</b></td><td>Checklists y tareas</td><td>Descarga diaria por API</td></tr>
+</table>
+
+<p>Capas dentro de <code>wansoft</code>:</p>
+<table>
+  <tr><th style="width: 22%;">Capa</th><th style="width: 30%;">Tablas</th><th>Úsala para</th></tr>
+  <tr><td>Copias de Wansoft</td><td><code>get*</code>, <code>costeomensual*</code></td><td>Ventas, costos, cierre de caja, detalle del lado Wansoft</td></tr>
+  <tr><td>Canónica</td><td><code>canonical_purchase_*</code></td><td>Interna: compras de Odoo y Wansoft en un mismo formato. Mejor usar la capa analítica</td></tr>
+  <tr><td><b>Analítica (lista para negocio)</b></td><td><code>analytics_*</code></td><td>Compras e inventario de todas las sucursales, ambas fuentes ya unidas</td></tr>
+  <tr><td>Dimensiones</td><td><code>dim_company_analytical</code>, <code>dim_product</code>, <code>dim_vendor</code>, <code>dim_time</code></td><td>Descripciones y atributos para la capa analítica</td></tr>
+</table>
+
+<h1>2. Reglas de oro</h1>
+
+<p>Léelas antes de escribir cualquier consulta.</p>
+
+<ol>
+  <li><b>Una sucursal se identifica de tres formas distintas</b> según la tabla.
+  Usa la tabla de equivalencias de la sección 3; nunca unas tablas por nombre
+  de sucursal a ciegas.
+    <ul>
+      <li>Clave corta (<code>Acoxpa</code>, <code>Oceanía</code>): tablas de ventas
+      (<code>Sucursal</code>) y capa analítica (<code>company_source_key</code>).</li>
+      <li><b>ID numérico de Wansoft</b> (<code>5320</code>): costos
+      (<code>subsidiary_id</code>) y tablas de inventario, donde el ID viene en una
+      columna llamada, de forma engañosa, <code>subsidiary_name</code>.</li>
+      <li>Nombre largo de Wansoft (<code>Fonda Argentina - Acoxpa</code>): costos
+      (<code>subsidiary_name</code>) y facturas (<code>getexpenses_factura.Sucursal</code>).</li>
+    </ul>
+  </li>
+  <li><b>En <code>getexpenses_factura.Sucursal</code> la misma sucursal aparece
+  escrita de dos maneras</b> por un daño histórico de codificación
+  (<code>Cancún</code> y <code>Canc??n</code>, <code>Oceanía</code> y
+  <code>Ocean??a</code>). Asígnala con la tabla de equivalencias antes de agrupar.</li>
+  <li><b>En las tablas de ventas los montos y fechas son texto</b>
+  (<code>varchar</code>). Conviértelos: <code>CAST(Total AS DECIMAL(14,2))</code>,
+  <code>DATE(Fecha)</code> (formato <code>2026-09-01T00:00:00</code>).</li>
+  <li><b>Las tablas analíticas traen <code>include_in_business_views</code>.</b>
+  Filtra <code>include_in_business_views = 1</code> para cifras de negocio; el
+  resto de las filas se conserva para auditoría (proveedores internos,
+  productos sin mapear, casos en revisión) y trae un <code>exclude_reason</code>.</li>
+  <li><b>Compras e inventario vienen de dos sistemas; la capa analítica ya los
+  une sin traslape</b> (sección 5.3). No reconstruyas la unión desde las tablas crudas.</li>
+  <li><b>Los datos se cargan una vez al día, alrededor de la 01:30, hasta el día
+  anterior.</b> Cada corrida vuelve a revisar los días recientes (ventas 10
+  días, costos/inventario de Wansoft 5, compras 35), así que los últimos días
+  todavía pueden cambiar.</li>
+  <li>Las tablas de costos son <b>fotos acumuladas</b>, no montos diarios (sección 5.2).</li>
+</ol>
+
+<div class="salto"></div>
+
+<h1>3. Equivalencias de sucursales</h1>
+
+<table class="compacta">
+  <tr><th style="width: 8%;">ID Wansoft</th><th style="width: 15%;">Clave corta</th><th style="width: 24%;">Nombre largo Wansoft (costos)</th><th style="width: 22%;">Empresa en Odoo</th><th style="width: 19%;">Fuente de compras e inventario</th><th style="width: 12%;">Arranque en Odoo</th></tr>
+  <tr><td>5320</td><td>Acoxpa</td><td>Fonda Argentina - Acoxpa</td><td>FONDA COSTA NERA</td><td>Odoo</td><td>2026-07-01</td></tr>
+  <tr><td>4959</td><td>Aeropuerto</td><td>Fonda Argentina - Aeropuerto</td><td>FONDA ARGENTINA AEROPUERTO</td><td>Wansoft</td><td>—</td></tr>
+  <tr><td>4960</td><td>Antenas</td><td>Fonda Argentina - Antenas</td><td>FONDA ARGENTINA LAS ANTENAS</td><td>Odoo</td><td>2026-06-01</td></tr>
+  <tr><td>6175</td><td>Cancun</td><td>Fonda Argentina - Cancún</td><td>—</td><td>Wansoft</td><td>—</td></tr>
+  <tr><td>12802</td><td>CentroMyJ</td><td>Fonda Argentina - Centro Mario y July</td><td>MARIO Y JULY</td><td>Odoo (nació en Odoo)</td><td>2026-06-01</td></tr>
+  <tr><td>4958</td><td>Isabel La Católica</td><td>Fonda Argentina - Isabel La Católica</td><td>FONDA ARGENTINA</td><td>Wansoft → <b>Odoo desde 2026-10-01</b></td><td>2026-10-01</td></tr>
+  <tr><td>12057</td><td>La Esquina Coyoacán</td><td>Fonda Argentina - Coyoacan</td><td>FONDA ARGENTINA COYOACAN</td><td>Odoo</td><td>2026-06-01</td></tr>
+  <tr><td>4752</td><td>Metepec</td><td>Fonda Argentina - Tollocan</td><td>FONDA ARGENTINA TOLLOCAN</td><td>Wansoft</td><td>—</td></tr>
+  <tr><td>4433</td><td>Napoles</td><td>Fonda Argentina - Nápoles</td><td>FONDA ARGENTINA POLYFORUM</td><td>Wansoft</td><td>—</td></tr>
+  <tr><td>5943</td><td>Oceanía</td><td>Fonda Argentina - Oceanía</td><td>FONDA ARGENTINA ENCUENTRO OCEANIA</td><td>Odoo</td><td>2026-06-30</td></tr>
+  <tr><td>6174</td><td>Playa del Carmen</td><td>Fonda Argentina - Playa del Carmen</td><td>—</td><td>Wansoft</td><td>—</td></tr>
+  <tr><td>12806</td><td>Puebla</td><td>Fonda Argentina - Puebla</td><td>FONDA ARGENTINA PUEBLA</td><td>Odoo (nació en Odoo)</td><td>2026-06-10</td></tr>
+  <tr><td>5319</td><td>San Jeronimo</td><td>Fonda Argentina – San Jerónimo</td><td>FONDA ARGENTINA SAN JERONIMO</td><td>Wansoft → <b>Odoo desde 2026-10-01</b></td><td>2026-10-01</td></tr>
+  <tr><td>5321</td><td>Taquería parroquia</td><td>Fonda Argentina – Taquería Parroquía</td><td>—</td><td>Wansoft</td><td>—</td></tr>
+  <tr><td>4962</td><td>Taquería Viaducto</td><td>Fonda Argentina - Taqueria Viaducto</td><td>—</td><td>Wansoft</td><td>—</td></tr>
+  <tr><td>6560</td><td>Tepeyac</td><td>Fonda Argentina - Tepeyac</td><td>FONDA ARGENTINA MAQ</td><td>Odoo</td><td>2026-06-01</td></tr>
+  <tr><td>5396</td><td>Versalles</td><td>Fonda Argentina - Taquería Exhibimex</td><td>—</td><td>Wansoft</td><td>—</td></tr>
+  <tr><td>5318</td><td>Vía Vallejo</td><td>Fonda Argentina – Vía Vallejo</td><td>FONDA ARGENTINA VALLEJO</td><td>Wansoft → <b>Odoo desde 2026-10-01</b></td><td>2026-10-01</td></tr>
+  <tr><td>4961</td><td>Viaducto</td><td>Fonda Argentina - Viaducto</td><td>FONDA ARGENTINA VIADUCTO</td><td>Wansoft</td><td>—</td></tr>
+</table>
+
+<p>La clave corta es la que aparece en <code>Sucursal</code> (ventas) y en
+<code>company_source_key</code> (capa analítica).</p>
+
+<div class="salto"></div>
+
+<table style="margin: 10px 0 14px;"><tr><td style="background-color: #f0e9d8; border: none; padding: 10px 14px; font-size: 9pt;">
+<span class="nota-titulo">Notas:</span>
+<ul>
+  <li>La misma sucursal tiene nombres distintos según el sistema: Metepec =
+  "Tollocan", Napoles = "Polyforum", Versalles = "Taquería Exhibimex", Acoxpa =
+  "Costa Nera" en Odoo. Los nombres largos usan guion (-) o guion largo (–).</li>
+  <li><code>7697</code> "Taqueria San Fernando" solo aparece en costos
+  históricos; no es una de las 19 sucursales actuales.</li>
+  <li><b>Las ventas siempre vienen de Wansoft, para todas las sucursales</b>,
+  sin importar la fuente de compras.</li>
+  <li><b>Sucursales nuevas</b> (hoy Puebla y CentroMyJ, y todas las que abran
+  después) nacen en Odoo: compras, inventario y costos vienen de Odoo; en
+  Wansoft solo registran ventas y cierres diarios.</li>
+  <li><b>Costos de las sucursales migradas:</b> hoy siguen viniendo de Wansoft,
+  a propósito y de forma temporal. Por seguridad, estas sucursales siguen
+  capturando sus compras también en Wansoft (respaldo si Odoo fallara, y para
+  validar que las compras de Odoo corresponden a las de Wansoft), así que
+  Wansoft sigue calculando su costo completo. Cuando dejen de capturar compras
+  en Wansoft y ahí solo queden ventas y cierres diarios, su costo pasará a
+  calcularse desde Odoo. Ver sección 5.2.</li>
+  <li>Los proveedores internos <b>El Bodegón de Fito</b> y <b>Las Empanadas de
+  María Eva</b> (cocinas centrales) se excluyen como empresa compradora en las
+  vistas de negocio.</li>
+  <li>La misma información, como datos: <code>dim_company_analytical</code> y
+  <code>analytics_company_domain_coverage</code> (sección 5.6). Usan la clave
+  corta y no traen el ID de Wansoft; para ese vínculo usa esta tabla.</li>
+</ul>
+</td></tr></table>
+
+<h1>4. Qué tabla responde cada pregunta</h1>
+
+<table class="compacta">
+  <tr><th width="30%">Pregunta</th><th width="48%">Tabla</th><th width="22%">Filtro / nota</th></tr>
+  <tr><td>Venta, tickets, comensales por día y sucursal</td><td><code>getallordenesbyday_new_venta</code></td><td>una fila por ticket</td></tr>
+  <tr><td>Qué se vendió (platillos, grupos)</td><td><code>getallordenesbyday_new_detalleventa</code></td><td>una fila por renglón</td></tr>
+  <tr><td>Formas de pago, propinas</td><td><code>getallordenesbyday_new_pago</code></td><td>una fila por pago</td></tr>
+  <tr><td>Cierre oficial del día (corte Z), cancelaciones, cortesías, descuentos</td><td><code>getglobalcashclosing</code></td><td>una fila por sucursal por corte</td></tr>
+  <tr><td>Costo de venta, merma y margen del mes</td><td><code>costeomensual</code></td><td>foto acumulada del mes; toma el último día</td></tr>
+  <tr><td>Costo de la semana</td><td><code>costeomensual_semanapyq</code></td><td>foto acumulada de la semana</td></tr>
+  <tr><td>Costo de venta del día</td><td><code>gettotalcostbydate</code></td><td>una fila por sucursal por día</td></tr>
+  <tr><td>Rendimientos de tablajería</td><td><code>gettablajeriareport</code></td><td>solo sucursales Wansoft</td></tr>
+  <tr><td>Compras (mercancía) de cualquier sucursal y periodo</td><td><code>analytics_purchase_order_lines</code>, <code>analytics_purchase_orders</code>, <code>analytics_purchase_daily_company_product</code></td><td><code>include_in_business_views = 1</code></td></tr>
+  <tr><td>Gasto por cuenta contable (Costo operativo, Gastos directos...)</td><td><code>getexpenses_factura</code></td><td>solo Wansoft (ver 5.3)</td></tr>
+  <tr><td>Detalle de entradas y salidas de inventario (Wansoft)</td><td><code>getinputinventory_entrada</code>, <code>getoutgoinginventory_salida</code></td><td>sucursales Wansoft</td></tr>
+  <tr><td>Existencias actuales</td><td><code>analytics_inventory_current_product_location</code>, <code>analytics_inventory_balance</code></td><td><code>include_in_business_views = 1</code></td></tr>
+  <tr><td>Resultados de checklists</td><td><code>zenput.submissions</code> + <code>zenput.submission_answers</code></td><td>—</td></tr>
+  <tr><td>Tareas</td><td><code>zenput.zenput_tasks</code></td><td>—</td></tr>
+  <tr><td>Qué fuente alimenta cada sucursal</td><td><code>analytics_company_domain_coverage</code></td><td>—</td></tr>
+</table>
+
+<div class="salto"></div>
+
+<h1>5. Dominios</h1>
+
+<h2>5.1 Ventas (Wansoft, todas las sucursales)</h2>
+
+<p><code>getallordenesbyday_new_venta</code> — encabezado del ticket.</p>
+<table>
+  <tr><th style="width: 38%;">Campo</th><th>Significado</th></tr>
+  <tr><td><code>Sucursal</code></td><td>Clave corta de la sucursal</td></tr>
+  <tr><td><code>Movimento</code></td><td>ID del ticket dentro de la sucursal (así, sin "i"); llave de unión</td></tr>
+  <tr><td><code>Fecha</code></td><td>Fecha de negocio, texto <code>AAAA-MM-DDT00:00:00</code></td></tr>
+  <tr><td><code>Total</code>, <code>Subtotal</code>, <code>IVA</code>, <code>IEPS</code>, <code>Descuento</code></td><td>Montos, texto</td></tr>
+  <tr><td><code>Personas</code></td><td>Comensales</td></tr>
+  <tr><td><code>Mesa</code>, <code>Mesero</code>, <code>Orden</code>, <code>Terminal</code></td><td>Mesa, mesero, número de orden, terminal</td></tr>
+  <tr><td><code>TipoOrden</code></td><td><code>Restaurant</code>, <code>Para llevar</code>, <code>eCommerce</code></td></tr>
+  <tr><td><code>HoraApertura</code>, <code>HoraCierre</code></td><td>Hora de apertura y cierre</td></tr>
+  <tr><td><code>Estatus</code></td><td>Siempre <code>0</code> en los datos actuales</td></tr>
+</table>
+
+<p><b>Uniones</b> (se necesitan las dos columnas, porque el ID de ticket se repite entre sucursales):</p>
+<pre class="bloque-codigo">venta.Sucursal = detalle.Sucursal AND venta.Movimento = detalle.Movimiento_Id</pre>
+<p>Igual para <code>getallordenesbyday_new_pago</code> y <code>getallordenesbyday_new_modificador</code>.</p>
+
+<ul>
+  <li><code>getallordenesbyday_new_detalleventa</code> — renglones: <code>Platillo</code>,
+  <code>CodigoPlatillo</code>, <code>Grupo</code>, <code>TipoGrupo</code> (por ejemplo
+  alimentos / bebidas), <code>Cantidad</code>, <code>PrecioUnitario</code>,
+  <code>Total</code>, <code>Costo</code>, <code>Cortesia</code>, <code>Hora</code>.</li>
+  <li><code>getallordenesbyday_new_pago</code> — <code>MetodoDePago</code>,
+  <code>Total</code>, <code>Propina</code>, <code>Terminal</code>.</li>
+</ul>
+
+<div class="importante">
+<span class="importante-titulo">Meseros:</span> los pedidos de reparto y
+aplicaciones se atribuyen a un <b>mesero genérico</b> cuyo nombre cambia por
+sucursal (<code>APLICACIONES</code>, <code>Apps Llevar</code>). Exclúyelo al
+hacer rankings de meseros reales.
+</div>
+
+<pre class="bloque-codigo">SELECT Sucursal, DATE(Fecha) AS dia,
+       COUNT(*) AS tickets,
+       SUM(CAST(Personas AS UNSIGNED)) AS comensales,
+       SUM(CAST(Total AS DECIMAL(14,2))) AS venta
+FROM getallordenesbyday_new_venta
+WHERE Fecha &gt;= '2026-09-01' AND Fecha &lt; '2026-10-01'
+GROUP BY Sucursal, DATE(Fecha);</pre>
+
+<p><code>getglobalcashclosing</code> — el cierre oficial por sucursal
+(<code>subsidiary_id</code>, <code>fecha_corte</code>): <code>total_ventas</code>,
+<code>no_ordenes</code>, <code>total_personas</code>, promedios, y número y monto
+de cortesías, cancelaciones, descuentos, anulaciones y promociones. Aquí los
+montos son <b>valor de venta</b>. Úsalo para cuadrar los totales del día.</p>
+
+<h2>5.2 Costos (Wansoft; sucursales nuevas desde Odoo)</h2>
+
+<p>De dónde viene el costo de cada sucursal:</p>
+<table>
+  <tr><th style="width: 38%;">Tipo de sucursal</th><th>Fuente del costo hoy</th></tr>
+  <tr><td>Solo Wansoft</td><td>Reporte de costos de Wansoft</td></tr>
+  <tr><td>Migrada a Odoo (Acoxpa, Antenas, Tepeyac, Oceanía, La Esquina Coyoacán; desde 2026-10-01 también Isabel La Católica, San Jeronimo, Vía Vallejo)</td><td>Reporte de costos de Wansoft, <b>temporalmente</b>: siguen capturando compras en paralelo en Wansoft como respaldo y para validar Odoo. Pasará a Odoo cuando dejen de hacerlo</td></tr>
+  <tr><td>Nueva, nacida en Odoo (Puebla, CentroMyJ y las que abran después)</td><td>Calculado desde la contabilidad de Odoo (cuentas de costo directo) y guardado en las mismas tablas</td></tr>
+</table>
+
+<p>Identificados por <code>subsidiary_id</code> (ID de Wansoft). Las tres tablas son <b>fotos</b>:</p>
+<table>
+  <tr><th style="width: 26%;">Tabla</th><th style="width: 34%;">Una fila =</th><th>Cómo leerla</th></tr>
+  <tr><td><code>costeomensual</code></td><td>Acumulado del mes, del día 1 hasta <code>created_date</code></td><td>Total del mes = la fila con el <code>created_date</code> más reciente de ese mes</td></tr>
+  <tr><td><code>costeomensual_semanapyq</code></td><td>Acumulado de la semana, del lunes hasta el día <b>anterior</b> a <code>created_date</code></td><td>Total de la semana = la última fila de la semana</td></tr>
+  <tr><td><code>gettotalcostbydate</code></td><td>Costo de venta del día <code>created_date</code></td><td>Se suma por días</td></tr>
+</table>
+
+<p><code>mes_ano</code> es texto <code>MM-AAAA</code>. Cada tabla tiene una sola
+fila por (<code>subsidiary_id</code>, <code>created_date</code>).</p>
+
+<p>Campos de <code>costeomensual</code> y cómo los usan los reportes de la dirección:</p>
+<table>
+  <tr><th style="width: 36%;">Cifra del reporte</th><th>Fórmula</th></tr>
+  <tr><td>Costo Total</td><td><code>CostoTotal - CostoDeConsumo</code></td></tr>
+  <tr><td>Costo Teórico</td><td><code>CostoDeProductosVendidos</code></td></tr>
+  <tr><td>Gasto de Venta</td><td><code>CostoDeConsumo</code></td></tr>
+  <tr><td>Costo de Mermas</td><td><code>CostoDeMerma</code></td></tr>
+  <tr><td>Cortesías / Cancelaciones</td><td><code>CostoDeCortesías</code>, <code>CostoDeCancelaciones</code> (valor de venta, del cierre de caja)</td></tr>
+</table>
+
+<pre class="bloque-codigo">-- Costo del mes por sucursal: última foto del mes
+SELECT c.subsidiary_id, c.subsidiary_name, c.created_date,
+       c.CostoTotal - c.CostoDeConsumo AS costo_total,
+       c.CostoDeProductosVendidos AS costo_teorico
+FROM costeomensual c
+JOIN (SELECT subsidiary_id, MAX(created_date) AS d
+      FROM costeomensual
+      WHERE created_date &gt;= '2026-08-01' AND created_date &lt; '2026-09-01'
+      GROUP BY subsidiary_id) last
+  ON last.subsidiary_id = c.subsidiary_id AND last.d = c.created_date;</pre>
+
+<div class="salto"></div>
+
+<h2>5.3 Compras (histórico de Wansoft + Odoo, ya unidos)</h2>
+
+<p><b>Usa la capa analítica.</b> Ya une ambas fuentes con esta regla por sucursal:</p>
+<ul>
+  <li><b>Sucursal que compra en Wansoft:</b> entradas de tipo factura de Wansoft
+  (<code>getinputinventory_entrada</code> con <code>TipoEntrada = 'Factura'</code>).</li>
+  <li><b>Sucursal migrada a Odoo:</b> histórico de Wansoft <b>antes</b> de su fecha
+  de arranque en Odoo (sección 3) y, desde esa fecha, órdenes de compra
+  confirmadas de Odoo (<code>state</code> purchase/done). Sin traslape ni huecos.</li>
+  <li>Se excluyen los proveedores internos como empresa compradora; si una
+  sucursal le <i>compra a</i> un proveedor interno, eso sí cuenta.</li>
+</ul>
+
+<p><code>source_system</code> (<code>wansoft</code>/<code>odoo</code>) dice de dónde
+viene cada fila; <code>final_purchase_source_status</code> explica por qué se
+conservó (por ejemplo <code>wansoft_history_before_odoo</code>).</p>
+
+<table class="compacta">
+  <tr><th width="42%">Tabla</th><th width="16%">Grano</th><th width="42%">Campos clave</th></tr>
+  <tr><td><code>analytics_purchase_order_lines</code></td><td>renglón de compra</td><td><code>company_source_key</code>, <code>order_date</code>, <code>vendor_name</code>, <code>product_name</code>, <code>wansoft_code</code>, <code>wansoft_department</code>, <code>product_qty</code>, <code>price_unit</code>, <code>price_subtotal</code> (sin IVA), <code>price_total</code> (con IVA), <code>source_system</code></td></tr>
+  <tr><td><code>analytics_purchase_orders</code></td><td>orden de compra / factura</td><td>los mismos campos de encabezado más totales</td></tr>
+  <tr><td><code>analytics_purchase_daily_company_product</code></td><td>sucursal × día × producto</td><td><code>business_price_subtotal_total</code>, <code>business_product_qty_total</code> (ya filtrados para negocio)</td></tr>
+</table>
+
+<p>Se unen a las dimensiones con <code>product_analytical_key</code> → <code>dim_product</code>,
+<code>vendor_analytical_key</code> → <code>dim_vendor</code>,
+<code>company_analytical_key</code> → <code>dim_company_analytical</code> y
+<code>order_date_key</code> → <code>dim_time.date_key</code>.</p>
+
+<pre class="bloque-codigo">SELECT company_source_key, DATE_FORMAT(order_date, '%Y-%m') AS mes,
+       source_system, SUM(price_subtotal) AS compras_sin_iva
+FROM analytics_purchase_order_lines
+WHERE include_in_business_views = 1
+  AND order_date &gt;= '2026-01-01'
+GROUP BY company_source_key, mes, source_system;</pre>
+
+<div class="nota">
+<span class="nota-titulo">Ejemplo real:</span> Acoxpa arrancó en Odoo el
+2026-07-01. Con la consulta anterior, enero a junio salen con
+<code>source_system = 'wansoft'</code> y de julio en adelante con
+<code>'odoo'</code>, sin meses repetidos ni faltantes.
+</div>
+
+<table style="margin: 10px 0 14px;"><tr><td style="background-color: #fbeaea; border: none; padding: 10px 14px; font-size: 9pt; border-left: 3px solid #ba2121;">
+<span class="importante-titulo"><code>getexpenses_factura</code> es otra cosa:</span>
+son todas las facturas de proveedor de Wansoft clasificadas por cuenta contable
+(<code>Cuenta</code>: Costo operativo, Gastos de venta, Gastos directos, Sueldos y
+salarios, Fletes...), incluidos servicios, software y nómina, que no son
+mercancía. Las órdenes de compra de Odoo solo cubren mercancía. Por eso:
+<ul>
+  <li>Para compras de mercancía de ambos sistemas, usa la capa analítica.</li>
+  <li>Para comparar con los reportes de "Compras" de Wansoft, usa solo
+  <code>Cuenta = 'Costo operativo'</code>.</li>
+  <li>El gasto por cuenta de las sucursales que ya están en Odoo <b>no</b> está
+  en estas bases a partir de su fecha de arranque.</li>
+</ul>
+Algunas facturas de Wansoft traen <code>Cuenta</code> vacía. En esta tabla montos
+y fechas son texto.
+</td></tr></table>
+
+<h2>5.4 Inventario</h2>
+<ul>
+  <li><b>Movimientos de Wansoft</b> (sucursales Wansoft e histórico de las
+  migradas): <code>getinputinventory_entrada</code> (entradas;
+  <code>TipoEntrada</code>: Factura, Transferencia, Entrada con canal,
+  Producto procesado, Ajuste de inventario) y
+  <code>getoutgoinginventory_salida</code> (salidas, unos 37 millones de filas:
+  filtra siempre por <code>Fecha</code> y <code>subsidiary_name</code>).
+  Sucursal = ID de Wansoft en <code>subsidiary_name</code>. Cantidad
+  <code>Cantidad</code>, costo <code>CostoUnitario</code>.</li>
+  <li><b>Existencias actuales, unificadas:</b>
+  <code>analytics_inventory_current_product_location</code> (existencias de Odoo
+  por producto y ubicación) y <code>analytics_inventory_balance</code> (saldo de
+  Wansoft = entradas − salidas por producto). Filtra
+  <code>include_in_business_views = 1</code>.</li>
+  <li>Todavía <b>no hay valuación de inventario</b> (en dinero) para las
+  sucursales en Odoo, solo cantidades.</li>
+</ul>
+
+<h2>5.5 Zenput (base zenput)</h2>
+<table>
+  <tr><th style="width: 22%;">Tabla</th><th style="width: 18%;">Grano</th><th>Campos clave</th></tr>
+  <tr><td><code>form_templates</code></td><td>plantilla de checklist</td><td><code>form_id</code>, <code>title</code>, <code>category_name</code></td></tr>
+  <tr><td><code>submissions</code></td><td>un checklist contestado</td><td><code>submission_id</code>, <code>form_template_id</code> → <code>form_templates.form_id</code>, <code>location_name</code>, <code>user_display_name</code>, <code>date_submitted</code></td></tr>
+  <tr><td><code>submission_answers</code></td><td>una respuesta</td><td><code>submission_id</code>, <code>title</code> (pregunta), <code>field_type</code>, <code>value_as_string</code></td></tr>
+  <tr><td><code>zenput_tasks</code></td><td>tarea</td><td><code>task_id</code>, <code>title</code>, <code>account_name</code> (ubicación), <code>status_name</code>, <code>assignee_display_name</code>, <code>date_due</code>, <code>is_closed</code>, <code>is_completed_late</code></td></tr>
+</table>
+<p><code>location_name</code> / <code>account_name</code> son los nombres de
+ubicación propios de Zenput, no la clave corta; algunas ubicaciones de Zenput
+no tienen sucursal en el punto de venta.</p>
+
+<h2>5.6 Tablas de gobierno</h2>
+<ul>
+  <li><code>dim_company_analytical</code>: una fila por empresa, banderas
+  (<code>is_active_branch</code>, <code>is_internal_provider</code>,
+  <code>is_final_operating_branch</code>), fuente por dominio,
+  <code>operational_start_date</code>.</li>
+  <li><code>analytics_company_domain_coverage</code>: qué fuente alimenta cada
+  dominio por sucursal, con conteos y un <code>coverage_status</code>.</li>
+  <li><code>dim_time</code>: calendario (<code>date_key</code> = AAAAMMDD), semanas,
+  meses, semanas ISO.</li>
+</ul>
+
+<h1>6. Tablas que no se deben usar</h1>
+<table>
+  <tr><th style="width: 50%;">Tablas</th><th>Por qué</th></tr>
+  <tr><td><code>canonical_purchase_*</code>, <code>odoo_purchase_*</code>, <code>odoo_inventory_*</code></td><td>Capas intermedias; las tablas analíticas son el resultado listo para negocio</td></tr>
+  <tr><td><code>inventory_*</code>, <code>product_catalog_mapping</code>, <code>backup_product_catalog_mapping</code>, <code>product_replacement_candidates</code>, <code>stg_*</code></td><td>Mesa de trabajo de mapeos y revisiones</td></tr>
+  <tr><td><code>odoo_company_migration_policy</code>, <code>odoo_cutover_validation_log</code></td><td>Control del pipeline</td></tr>
+  <tr><td><code>getinventorybydepartment</code>, <code>getstockinventory_inventario</code>, <code>getinventorybyday_*</code></td><td>Fotos antiguas que ya no se actualizan a diario</td></tr>
+  <tr><td><code>vw_inventory_*</code></td><td>Vistas de diagnóstico</td></tr>
+  <tr><td><code>tmp_*</code></td><td>Temporales</td></tr>
+</table>
+
+<h1>7. Frescura y horarios</h1>
+<ul>
+  <li>Pipeline diario a la <b>01:30</b> (hora de Ciudad de México); datos hasta el día anterior.</li>
+  <li>Revisiones continuas: ventas 10 días (cuadradas contra el cierre diario de
+  Wansoft), costos/inventario/cierre de caja de Wansoft 5 días, compras 35 días.</li>
+  <li>Wansoft puede recalcular sus costos después; manda la foto más reciente.</li>
+  <li>Respaldo semanal los jueves a las 18:00. Evita consultas pesadas entre la
+  01:30 y las 03:00.</li>
+</ul>
+
+<h1>8. Acceso</h1>
+<p>El acceso es mediante un usuario de base de datos <b>de solo lectura</b>,
+limitado a las tablas de las secciones 4 y 5, que se entrega por separado (las
+credenciales nunca se escriben en este documento).</p>
+<div class="importante">
+<span class="importante-titulo">Consultas pesadas:</span> consulta
+<code>getoutgoinginventory_salida</code> y las tablas de detalle de ventas
+siempre con filtro de fechas: tienen decenas de millones de filas. Cada usuario
+tiene un máximo de 4 conexiones simultáneas y 30 minutos por consulta.
+</div>
+
+<div id="footer_content">
+Fonda Argentina | Guía de acceso a datos | Página <pdf:pagenumber /> de <pdf:pagecount />
+</div>
+
+</body>
+</html>

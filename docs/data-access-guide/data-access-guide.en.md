@@ -8,6 +8,23 @@ use for each business question, which fields matter, how tables join, and the
 traps to avoid**. Every rule here was checked against the live schema and data
 on 2026-09-28.
 
+## Contents
+
+1. [What is where](#1-what-is-where)
+2. [Golden rules](#2-golden-rules-read-before-writing-any-query)
+3. [Branch crosswalk](#3-branch-crosswalk)
+4. [Which table answers which question](#4-which-table-answers-which-question)
+5. [Domains](#5-domains)
+   - [5.1 Sales](#51-sales-wansoft-all-branches)
+   - [5.2 Costs](#52-costs-wansoft-new-branches-from-odoo)
+   - [5.3 Purchases](#53-purchases-wansoft-history--odoo-merged)
+   - [5.4 Inventory](#54-inventory)
+   - [5.5 Zenput](#55-zenput-zenput-database)
+   - [5.6 Governance tables](#56-governance-tables)
+6. [Do not use](#6-do-not-use)
+7. [Freshness and schedule](#7-freshness-and-schedule)
+8. [Access](#8-access)
+
 ---
 
 ## 1. What is where
@@ -100,8 +117,16 @@ Notes:
   of the 19 current branches.
 - **Sales always come from Wansoft for every branch**, whatever the purchases
   source.
-- Costs come from Wansoft for every branch except Puebla and CentroMyJ, whose
-  costs are computed from Odoo accounting into the same tables.
+- **New branches** (today Puebla and CentroMyJ, and every branch opened from
+  now on) are born on Odoo: purchases, inventory and costs come from Odoo; in
+  Wansoft they only record sales and daily closings.
+- **Costs of migrated branches:** they still come from Wansoft today, on
+  purpose and temporarily. As a safety measure these branches keep entering
+  their purchases in Wansoft too (a fallback if Odoo failed, and a way to
+  validate that Odoo purchases match Wansoft's), so Wansoft still computes
+  their full cost. Once they stop entering purchases in Wansoft and only sales
+  and daily closings remain there, their cost will be computed from Odoo. See
+  Section 5.2.
 - Internal providers **El Bodegón de Fito** and **Las Empanadas de María Eva**
   (central kitchens) are excluded as buying companies from business views.
 - The same information, as data: `dim_company_analytical` and
@@ -179,7 +204,15 @@ GROUP BY Sucursal, DATE(Fecha);
 counts/amounts of courtesies, cancellations, discounts, voids, promotions.
 Amounts here are **sale value**. Use it to reconcile daily totals.
 
-### 5.2 Costs (Wansoft; Puebla and CentroMyJ from Odoo)
+### 5.2 Costs (Wansoft; new branches from Odoo)
+
+Where each branch's cost comes from:
+
+| Branch type | Cost source today |
+|---|---|
+| Wansoft only | Wansoft cost report |
+| Migrated to Odoo (Acoxpa, Antenas, Tepeyac, Oceanía, La Esquina Coyoacán; from 2026-10-01 also Isabel La Católica, San Jeronimo, Vía Vallejo) | Wansoft cost report, **temporarily**: they keep entering purchases in Wansoft in parallel as a fallback and to validate Odoo. Moves to Odoo when they stop |
+| New, born on Odoo (Puebla, CentroMyJ and any branch opened later) | Computed from Odoo accounting (direct-cost accounts) and stored in the same tables |
 
 Keyed by `subsidiary_id` (Wansoft id). All three are **snapshots**:
 
@@ -330,4 +363,5 @@ key; some Zenput locations have no POS branch.
 Access is through a dedicated **read-only** database user limited to the tables
 in Sections 4–5, provided separately (credentials are never written in this
 document). Query `getoutgoinginventory_salida` and the sales detail tables with
-date filters: they hold tens of millions of rows.
+date filters: they hold tens of millions of rows. Each user is limited to 4
+simultaneous connections and 30 minutes per query.

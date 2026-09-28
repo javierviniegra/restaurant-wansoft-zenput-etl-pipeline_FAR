@@ -6,7 +6,24 @@ Para: equipos externos que construirán su propio ETL sobre estas bases (por
 ejemplo, una capa de preguntas y respuestas / chatbot). Indica **qué tabla usar
 para cada pregunta de negocio, qué campos importan, cómo se unen las tablas y
 qué trampas evitar**. Cada regla se verificó contra el esquema y los datos
-reales el 2026-09-28.
+reales el 2026-09-28. Versión en PDF: [data-access-guide.es.pdf](data-access-guide.es.pdf).
+
+## Índice
+
+1. [Qué hay y dónde](#1-qué-hay-y-dónde)
+2. [Reglas de oro](#2-reglas-de-oro-léelas-antes-de-escribir-cualquier-consulta)
+3. [Equivalencias de sucursales](#3-equivalencias-de-sucursales)
+4. [Qué tabla responde cada pregunta](#4-qué-tabla-responde-cada-pregunta)
+5. [Dominios](#5-dominios)
+   - [5.1 Ventas](#51-ventas-wansoft-todas-las-sucursales)
+   - [5.2 Costos](#52-costos-wansoft-sucursales-nuevas-desde-odoo)
+   - [5.3 Compras](#53-compras-histórico-de-wansoft--odoo-ya-unidos)
+   - [5.4 Inventario](#54-inventario)
+   - [5.5 Zenput](#55-zenput-base-zenput)
+   - [5.6 Tablas de gobierno](#56-tablas-de-gobierno)
+6. [No usar](#6-no-usar)
+7. [Frescura y horarios](#7-frescura-y-horarios)
+8. [Acceso](#8-acceso)
 
 ---
 
@@ -102,9 +119,16 @@ Notas:
   las 19 sucursales actuales.
 - **Las ventas siempre vienen de Wansoft, para todas las sucursales**, sin
   importar la fuente de compras.
-- Los costos vienen de Wansoft para todas las sucursales excepto Puebla y
-  CentroMyJ, cuyos costos se calculan desde la contabilidad de Odoo y se
-  guardan en las mismas tablas.
+- **Sucursales nuevas** (hoy Puebla y CentroMyJ, y todas las que abran
+  después) nacen en Odoo: compras, inventario y costos vienen de Odoo; en
+  Wansoft solo registran ventas y cierres diarios.
+- **Costos de las sucursales migradas:** hoy siguen viniendo de Wansoft, a
+  propósito y de forma temporal. Por seguridad, estas sucursales siguen
+  capturando sus compras también en Wansoft (respaldo si Odoo fallara, y para
+  validar que las compras de Odoo corresponden a las de Wansoft), así que
+  Wansoft sigue calculando su costo completo. Cuando dejen de capturar compras
+  en Wansoft y ahí solo queden ventas y cierres diarios, su costo pasará a
+  calcularse desde Odoo. Ver sección 5.2.
 - Los proveedores internos **El Bodegón de Fito** y **Las Empanadas de María
   Eva** (cocinas centrales) se excluyen como empresa compradora en las vistas
   de negocio.
@@ -185,7 +209,15 @@ número y monto de cortesías, cancelaciones, descuentos, anulaciones y
 promociones. Aquí los montos son **valor de venta**. Úsalo para cuadrar los
 totales del día.
 
-### 5.2 Costos (Wansoft; Puebla y CentroMyJ desde Odoo)
+### 5.2 Costos (Wansoft; sucursales nuevas desde Odoo)
+
+De dónde viene el costo de cada sucursal:
+
+| Tipo de sucursal | Fuente del costo hoy |
+|---|---|
+| Solo Wansoft | Reporte de costos de Wansoft |
+| Migrada a Odoo (Acoxpa, Antenas, Tepeyac, Oceanía, La Esquina Coyoacán; desde 2026-10-01 también Isabel La Católica, San Jeronimo, Vía Vallejo) | Reporte de costos de Wansoft, **temporalmente**: siguen capturando compras en paralelo en Wansoft como respaldo y para validar Odoo. Pasará a Odoo cuando dejen de hacerlo |
+| Nueva, nacida en Odoo (Puebla, CentroMyJ y las que abran después) | Calculado desde la contabilidad de Odoo (cuentas de costo directo) y guardado en las mismas tablas |
 
 Identificados por `subsidiary_id` (ID de Wansoft). Las tres son **fotos**:
 
@@ -340,4 +372,5 @@ El acceso es mediante un usuario de base de datos **de solo lectura**, limitado
 a las tablas de las Secciones 4 y 5, que se entrega por separado (las
 credenciales nunca se escriben en este documento). Consulta
 `getoutgoinginventory_salida` y las tablas de detalle de ventas siempre con
-filtro de fechas: tienen decenas de millones de filas.
+filtro de fechas: tienen decenas de millones de filas. Cada usuario tiene un
+máximo de 4 conexiones simultáneas y 30 minutos por consulta.
