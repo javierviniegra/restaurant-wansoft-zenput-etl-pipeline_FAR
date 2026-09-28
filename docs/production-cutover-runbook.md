@@ -183,14 +183,24 @@ unique keys created.
 
 ### 5.3 Part 3: `sql/migrations/cutover_03_large_inventory_tables.sql`
 
-Run step A (read-only duplicate check over ~37M rows) on its own first; it must
-return 0. Then step B adds `idx_identrada_subsidiary` on
-`getinputinventory_entrada` and the unique key `uq_subsidiary_fecha_idsalida`
-on `getoutgoinginventory_salida` (`ALGORITHM=INPLACE, LOCK=NONE`).
 **Required before the first pipeline run:** `getOutgoingInventory.py` upserts
-against that key.
+against the unique key `uq_subsidiary_fecha_idsalida`. Production's copy of
+`getoutgoinginventory_salida` holds exact duplicate rows (the legacy loader's
+bulk reloads), so the key cannot be added until they are removed. Run the file's
+steps **one at a time**, checking each result:
 
-Measured: _(pending: step A, step B)_.
+| Step | What | Good result | Measured on `wansoft_prueba` 2026-09-28 |
+|---|---|---|---|
+| A | Materialise duplicate groups and rows into `tmp_salida_dup_*` (two full scans) | Counts reported | 25.6 min; 61,125 groups, 138,495 rows (a plain `GROUP BY` count alone took 31.4 min) |
+| B | Read-only: are the duplicates exact copies? | `identical` = `dup_groups`; otherwise **stop** | Seconds; 61,125 of 61,125 identical. Copies came from three bulk reloads (2025-04, 2026-02, 2026-07), none in 2026-08/09, so the number is not growing nightly |
+| C | Delete the surplus copies by primary key, keeping the lowest `id` | deleted = `SUM(n - 1)` | Seconds; 77,370 deleted |
+| D | `ADD INDEX idx_identrada_subsidiary` on `getinputinventory_entrada`, `ADD UNIQUE KEY uq_subsidiary_fecha_idsalida` on `getoutgoinginventory_salida` (`ALGORITHM=INPLACE, LOCK=NONE`) | 2 rows, `non_unique` 1 and 0 | 4.8 min for both, online |
+| E | Drop the helper tables | | |
+
+At cutover the counts will differ slightly (production has had more nights of
+loads); what must hold is B = all identical and C = `SUM(n - 1)`. Nothing may
+write to the table between A and D, so run it after the legacy tasks are
+disabled. Budget about 35 minutes for the whole part (A dominates).
 
 ---
 
