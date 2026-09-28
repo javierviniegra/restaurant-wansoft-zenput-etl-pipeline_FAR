@@ -51,11 +51,12 @@ $cnf = 'C:\Backups\mysql\backup.cnf'
 |---|---|---|---|
 | 1.1 | Install the MariaDB client tools | Unzip the official `mariadb-10.4.28-winx64.zip` to `C:\Backups\mariadb-client\` (portable, no service) | Script the download + unzip + hash check |
 | 1.2 | Create the `backup` DB user | On the database machine (phpMyAdmin): `SELECT, SHOW VIEW, TRIGGER, EVENT, LOCK TABLES` on `*.*`, plus `ALL PRIVILEGES` on `wansoft_prueba` and `zenput_prueba` | Idempotent SQL script under `sql/maintenance/` |
+| 1.2b | Grant the **pipeline** users access to the test databases | The pipeline does not connect as `backup`: it uses `WANSOFT_DB_USER` / `ZENPUT_DB_USER` from `.env` (`wansoftuser`, `zenputuser`), which only had rights on the live databases. On the database machine: ``GRANT ALL PRIVILEGES ON `wansoft_prueba`.* TO 'wansoftuser'@'%'; GRANT ALL PRIVILEGES ON `zenput_prueba`.* TO 'zenputuser'@'%';`` (missed at first, caught by the preflight on 2026-09-28) | Same SQL script as 1.2 |
 | 1.3 | Write `backup.cnf` | `C:\Backups\mysql\backup.cnf` with `host=192.168.100.183`, the `backup` user, `compress`; ACL locked to SYSTEM and Administrators (use SIDs `*S-1-5-18`, `*S-1-5-32-544` on Spanish Windows) | Template + `icacls` in a setup script |
 | 1.4 | Clone the repository | `git clone` to `C:\Apps\Wansoft_ETL` (short path: deep paths fail with "Filename too long") | Setup script |
 | 1.5 | Python environment | `py -3.12 -m venv C:\Apps\Wansoft_ETL\.venv` then `.venv\Scripts\pip install -r requirements.txt` | Setup script |
 | 1.6 | `.env` | Copy `core\config\.env.example` to `core\config\.env`, fill in credentials, `ENV=prod`, `WANSOFT_DB_HOST=192.168.100.183`, `WANSOFT_DB_NAME=wansoft_prueba`, `ZENPUT_DB_NAME=zenput_prueba`, `XML_DOWNLOAD_DIR=C:\Apps\Wansoft_ETL\data\xml`, lookbacks `SALES 10 / WANSOFT 5 / PURCHASES 35`; lock with `icacls` | Secrets are the one manual part; keep it manual or use a vault |
-| 1.7 | Preflight | `C:\Apps\Wansoft_ETL\.venv\Scripts\python.exe -m scripts.check_env` (read-only, never prints secrets) | Already a script; run it at the start of every cycle |
+| 1.7 | Preflight | `cd C:\Apps\Wansoft_ETL; .\.venv\Scripts\python.exe -m scripts.check_env` (read-only, never prints secrets). **Every line must be `PASS`.** On 2026-09-28 it caught two real problems that were then only `WARN`s: `ZENPUT_DB_NAME` held the host IP instead of `zenput_prueba` (typo in the `.env`), and `wansoftuser` had no rights on `wansoft_prueba` (step 1.2b). Both now report `FAIL`. To inspect the `.env` without showing secrets: `Select-String -Path core\config\.env -Pattern '^(ENV\|WANSOFT_DB_(HOST\|USER\|NAME)\|ZENPUT_DB_(HOST\|USER\|NAME))='` | Already a script; run it at the start of every cycle |
 | 1.8 | Daily repo update task | `deploy\register_update_task.ps1` registers `Wansoft_Update_Repo_Diario` (00:30, as `analisisbi` with its password, because Git credentials are per user) | Done |
 | 1.9 | Weekly backup task | `deploy\backup\register_backup_task.ps1 -MysqlBin $bin` registers `Wansoft_Backup_MySQL_Semanal` (SYSTEM, Thursdays 18:00, keeps 4) | Done |
 
@@ -257,3 +258,15 @@ What this runbook still does by hand, in priority order:
 4. **Restore verification** (Step 3) → fail automatically when a copy has more
    rows than its source.
 5. **Secrets** (Step 1.6) stay manual until there is a vault.
+
+## 8. Security follow-ups (after cutover)
+
+- `wansoftuser` is documented elsewhere as the dev PC's read-only credential,
+  but on 2026-09-28 `SHOW GRANTS` showed `ALL PRIVILEGES ON wansoft.* ... WITH
+  GRANT OPTION`, and it is also the pipeline's write account. Split it: one
+  read-only user for comparisons from outside, one write user for the pipeline
+  on the internal network only.
+- Until cutover the only thing keeping the pipeline away from the live
+  databases is `WANSOFT_DB_NAME` / `ZENPUT_DB_NAME` in the VM's `.env`, because
+  the same users can write to both. Check those two lines before every manual run.
+- phpMyAdmin is served over plain http on a public IP: restrict it.

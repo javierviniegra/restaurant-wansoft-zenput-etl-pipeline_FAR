@@ -39,11 +39,12 @@ def check_database(prefix, suffix):
         return
     check(True, f"{prefix.title()} database server accepts the credentials", host)
     cur = conn.cursor()
+    # SHOW DATABASES only lists databases this user has privileges on, so a
+    # miss means "missing OR not granted"; either way the pipeline cannot run.
     cur.execute("SHOW DATABASES LIKE %s", (name,))
-    if cur.fetchone():
-        check(True, f"Database '{name}' exists")
-    else:
-        warn(f"Database '{name}' does not exist on that server yet")
+    reachable = cur.fetchone() is not None
+    check(reachable, f"Database '{name}' is reachable by user '{user}'",
+          "" if reachable else "it does not exist, or this user has no privileges on it (SHOW GRANTS)")
     conn.close()
 
 
