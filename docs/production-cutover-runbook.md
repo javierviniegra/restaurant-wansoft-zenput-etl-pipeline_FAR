@@ -259,6 +259,11 @@ Section 17.6.
    (01:30). The first production run is the night of 10-01 to 10-02; watch
    `logs\daily_cycle_<date>.log`.
 6. The first automatic weekly backup runs at 18:00 that day.
+6b. **External read-only users for tukanmx:** after step 3, run
+   `sql/maintenance/create_tukan_readonly_users.sql` as root in phpMyAdmin with
+   the two `CHANGE_ME` passwords replaced (never commit them; restrict `'%'` to
+   tukanmx's IPs if they provide them). Hand over
+   `docs/data-access-guide/` together with the credentials.
 7. Re-validate against Power BI for the 10 Odoo-sourced branches over 10-01 to 10-03.
 
 ---
