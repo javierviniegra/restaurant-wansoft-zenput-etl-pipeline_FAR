@@ -203,6 +203,30 @@ loads); what must hold is B = all identical and C = `SUM(n - 1)`. Nothing may
 write to the table between A and D, so run it after the legacy tasks are
 disabled. Budget about 35 minutes for the whole part (A dominates).
 
+### 5.4 First full cycle on the tasks VM (2026-09-28)
+
+```powershell
+cd C:\Apps\Wansoft_ETL; powershell -NoProfile -ExecutionPolicy Bypass -File deploy\run_daily_cycle.ps1
+```
+
+Every line goes to the screen and to `logs\daily_cycle_<yyyyMMdd>.log`. To
+follow it from a second window:
+`Get-Content C:\Apps\Wansoft_ETL\logs\daily_cycle_<yyyyMMdd>.log -Wait -Tail 20`.
+
+Found on the first run, both fixed the same day:
+
+- **The Sales stage could not save a single XML** (`No such file or directory:
+  ...\data\xml/getAllOrdersByDay\...`): the subfolder existed on dev from long
+  ago and nothing created it on a new machine. Every day was skipped, yet the
+  stage reported `OK`. `extractAllOrdersByDay.py` now creates the folder and
+  exits non-zero when no XML at all could be obtained.
+- **Reading the log with `Get-Content -Wait` made the wrapper lose lines**
+  (`Add-Content` reopened the file per line and collided with the reader).
+  `run_daily_cycle.ps1` now keeps one shared handle open and also echoes to the
+  console.
+
+Measured: _(pending)_.
+
 ---
 
 ## 6. Cutover day (Thursday 2026-10-01)

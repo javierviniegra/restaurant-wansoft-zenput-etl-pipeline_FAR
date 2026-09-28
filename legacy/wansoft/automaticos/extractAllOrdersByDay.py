@@ -242,6 +242,11 @@ def descargar_xml(id_sucursal, password, sucursal, fecha, ruta_destino):
         return False
 
 
+# Conteo de días con / sin XML, para no reportar éxito cuando no se pudo
+# procesar ningún día (p. ej. carpeta faltante, SOAP caído, credenciales).
+XML_STATS = {"ok": 0, "fallidos": 0}
+
+
 def asegurar_xml_disponible(id_sucursal, password, sucursal, fecha):
     """
     Verifica que el XML local exista y sea válido.
@@ -249,17 +254,24 @@ def asegurar_xml_disponible(id_sucursal, password, sucursal, fecha):
     Retorna la ruta del XML si está disponible, None si no.
     """
     nombre_archivo = f"{sucursal}_{fecha.strftime('%Y%m%d')}.xml"
-    ruta_xml = os.path.join(directorio_xml+"/getAllOrdersByDay", nombre_archivo)
+    carpeta_xml = os.path.join(directorio_xml, "getAllOrdersByDay")
+    # En una máquina nueva la subcarpeta no existe: sin esto cada descarga falla
+    # con "No such file or directory" y el día se salta en silencio.
+    os.makedirs(carpeta_xml, exist_ok=True)
+    ruta_xml = os.path.join(carpeta_xml, nombre_archivo)
 
     if xml_es_valido(ruta_xml):
+        XML_STATS["ok"] += 1
         return ruta_xml
 
     print(f"    [PASO 1] XML no válido o inexistente — re-descargando...")
     descarga_ok = descargar_xml(id_sucursal, password, sucursal, fecha, ruta_xml)
 
     if descarga_ok:
+        XML_STATS["ok"] += 1
         return ruta_xml
 
+    XML_STATS["fallidos"] += 1
     print(f"    [SALTAR] No se pudo obtener XML para {sucursal} {fecha.strftime('%Y-%m-%d')}")
     return None
 
@@ -656,3 +668,11 @@ if __name__ == "__main__":
     if conexion.is_connected():
         conexion.close()
         print("\nConexión a MySQL cerrada.")
+
+    # ── Resultado global ──────────────────────────────────────────────
+    # Días sueltos sin XML pueden ser normales (sucursal cerrada); que NO haya
+    # ni uno solo es una falla del sistema y debe verse como etapa fallida.
+    print(f"XML disponibles: {XML_STATS['ok']} | sin XML: {XML_STATS['fallidos']}")
+    if XML_STATS["ok"] == 0 and XML_STATS["fallidos"] > 0:
+        print("[ERROR] No se pudo obtener ningún XML de ventas — revisar carpeta, SOAP o credenciales")
+        sys.exit(1)

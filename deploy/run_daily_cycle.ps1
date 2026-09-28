@@ -21,9 +21,24 @@ try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
 $cycleArgs = @('-m', 'scripts.run_daily_cycle')
 if ($Only) { $cycleArgs += @('--only', $Only) }
 
+# Open the log once and share it for reading, so `Get-Content -Wait` from another
+# window can follow it; Add-Content per line collided with such readers and lost lines.
+$stream = [IO.File]::Open($log, [IO.FileMode]::Append, [IO.FileAccess]::Write, [IO.FileShare]::ReadWrite)
+# UTF-8 with BOM (written only when the file is new), so Windows PowerShell's Get-Content reads accents correctly.
+$writer = New-Object IO.StreamWriter($stream, (New-Object Text.UTF8Encoding($true)))
+$writer.AutoFlush = $true
 $ErrorActionPreference = 'Continue'
-& $Python @cycleArgs 2>&1 | ForEach-Object { Add-Content -Path $log -Value "$_" -Encoding UTF8 }
-$code = $LASTEXITCODE
+try {
+    & $Python @cycleArgs 2>&1 | ForEach-Object {
+        $line = "$_"
+        $writer.WriteLine($line)
+        Write-Host $line
+    }
+    $code = $LASTEXITCODE
+}
+finally {
+    $writer.Dispose()
+}
 $ErrorActionPreference = 'Stop'
 
 Get-ChildItem $logDir -Filter 'daily_cycle_*.log' |
