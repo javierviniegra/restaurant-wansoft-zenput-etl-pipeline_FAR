@@ -125,52 +125,89 @@ Zenput JSON run logging implemented
 Zenput legacy real execution protected by explicit approval gate
 ```
 
-### Current project stage
+### Milestones since 2026-08-20
+
+```text
+Acceptance gate formally accepted (2026-08-31)
+Daily cycle simulated end to end on dev: 15/15 stages, about 27 minutes
+Lookback windows moved to .env (SALES / WANSOFT / PURCHASES_LOOKBACK_DAYS)
+Costs routed three ways: Wansoft-migrated, pure-Odoo, Cortesias/Cancelaciones always Wansoft
+Odoo purchase extraction restricted to confirmed orders (state purchase/done)
+Validated against the owner's Power BI for Acoxpa, La Esquina Coyoacan, San Jeronimo, Oceania:
+  Ventas and Meseros exact, Costos exact once refresh timing is accounted for,
+  Compras understood (Odoo compared against Wansoft's Costo operativo bucket only)
+Weekly MariaDB backup system built, first real backup verified by a full restore
+Tasks VM deployed: repository, .venv, .env preflight, daily GitHub update
+Run-once daily orchestrator (scripts/run_daily_cycle.py) for Windows Task Scheduler
+Cutover migration rehearsed on wansoft_prueba (41 tables, 2 views, keys, dedup)
+```
+
+### Current project stage (2026-09-28)
 
 ```text
 Validated domain ETLs
-→ Controlled Purchases orchestration
-→ Controlled Inventory orchestration
-→ Controlled Zenput wrapper
-→ Pipeline logging and validation
-→ Source transition abstraction
+→ Controlled orchestration, logging and validation
 → Branch rollout control
-→ Unified analytical consumption layer
-→ Future production scheduling
+→ Unified analytical layer, validated against Power BI
+→ Production deployment on the existing servers   <-- go-live week
+→ Delivery layer: new Django web application (replaces the Power BI repoint)
 ```
 
-The project is no longer in early discovery.
-
-The current focus is to move from individually validated scripts to controlled, repeatable, auditable execution flows that can later support reporting, analysis and production scheduling.
+Go-live is **Thursday 2026-10-01**, together with the Odoo cutover of Isabel
+La Catolica, San Jeronimo and Via Vallejo. Monday to Wednesday the new
+pipeline runs in shadow mode against the test databases (`wansoft_prueba`,
+`zenput_prueba`) and is compared with production every morning; the go/no-go
+decision is Wednesday night.
 
 ---
 
 ## Current Orchestration Status
 
 ```text
-Purchases pipeline: implemented
-Purchases canonical validation: implemented
-Purchases JSON logging: implemented
-Purchases rollout validation: implemented
+Daily cycle: scripts/run_daily_cycle.py runs the 15 stages once, in order,
+  continues after a failed stage and exits non-zero if any failed
+  (legacy Wansoft chain -> Zenput -> inventory -> purchases -> analytics purchase
+   -> Odoo cutover validation; weekly product mapping on Sundays)
+Production schedule: Wansoft_Pipeline_Diario at 01:30 on the tasks VM
+  (registered disabled until cutover; 07:00 during the shadow week)
+Repository update: Wansoft_Update_Repo_Diario at 00:30 (git pull --ff-only)
+Backups: Wansoft_Backup_MySQL_Semanal, Thursdays 18:00, keeps 4
+Preflight: scripts/check_env.py (read-only, fails on any unreachable database)
 
-Inventory pipeline: implemented
-Inventory output validation: implemented
-Inventory JSON logging: implemented
-Inventory optional bridge reports: implemented
+Purchases, Inventory and Zenput pipelines: implemented, validated, JSON-logged
 Inventory dictionary promotions: excluded from default automation
-
-Zenput pipeline wrapper: implemented
-Zenput dry-run: implemented
-Zenput safety gate: implemented
-Zenput validation-only execution: implemented
-Zenput output validation: implemented
-Zenput JSON logging: implemented
 Zenput legacy real execution: protected by explicit --allow-legacy-writes gate
-
-Production scheduling: pending
-Unified analytical consumption layer: purchase analytical layer implemented and validated; inventory and Zenput analytical additions pending
 Database run-log persistence: pending
 Validation result persistence: pending
+```
+
+---
+
+## Production Deployment
+
+The new pipeline replaces the 12 legacy `FondaCroned_*` scheduled tasks on
+the existing tasks VM, writing to the existing MariaDB server. Two machines,
+never to be confused:
+
+```text
+Tasks VM (DESKTOP-1HTRVT4, user analisisbi): scheduled tasks, C:\Apps\Wansoft_ETL,
+  backups in C:\Backups\mysql, MariaDB client tools. No MySQL server.
+Database machine (192.168.100.183): XAMPP MariaDB 10.4.28, phpMyAdmin. No tasks.
+```
+
+Where to look:
+
+```text
+docs/production-cutover-runbook.md   step-by-step procedure, expected results,
+                                     measured timings, cutover order, automation ideas
+deploy/                              update_repo.ps1, run_daily_cycle.ps1 and the
+                                     task registration scripts
+deploy/backup/                       backup_mysql.ps1, restore_mysql.ps1,
+                                     register_backup_task.ps1
+sql/migrations/                      cutover_02_small_tables.sql,
+                                     cutover_03_large_inventory_tables.sql
+scripts/check_env.py                 .env preflight, run before any manual run
+PROJECT_CONTEXT_REPORT.md            full history and current state (Sections 0 and 17)
 ```
 
 ---
@@ -230,7 +267,15 @@ Use this document when you need to understand the project end-to-end.
 ```text
 docs/project-status-and-todo.md
 docs/production-orchestration-plan.md
+docs/production-cutover-runbook.md
 ```
+
+### `docs/production-cutover-runbook.md`
+
+The operational, command-level procedure for putting the pipeline into
+production on the existing servers: machine preparation, backup and restore,
+schema comparison, the three-part migration, the cutover-day order, and what is
+still manual. Start here for any deployment or disaster recovery.
 
 ### `docs/project-status-and-todo.md`
 
@@ -2385,9 +2430,12 @@ Known remaining work: product governance backlog, key stability review and orche
 
 ---
 
-## Current Next Step - Updated After Section 17.28
+## Next Step as of Section 17.28 (historical, superseded)
 
-Recommended next step:
+> Superseded. The current next steps are the go-live week in
+> `docs/production-cutover-runbook.md` and `PROJECT_CONTEXT_REPORT.md`, Section 13.
+
+Recommended next step at the time:
 
 ```text
 Paso 17.29 - Revisar y cerrar documentación de Sección 17
