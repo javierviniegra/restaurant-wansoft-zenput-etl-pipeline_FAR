@@ -1,0 +1,928 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Data Access Guide</title>
+<style>
+  @page {
+    size: letter portrait;
+    margin: 2cm 1.5cm;
+    @frame footer_frame {
+      -pdf-frame-content: footer_content;
+      bottom: 1cm; left: 1.5cm; right: 1.5cm; height: 1cm;
+    }
+  }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #2d2d2d; }
+  .titulo { color: #023f3b; font-size: 18pt; font-weight: bold; margin: 0 0 2px; }
+  h1 { color: #023f3b; font-size: 13pt; margin: 22px 0 8px; border-bottom: 1px solid #e1e0d9; padding-bottom: 4px; }
+  h2 { color: #023f3b; font-size: 11pt; margin: 14px 0 6px; }
+  .subtitulo { color: #666; font-size: 9pt; margin: 0 0 14px; }
+  p { margin: 0 0 8px; line-height: 1.4; }
+  ol, ul { margin: 4px 0 10px; padding-left: 18px; }
+  li { margin-bottom: 4px; line-height: 1.4; }
+  code { font-family: "Courier New", monospace; background: #f0e9d8; padding: 1px 4px; font-size: 8.5pt; }
+  pre.bloque-codigo { font-family: "Courier New", monospace; background: #f0e9d8; padding: 8px 10px; font-size: 8pt; margin: 6px 0 12px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+  th { background-color: #035953; color: #ffffff; text-align: left; padding: 5px 6px; font-size: 8.5pt; }
+  td { padding: 5px 6px; font-size: 8.5pt; border-bottom: 0.5px solid #e0e0e0; vertical-align: top; }
+  table.compacta th, table.compacta td { font-size: 7.5pt; padding: 3px 4px; }
+  table.compacta code { font-size: 7pt; }
+  .nota { font-size: 9pt; background: #f0e9d8; padding: 10px 14px; margin: 10px 0 14px; }
+  .nota-titulo { font-weight: bold; color: #023f3b; }
+  .importante { font-size: 9pt; background: #fbeaea; border-left: 3px solid #ba2121; padding: 10px 14px; margin: 10px 0 14px; }
+  .importante-titulo { font-weight: bold; color: #ba2121; }
+  #footer_content { font-size: 7pt; color: #999; text-align: center; }
+  .logo { width: 90px; }
+  .salto { page-break-before: always; }
+  .indice-titulo { color: #023f3b; font-size: 13pt; font-weight: bold; margin: 18px 0 8px; border-bottom: 1px solid #e1e0d9; padding-bottom: 4px; }
+  pdftoc { color: #2d2d2d; }
+  pdftoc.pdftoclevel0 { font-weight: bold; font-size: 9.5pt; margin-top: 6px; }
+  pdftoc.pdftoclevel1 { font-size: 9pt; margin-left: 14px; }
+</style>
+</head>
+<body>
+
+<table style="border: none; margin-bottom: 4px;">
+  <tr style="border: none;">
+    <td style="border: none; width: 100px; padding: 0;"><img class="logo" src="{{ logo_path }}"></td>
+    <td style="border: none; padding: 0;">
+      <p class="titulo">Data Access Guide</p>
+      <p class="subtitulo">Analytical databases <code>wansoft</code> and <code>zenput</code> | Fonda Argentina | Version 2026-09-28</p>
+    </td>
+  </tr>
+</table>
+
+<p class="indice-titulo">Contents</p>
+<div><pdf:toc /></div>
+
+<div class="salto"></div>
+
+<p>Audience: external teams building their own ETL on top of these databases (for
+example, a question-and-answer / chatbot layer). It tells you <strong>which table to
+use for each business question, which fields matter, how tables join, and the
+traps to avoid</strong>. Every rule here was checked against the live schema and data
+on 2026-09-28. PDF version: <a href="data-access-guide.en.pdf">data-access-guide.en.pdf</a>.</p>
+<h1>1. What is where</h1>
+<p>Two MySQL (MariaDB 10.4) databases on the same server:</p>
+<table class="compacta">
+<thead>
+<tr>
+<th>Database</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>wansoft</code></td>
+<td>Sales, costs, purchases, inventory and the unified analytical layer</td>
+</tr>
+<tr>
+<td><code>zenput</code></td>
+<td>Operational checklists (forms, answers) and tasks from Zenput</td>
+</tr>
+</tbody>
+</table>
+<p>Source systems behind them:</p>
+<table class="compacta">
+<thead>
+<tr>
+<th>Source</th>
+<th>What it provides</th>
+<th>How it arrives</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Wansoft</strong> (POS/ERP)</td>
+<td>Sales for all branches, costs, cash closing, and purchases/inventory for branches not yet on Odoo</td>
+<td>Daily download via its SOAP API</td>
+</tr>
+<tr>
+<td><strong>Odoo</strong></td>
+<td>Purchases and inventory for the branches migrated to Odoo</td>
+<td>Daily read-only extraction</td>
+</tr>
+<tr>
+<td><strong>Zenput</strong></td>
+<td>Checklists and tasks</td>
+<td>Daily API download</td>
+</tr>
+</tbody>
+</table>
+<p>Layers inside <code>wansoft</code>:</p>
+<table class="compacta">
+<thead>
+<tr>
+<th>Layer</th>
+<th>Tables</th>
+<th>Use it for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Raw Wansoft copies</td>
+<td><code>get*</code>, <code>costeomensual*</code></td>
+<td>Sales, costs, cash closing, Wansoft-side detail</td>
+</tr>
+<tr>
+<td>Canonical</td>
+<td><code>canonical_purchase_*</code></td>
+<td>Internal: Odoo and Wansoft purchases merged into one shape. Prefer the analytics layer</td>
+</tr>
+<tr>
+<td><strong>Analytics (business-ready)</strong></td>
+<td><code>analytics_*</code></td>
+<td>Purchases and inventory for all branches, both sources merged</td>
+</tr>
+<tr>
+<td>Dimensions</td>
+<td><code>dim_company_analytical</code>, <code>dim_product</code>, <code>dim_vendor</code>, <code>dim_time</code></td>
+<td>Descriptions and attributes for the analytics layer</td>
+</tr>
+</tbody>
+</table>
+
+<h1>2. Golden rules (read before writing any query)</h1>
+<ol>
+<li><strong>A branch is identified three different ways</strong> depending on the table. Use
+   the crosswalk in Section 3; never join tables on branch names blindly.</li>
+<li>Short key (<code>Acoxpa</code>, <code>Oceanía</code>): sales tables (<code>Sucursal</code>) and the
+     analytics layer (<code>company_source_key</code>).</li>
+<li><strong>Numeric Wansoft id</strong> (<code>5320</code>): costs (<code>subsidiary_id</code>) and the inventory
+     tables — where the id is stored in a column confusingly named
+     <code>subsidiary_name</code>.</li>
+<li>Long Wansoft name (<code>Fonda Argentina - Acoxpa</code>): costs (<code>subsidiary_name</code>)
+     and invoices (<code>getexpenses_factura.Sucursal</code>).</li>
+<li><strong><code>getexpenses_factura.Sucursal</code> contains the same branch spelled two ways</strong>
+   because of historical encoding damage (<code>Cancún</code> and <code>Canc??n</code>,
+   <code>Oceanía</code> and <code>Ocean??a</code>). Map it to the crosswalk before grouping.</li>
+<li><strong>Sales tables store amounts and dates as text</strong> (<code>varchar</code>). Cast them:
+   <code>CAST(Total AS DECIMAL(14,2))</code>, <code>DATE(Fecha)</code> (format <code>2026-09-01T00:00:00</code>).</li>
+<li><strong>Analytics tables carry <code>include_in_business_views</code>.</strong> Filter
+   <code>include_in_business_views = 1</code> for business numbers; the other rows are kept
+   for audit (internal providers, unmapped products, review cases) and carry an
+   <code>exclude_reason</code>.</li>
+<li><strong>Purchases and inventory come from two systems; the analytics layer already
+   merges them without overlap</strong> (Section 5.3). Do not rebuild the merge from raw
+   tables.</li>
+<li><strong>Data is loaded once a day, at about 01:30, through the previous day.</strong> Each
+   run also re-checks recent days (sales 10 days, Wansoft costs/inventory 5,
+   purchases 35), so the last few days can still change.</li>
+<li>Costs tables are <strong>cumulative snapshots</strong>, not daily amounts (Section 5.2).</li>
+</ol>
+
+<div class="salto"></div>
+<h1>3. Branch crosswalk</h1>
+<table class="compacta">
+<thead>
+<tr>
+<th>Wansoft id</th>
+<th>Short key (<code>Sucursal</code>, <code>company_source_key</code>)</th>
+<th>Wansoft long name (costs)</th>
+<th>Odoo company</th>
+<th>Purchases &amp; inventory source</th>
+<th>Odoo start date</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>5320</td>
+<td>Acoxpa</td>
+<td>Fonda Argentina - Acoxpa</td>
+<td>FONDA COSTA NERA</td>
+<td>Odoo</td>
+<td>2026-07-01</td>
+</tr>
+<tr>
+<td>4959</td>
+<td>Aeropuerto</td>
+<td>Fonda Argentina - Aeropuerto</td>
+<td>FONDA ARGENTINA AEROPUERTO</td>
+<td>Wansoft</td>
+<td>—</td>
+</tr>
+<tr>
+<td>4960</td>
+<td>Antenas</td>
+<td>Fonda Argentina - Antenas</td>
+<td>FONDA ARGENTINA LAS ANTENAS</td>
+<td>Odoo</td>
+<td>2026-06-01</td>
+</tr>
+<tr>
+<td>6175</td>
+<td>Cancun</td>
+<td>Fonda Argentina - Cancún</td>
+<td>—</td>
+<td>Wansoft</td>
+<td>—</td>
+</tr>
+<tr>
+<td>12802</td>
+<td>CentroMyJ</td>
+<td>Fonda Argentina - Centro Mario y July</td>
+<td>MARIO Y JULY</td>
+<td>Odoo (born on Odoo)</td>
+<td>2026-06-01</td>
+</tr>
+<tr>
+<td>4958</td>
+<td>Isabel La Católica</td>
+<td>Fonda Argentina - Isabel La Católica</td>
+<td>FONDA ARGENTINA</td>
+<td>Wansoft → <strong>Odoo from 2026-10-01</strong></td>
+<td>2026-10-01</td>
+</tr>
+<tr>
+<td>12057</td>
+<td>La Esquina Coyoacán</td>
+<td>Fonda Argentina - Coyoacan</td>
+<td>FONDA ARGENTINA COYOACAN</td>
+<td>Odoo</td>
+<td>2026-06-01</td>
+</tr>
+<tr>
+<td>4752</td>
+<td>Metepec</td>
+<td>Fonda Argentina - Tollocan</td>
+<td>FONDA ARGENTINA TOLLOCAN</td>
+<td>Wansoft</td>
+<td>—</td>
+</tr>
+<tr>
+<td>4433</td>
+<td>Napoles</td>
+<td>Fonda Argentina - Nápoles</td>
+<td>FONDA ARGENTINA POLYFORUM</td>
+<td>Wansoft</td>
+<td>—</td>
+</tr>
+<tr>
+<td>5943</td>
+<td>Oceanía</td>
+<td>Fonda Argentina - Oceanía</td>
+<td>FONDA ARGENTINA ENCUENTRO OCEANIA</td>
+<td>Odoo</td>
+<td>2026-06-30</td>
+</tr>
+<tr>
+<td>6174</td>
+<td>Playa del Carmen</td>
+<td>Fonda Argentina - Playa del Carmen</td>
+<td>—</td>
+<td>Wansoft</td>
+<td>—</td>
+</tr>
+<tr>
+<td>12806</td>
+<td>Puebla</td>
+<td>Fonda Argentina - Puebla</td>
+<td>FONDA ARGENTINA PUEBLA</td>
+<td>Odoo (born on Odoo)</td>
+<td>2026-06-10</td>
+</tr>
+<tr>
+<td>5319</td>
+<td>San Jeronimo</td>
+<td>Fonda Argentina – San Jerónimo</td>
+<td>FONDA ARGENTINA SAN JERONIMO</td>
+<td>Wansoft → <strong>Odoo from 2026-10-01</strong></td>
+<td>2026-10-01</td>
+</tr>
+<tr>
+<td>5321</td>
+<td>Taquería parroquia</td>
+<td>Fonda Argentina – Taquería Parroquía</td>
+<td>—</td>
+<td>Wansoft</td>
+<td>—</td>
+</tr>
+<tr>
+<td>4962</td>
+<td>Taquería Viaducto</td>
+<td>Fonda Argentina - Taqueria Viaducto</td>
+<td>—</td>
+<td>Wansoft</td>
+<td>—</td>
+</tr>
+<tr>
+<td>6560</td>
+<td>Tepeyac</td>
+<td>Fonda Argentina - Tepeyac</td>
+<td>FONDA ARGENTINA MAQ</td>
+<td>Odoo</td>
+<td>2026-06-01</td>
+</tr>
+<tr>
+<td>5396</td>
+<td>Versalles</td>
+<td>Fonda Argentina - Taquería Exhibimex</td>
+<td>—</td>
+<td>Wansoft</td>
+<td>—</td>
+</tr>
+<tr>
+<td>5318</td>
+<td>Vía Vallejo</td>
+<td>Fonda Argentina – Vía Vallejo</td>
+<td>FONDA ARGENTINA VALLEJO</td>
+<td>Wansoft → <strong>Odoo from 2026-10-01</strong></td>
+<td>2026-10-01</td>
+</tr>
+<tr>
+<td>4961</td>
+<td>Viaducto</td>
+<td>Fonda Argentina - Viaducto</td>
+<td>FONDA ARGENTINA VIADUCTO</td>
+<td>Wansoft</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Notes:</p>
+<ul>
+<li>Names differ between systems for the same branch: Metepec = "Tollocan",
+  Napoles = "Polyforum", Versalles = "Taquería Exhibimex", Acoxpa = "Costa Nera"
+  in Odoo. Long names use either a hyphen (<code>-</code>) or an en dash (<code>–</code>).</li>
+<li><code>7697</code> "Taqueria San Fernando" appears in historical costs only; it is not one
+  of the 19 current branches.</li>
+<li><strong>Sales always come from Wansoft for every branch</strong>, whatever the purchases
+  source.</li>
+<li><strong>New branches</strong> (today Puebla and CentroMyJ, and every branch opened from
+  now on) are born on Odoo: purchases, inventory and costs come from Odoo; in
+  Wansoft they only record sales and daily closings.</li>
+<li><strong>Costs of migrated branches:</strong> they still come from Wansoft today, on
+  purpose and temporarily. As a safety measure these branches keep entering
+  their purchases in Wansoft too (a fallback if Odoo failed, and a way to
+  validate that Odoo purchases match Wansoft's), so Wansoft still computes
+  their full cost. Once they stop entering purchases in Wansoft and only sales
+  and daily closings remain there, their cost will be computed from Odoo. See
+  Section 5.2.</li>
+<li>Internal providers <strong>El Bodegón de Fito</strong> and <strong>Las Empanadas de María Eva</strong>
+  (central kitchens) are excluded as buying companies from business views.</li>
+<li>The same information, as data: <code>dim_company_analytical</code> and
+  <code>analytics_company_domain_coverage</code> (Section 5.6). They use the short key and
+  do not carry the Wansoft id; use this table for that link.</li>
+</ul>
+
+<div class="salto"></div>
+<h1>4. Which table answers which question</h1>
+<table class="compacta">
+<thead>
+<tr>
+<th width="30%">Question</th>
+<th width="48%">Table</th>
+<th width="22%">Filter / note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sales, tickets, covers per day/branch</td>
+<td><code>getallordenesbyday_new_venta</code></td>
+<td>one row per ticket</td>
+</tr>
+<tr>
+<td>What was sold (dishes, groups)</td>
+<td><code>getallordenesbyday_new_detalleventa</code></td>
+<td>one row per line</td>
+</tr>
+<tr>
+<td>Payment methods, tips</td>
+<td><code>getallordenesbyday_new_pago</code></td>
+<td>one row per payment</td>
+</tr>
+<tr>
+<td>Official daily close (Z report), cancellations, courtesies, discounts</td>
+<td><code>getglobalcashclosing</code></td>
+<td>one row per branch per closing</td>
+</tr>
+<tr>
+<td>Monthly cost of sales, waste, margin</td>
+<td><code>costeomensual</code></td>
+<td>month-to-date snapshot; take the last day</td>
+</tr>
+<tr>
+<td>Weekly cost</td>
+<td><code>costeomensual_semanapyq</code></td>
+<td>week-to-date snapshot</td>
+</tr>
+<tr>
+<td>Daily cost of sales</td>
+<td><code>gettotalcostbydate</code></td>
+<td>one row per branch per day</td>
+</tr>
+<tr>
+<td>Butchery yields</td>
+<td><code>gettablajeriareport</code></td>
+<td>history of Wansoft branches only; being phased out (see 5.2)</td>
+</tr>
+<tr>
+<td>Purchases (goods) for any branch, any period</td>
+<td><code>analytics_purchase_order_lines</code> / <code>analytics_purchase_orders</code> / <code>analytics_purchase_daily_company_product</code></td>
+<td><code>include_in_business_views = 1</code></td>
+</tr>
+<tr>
+<td>Spend by accounting account (Costo operativo, Gastos directos, ...)</td>
+<td><code>getexpenses_factura</code></td>
+<td>Wansoft only (see 5.3)</td>
+</tr>
+<tr>
+<td>Inventory entries/exits detail (Wansoft)</td>
+<td><code>getinputinventory_entrada</code>, <code>getoutgoinginventory_salida</code></td>
+<td>Wansoft branches</td>
+</tr>
+<tr>
+<td>Current stock</td>
+<td><code>analytics_inventory_current_product_location</code>, <code>analytics_inventory_balance</code></td>
+<td><code>include_in_business_views = 1</code></td>
+</tr>
+<tr>
+<td>Checklist results</td>
+<td><code>zenput.submissions</code> + <code>zenput.submission_answers</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Tasks</td>
+<td><code>zenput.zenput_tasks</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Which source feeds each branch</td>
+<td><code>analytics_company_domain_coverage</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<div class="salto"></div>
+<h2>4.1 Available history</h2>
+<p>Dates measured in production on 2026-09-28. Tables keep filling daily through the previous day.</p>
+<table class="compacta">
+<thead>
+<tr>
+<th width="17%">Data</th>
+<th width="36%">Table</th>
+<th width="11%">Source</th>
+<th width="10%">Since</th>
+<th width="26%">Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sales: tickets, lines, modifiers</td>
+<td><code>getallordenesbyday_new_venta</code>, <code>_new_detalleventa</code>, <code>_new_modificador</code></td>
+<td>Wansoft</td>
+<td>2021-09-01</td>
+<td>2021-12-14 to 2021-12-31 has almost no tickets (a gap in the source history, accepted)</td>
+</tr>
+<tr>
+<td>Sales: payments per ticket</td>
+<td><code>getallordenesbyday_new_pago</code></td>
+<td>Wansoft</td>
+<td>2025-01-01</td>
+<td>No payments per ticket before 2025; use the cash closing</td>
+</tr>
+<tr>
+<td>Daily cash closing</td>
+<td><code>getglobalcashclosing</code></td>
+<td>Wansoft</td>
+<td>2022-01-01</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Daily cost of sales</td>
+<td><code>gettotalcostbydate</code></td>
+<td>Wansoft (new branches: Odoo)</td>
+<td>2021-07-31</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Month-to-date cost</td>
+<td><code>costeomensual</code></td>
+<td>Wansoft (new branches: Odoo)</td>
+<td>2022-01-01</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Week-to-date cost</td>
+<td><code>costeomensual_semanapyq</code></td>
+<td>Wansoft (new branches: Odoo)</td>
+<td>2024-01-02</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Butchery yields</td>
+<td><code>gettablajeriareport</code></td>
+<td>Wansoft</td>
+<td>2022-01-01</td>
+<td>Being phased out (Section 5.2)</td>
+</tr>
+<tr>
+<td>Supplier invoices by accounting account</td>
+<td><code>getexpenses_factura</code></td>
+<td>Wansoft</td>
+<td>2019-02-18</td>
+<td>The oldest history; only while a branch enters purchases in Wansoft</td>
+</tr>
+<tr>
+<td>Inventory entries</td>
+<td><code>getinputinventory_entrada</code></td>
+<td>Wansoft</td>
+<td>2021-09-01</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Inventory exits</td>
+<td><code>getoutgoinginventory_salida</code></td>
+<td>Wansoft</td>
+<td>2020-11-30</td>
+<td>About 1.15 million rows have an empty date (<code>0000-00-00</code>); exclude them</td>
+</tr>
+<tr>
+<td><strong>Unified purchases</strong></td>
+<td><code>analytics_purchase_order_lines</code>, <code>analytics_purchase_orders</code>, <code>analytics_purchase_daily_company_product</code></td>
+<td><strong>Wansoft + Odoo</strong></td>
+<td><strong>2021-09-01</strong></td>
+<td>Wansoft until each branch's Odoo start date, Odoo from then on (June 2026 onward). Checked year by year: same rows and amounts as production's Wansoft invoices</td>
+</tr>
+<tr>
+<td><strong>Unified stock</strong></td>
+<td><code>analytics_inventory_current_product_location</code>, <code>analytics_inventory_balance</code></td>
+<td><strong>Wansoft + Odoo</strong></td>
+<td>Current snapshot</td>
+<td>No history by design; the Wansoft balance is recomputed nightly from every movement since 2020-11-30</td>
+</tr>
+<tr>
+<td>Checklists</td>
+<td><code>zenput.submissions</code>, <code>zenput.submission_answers</code></td>
+<td>Zenput</td>
+<td>2025-06-11</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Tasks</td>
+<td><code>zenput.zenput_tasks</code></td>
+<td>Zenput</td>
+<td>2025-06-03</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Calendar</td>
+<td><code>dim_time</code></td>
+<td>—</td>
+<td>2020-01-01</td>
+<td>Until 2035-12-31</td>
+</tr>
+</tbody>
+</table>
+
+<div class="salto"></div>
+<h1>5. Domains</h1>
+<h2>5.1 Sales (Wansoft, all branches)</h2>
+<p><code>getallordenesbyday_new_venta</code> — ticket header.</p>
+<table class="compacta">
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Sucursal</code></td>
+<td>Branch short key</td>
+</tr>
+<tr>
+<td><code>Movimento</code></td>
+<td>Ticket id within the branch (sic, no "i"); join key</td>
+</tr>
+<tr>
+<td><code>Fecha</code></td>
+<td>Business date, text <code>YYYY-MM-DDT00:00:00</code></td>
+</tr>
+<tr>
+<td><code>Total</code>, <code>Subtotal</code>, <code>IVA</code>, <code>IEPS</code>, <code>Descuento</code></td>
+<td>Amounts, text</td>
+</tr>
+<tr>
+<td><code>Personas</code></td>
+<td>Covers</td>
+</tr>
+<tr>
+<td><code>Mesa</code>, <code>Mesero</code>, <code>Orden</code>, <code>Terminal</code></td>
+<td>Table, waiter, order number, terminal</td>
+</tr>
+<tr>
+<td><code>TipoOrden</code></td>
+<td><code>Restaurant</code>, <code>Para llevar</code>, <code>eCommerce</code></td>
+</tr>
+<tr>
+<td><code>HoraApertura</code>, <code>HoraCierre</code></td>
+<td>Open / close time</td>
+</tr>
+<tr>
+<td><code>Estatus</code></td>
+<td>Always <code>0</code> in current data</td>
+</tr>
+</tbody>
+</table>
+<p>Joins (both columns needed, the ticket id repeats across branches):
+<code>venta.Sucursal = detalle.Sucursal AND venta.Movimento = detalle.Movimiento_Id</code>;
+same for <code>getallordenesbyday_new_pago</code> and <code>getallordenesbyday_new_modificador</code>.</p>
+<p><code>getallordenesbyday_new_detalleventa</code> — lines: <code>Platillo</code>, <code>CodigoPlatillo</code>,
+<code>Grupo</code>, <code>TipoGrupo</code> (e.g. food / drinks), <code>Cantidad</code>, <code>PrecioUnitario</code>,
+<code>Total</code>, <code>Costo</code>, <code>Cortesia</code>, <code>Hora</code>.</p>
+<p><code>getallordenesbyday_new_pago</code> — <code>MetodoDePago</code>, <code>Total</code>, <code>Propina</code>, <code>Terminal</code>.</p>
+<p>Waiters: delivery and app orders are attributed to a <strong>placeholder waiter</strong>
+whose name varies by branch (<code>APLICACIONES</code>, <code>Apps Llevar</code>). Exclude it when
+ranking real waiters.</p>
+<pre class="bloque-codigo">SELECT Sucursal, DATE(Fecha) AS dia,
+       COUNT(*) AS tickets,
+       SUM(CAST(Personas AS UNSIGNED)) AS comensales,
+       SUM(CAST(Total AS DECIMAL(14,2))) AS venta
+FROM getallordenesbyday_new_venta
+WHERE Fecha &gt;= '2026-09-01' AND Fecha &lt; '2026-10-01'
+GROUP BY Sucursal, DATE(Fecha);
+</pre>
+<p><code>getglobalcashclosing</code> — the official close per branch (<code>subsidiary_id</code>,
+<code>fecha_corte</code>): <code>total_ventas</code>, <code>no_ordenes</code>, <code>total_personas</code>, averages, and
+counts/amounts of courtesies, cancellations, discounts, voids, promotions.
+Amounts here are <strong>sale value</strong>. Use it to reconcile daily totals.</p>
+<h2>5.2 Costs (Wansoft; new branches from Odoo)</h2>
+<p>Where each branch's cost comes from:</p>
+<table class="compacta">
+<thead>
+<tr>
+<th>Branch type</th>
+<th>Cost source today</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Wansoft only</td>
+<td>Wansoft cost report</td>
+</tr>
+<tr>
+<td>Migrated to Odoo (Acoxpa, Antenas, Tepeyac, Oceanía, La Esquina Coyoacán; from 2026-10-01 also Isabel La Católica, San Jeronimo, Vía Vallejo)</td>
+<td>Wansoft cost report, <strong>temporarily</strong>: they keep entering purchases in Wansoft in parallel as a fallback and to validate Odoo. Moves to Odoo when they stop</td>
+</tr>
+<tr>
+<td>New, born on Odoo (Puebla, CentroMyJ and any branch opened later)</td>
+<td>Computed from Odoo accounting (direct-cost accounts) and stored in the same tables</td>
+</tr>
+</tbody>
+</table>
+<p>Keyed by <code>subsidiary_id</code> (Wansoft id). All three are <strong>snapshots</strong>:</p>
+<table class="compacta">
+<thead>
+<tr>
+<th>Table</th>
+<th>One row =</th>
+<th>How to read it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>costeomensual</code></td>
+<td>Month-to-date cumulative, from the 1st through <code>created_date</code></td>
+<td>Month total = the row with the latest <code>created_date</code> of that month</td>
+</tr>
+<tr>
+<td><code>costeomensual_semanapyq</code></td>
+<td>Week-to-date cumulative, Monday through the day <strong>before</strong> <code>created_date</code></td>
+<td>Week total = latest row of the week</td>
+</tr>
+<tr>
+<td><code>gettotalcostbydate</code></td>
+<td>Cost of sales of the single day <code>created_date</code></td>
+<td>Sum over days</td>
+</tr>
+</tbody>
+</table>
+<p><code>mes_ano</code> is text <code>MM-YYYY</code>. Unique per (<code>subsidiary_id</code>, <code>created_date</code>).</p>
+<p>Fields in <code>costeomensual</code> and how the owner's reports use them:</p>
+<table class="compacta">
+<thead>
+<tr>
+<th>Report figure</th>
+<th>Formula</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Costo Total</td>
+<td><code>CostoTotal - CostoDeConsumo</code></td>
+</tr>
+<tr>
+<td>Costo Teórico</td>
+<td><code>CostoDeProductosVendidos</code></td>
+</tr>
+<tr>
+<td>Gasto de Venta</td>
+<td><code>CostoDeConsumo</code></td>
+</tr>
+<tr>
+<td>Costo de Mermas</td>
+<td><code>CostoDeMerma</code></td>
+</tr>
+<tr>
+<td>Cortesías / Cancelaciones</td>
+<td><code>CostoDeCortesías</code>, <code>CostoDeCancelaciones</code> (sale value, from the cash closing)</td>
+</tr>
+</tbody>
+</table>
+<pre class="bloque-codigo">-- Month cost per branch: last snapshot of the month
+SELECT c.subsidiary_id, c.subsidiary_name, c.created_date,
+       c.CostoTotal - c.CostoDeConsumo AS costo_total,
+       c.CostoDeProductosVendidos AS costo_teorico
+FROM costeomensual c
+JOIN (SELECT subsidiary_id, MAX(created_date) AS d
+      FROM costeomensual
+      WHERE created_date &gt;= '2026-08-01' AND created_date &lt; '2026-09-01'
+      GROUP BY subsidiary_id) last ON last.subsidiary_id = c.subsidiary_id AND last.d = c.created_date;
+</pre>
+<p><strong>Butchery yields (<code>gettablajeriareport</code>) are being phased out.</strong> They only exist for branches that enter purchases and inventory in Wansoft: new branches (Puebla, CentroMyJ) have none, and migrated branches will stop having them once they stop entering purchases in Wansoft. Odoo does not record butchery this way: it applies calculated yields, and at month end the real inventory is checked against the calculated one. Use this table only as history for Wansoft branches.</p>
+<h2>5.3 Purchases (Wansoft history + Odoo, merged)</h2>
+<p><strong>Use the analytics layer.</strong> It already merges both sources with this rule per
+branch:</p>
+<ul>
+<li>Branch purchasing in Wansoft: Wansoft invoices-type entries
+  (<code>getinputinventory_entrada</code> with <code>TipoEntrada = 'Factura'</code>).</li>
+<li>Branch migrated to Odoo: Wansoft history <strong>before</strong> its Odoo start date
+  (Section 3), then confirmed Odoo purchase orders (<code>state</code> purchase/done) from
+  that date on. No overlap, no gap.</li>
+<li>Internal providers as buying company are excluded; a branch buying <em>from</em> an
+  internal provider is kept.</li>
+</ul>
+<p><code>source_system</code> (<code>wansoft</code>/<code>odoo</code>) tells where each row came from;
+<code>final_purchase_source_status</code> explains why it was kept (for example
+<code>wansoft_history_before_odoo</code>).</p>
+<table class="compacta">
+<thead>
+<tr>
+<th width="42%">Table</th>
+<th width="16%">Grain</th>
+<th width="42%">Key fields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>analytics_purchase_order_lines</code></td>
+<td>purchase line</td>
+<td><code>company_source_key</code>, <code>order_date</code>, <code>vendor_name</code>, <code>product_name</code>, <code>wansoft_code</code>, <code>wansoft_department</code>, <code>product_qty</code>, <code>price_unit</code>, <code>price_subtotal</code> (before tax), <code>price_total</code> (with tax), <code>source_system</code></td>
+</tr>
+<tr>
+<td><code>analytics_purchase_orders</code></td>
+<td>purchase order / invoice</td>
+<td>same header fields plus totals</td>
+</tr>
+<tr>
+<td><code>analytics_purchase_daily_company_product</code></td>
+<td>branch × day × product</td>
+<td><code>business_price_subtotal_total</code>, <code>business_product_qty_total</code> (already business-filtered)</td>
+</tr>
+</tbody>
+</table>
+<p>Join to dimensions with <code>product_analytical_key</code> → <code>dim_product</code>,
+<code>vendor_analytical_key</code> → <code>dim_vendor</code>, <code>company_analytical_key</code> →
+<code>dim_company_analytical</code>, <code>order_date_key</code> → <code>dim_time.date_key</code>.</p>
+<pre class="bloque-codigo">SELECT company_source_key, DATE_FORMAT(order_date, '%Y-%m') AS mes,
+       source_system, SUM(price_subtotal) AS compras_sin_iva
+FROM analytics_purchase_order_lines
+WHERE include_in_business_views = 1
+  AND order_date &gt;= '2026-01-01'
+GROUP BY company_source_key, mes, source_system;
+</pre>
+<p>Real example (Acoxpa, Odoo start 2026-07-01): January to June come back with
+<code>source_system = 'wansoft'</code> and July onward with <code>'odoo'</code>, with no month
+repeated or missing.</p>
+<p><strong><code>getexpenses_factura</code> is a different thing:</strong> every Wansoft supplier invoice
+classified by accounting account (<code>Cuenta</code>: Costo operativo, Gastos de venta,
+Gastos directos, Sueldos y salarios, Fletes, ...), including services, software
+and payroll that are not goods. Odoo purchase orders only cover goods. So:</p>
+<ul>
+<li>For goods purchases across both systems, use the analytics layer.</li>
+<li>To compare with Wansoft's "Compras" reports, use only <code>Cuenta = 'Costo operativo'</code>.</li>
+<li><strong>Non-goods spend</strong> (rent, services, software, payroll, freight...) of
+  branches already operating on Odoo is <strong>not</strong> extracted from Odoo today. In
+  <code>getexpenses_factura</code> those branches only have invoices up to their Odoo start
+  date. From Odoo accounting only the cost of sales is taken (Section 5.2).</li>
+</ul>
+<p>Some Wansoft invoices have an empty <code>Cuenta</code>. Amounts and dates in this table
+are text.</p>
+<h2>5.4 Inventory</h2>
+<ul>
+<li><strong>Wansoft movements</strong> (Wansoft branches, and history of migrated ones):
+  <code>getinputinventory_entrada</code> (entries; <code>TipoEntrada</code>: <code>Factura</code>, <code>Transferencia</code>,
+  <code>Entrada con canal</code>, <code>Producto procesado</code>, <code>Ajuste de inventario</code>) and
+  <code>getoutgoinginventory_salida</code> (exits, ~37 million rows: always filter by
+  <code>Fecha</code> and <code>subsidiary_name</code>). Branch = Wansoft id in <code>subsidiary_name</code>.
+  Quantity <code>Cantidad</code>, cost <code>CostoUnitario</code>.</li>
+<li><strong>Current stock, unified:</strong> <code>analytics_inventory_current_product_location</code>
+  (Odoo stock by product and location) and <code>analytics_inventory_balance</code>
+  (Wansoft balance = entries − exits by product). Filter
+  <code>include_in_business_views = 1</code>.</li>
+<li>There is <strong>no inventory valuation</strong> (money) for Odoo branches yet, only
+  quantities.</li>
+</ul>
+<h2>5.5 Zenput (<code>zenput</code> database)</h2>
+<table class="compacta">
+<thead>
+<tr>
+<th width="42%">Table</th>
+<th width="16%">Grain</th>
+<th width="42%">Key fields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>form_templates</code></td>
+<td>checklist template</td>
+<td><code>form_id</code>, <code>title</code>, <code>category_name</code></td>
+</tr>
+<tr>
+<td><code>submissions</code></td>
+<td>one filled checklist</td>
+<td><code>submission_id</code>, <code>form_template_id</code> → <code>form_templates.form_id</code>, <code>location_name</code>, <code>user_display_name</code>, <code>date_submitted</code></td>
+</tr>
+<tr>
+<td><code>submission_answers</code></td>
+<td>one answer</td>
+<td><code>submission_id</code>, <code>title</code> (question), <code>field_type</code>, <code>value_as_string</code></td>
+</tr>
+<tr>
+<td><code>zenput_tasks</code></td>
+<td>task</td>
+<td><code>task_id</code>, <code>title</code>, <code>account_name</code> (location), <code>status_name</code>, <code>assignee_display_name</code>, <code>date_due</code>, <code>is_closed</code>, <code>is_completed_late</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>location_name</code> / <code>account_name</code> are Zenput's own location names, not the short
+key; some Zenput locations have no POS branch.</p>
+<h2>5.6 Governance tables</h2>
+<ul>
+<li><code>dim_company_analytical</code>: one row per company, flags (<code>is_active_branch</code>,
+  <code>is_internal_provider</code>, <code>is_final_operating_branch</code>), source per domain,
+  <code>operational_start_date</code>.</li>
+<li><code>analytics_company_domain_coverage</code>: which source feeds each domain per
+  branch, with counts and a <code>coverage_status</code>.</li>
+<li><code>dim_time</code>: calendar (<code>date_key</code> = <code>YYYYMMDD</code>), weeks, months, ISO weeks.</li>
+</ul>
+
+<h1>6. Do not use</h1>
+<table class="compacta">
+<thead>
+<tr>
+<th>Tables</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>canonical_purchase_*</code>, <code>odoo_purchase_*</code>, <code>odoo_inventory_*</code></td>
+<td>Intermediate layers; the analytics tables are the business-ready result</td>
+</tr>
+<tr>
+<td><code>inventory_*</code>, <code>product_catalog_mapping</code>, <code>backup_product_catalog_mapping</code>, <code>product_replacement_candidates</code>, <code>stg_*</code></td>
+<td>Mapping and review workbench</td>
+</tr>
+<tr>
+<td><code>odoo_company_migration_policy</code>, <code>odoo_cutover_validation_log</code></td>
+<td>Pipeline control</td>
+</tr>
+<tr>
+<td><code>getinventorybydepartment</code>, <code>getstockinventory_inventario</code>, <code>getinventorybyday_*</code></td>
+<td>Old snapshots, not refreshed daily</td>
+</tr>
+<tr>
+<td><code>vw_inventory_*</code></td>
+<td>Diagnostic views</td>
+</tr>
+<tr>
+<td><code>tmp_*</code></td>
+<td>Temporary</td>
+</tr>
+</tbody>
+</table>
+
+<h1>7. Freshness and schedule</h1>
+<ul>
+<li>Daily pipeline at <strong>01:30</strong> (Mexico City time); data through the previous day.</li>
+<li>Rolling re-checks: sales 10 days (reconciled against Wansoft's own daily close),
+  Wansoft costs/inventory/cash closing 5 days, purchases 35 days.</li>
+<li>Costs in Wansoft can be recalculated by Wansoft after the fact; the latest
+  snapshot wins.</li>
+<li>Weekly backup Thursdays 18:00. Avoid heavy queries at 01:30–03:00.</li>
+</ul>
+<h1>8. Access</h1>
+<p>Access is through a dedicated <strong>read-only</strong> database user limited to the tables
+in Sections 4–5, provided separately (credentials are never written in this
+document). Query <code>getoutgoinginventory_salida</code> and the sales detail tables with
+date filters: they hold tens of millions of rows. Each user is limited to 4
+simultaneous connections and 30 minutes per query.</p>
+
+<div id="footer_content">
+Fonda Argentina | Data Access Guide | Page <pdf:pagenumber /> of <pdf:pagecount />
+</div>
+
+</body>
+</html>

@@ -389,8 +389,11 @@ mercancía. Las órdenes de compra de Odoo solo cubren mercancía. Por eso:
   <li>Para compras de mercancía de ambos sistemas, usa la capa analítica.</li>
   <li>Para comparar con los reportes de "Compras" de Wansoft, usa solo
   <code>Cuenta = 'Costo operativo'</code>.</li>
-  <li>El gasto por cuenta de las sucursales que ya están en Odoo <b>no</b> está
-  en estas bases a partir de su fecha de arranque.</li>
+  <li><b>Gastos que no son mercancía</b> (renta, servicios, software, nómina,
+  fletes...) de las sucursales que ya operan en Odoo: hoy <b>no</b> se extraen de
+  Odoo. En <code>getexpenses_factura</code> esas sucursales solo tienen sus facturas
+  hasta su fecha de arranque en Odoo. De la contabilidad de Odoo solo se toma el
+  costo de venta (sección 5.2).</li>
 </ul>
 Algunas facturas de Wansoft traen <code>Cuenta</code> vacía. En esta tabla montos
 y fechas son texto.

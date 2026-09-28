@@ -436,6 +436,8 @@ Done on Monday 2026-09-28: restore rehearsal judged good; `zenput_prueba` restor
 - Automation ideas listed in runbook Section 7: `scripts/compare_schema.py`, a numbered-migration runner with a ledger, a reference-data export/import script, automatic restore verification.
 - The dev PC's `wansoft` lacks the tables production keeps (fine) and dev dropped the old Sales tables on 2026-09-28; dev and production schemas should be compared again after cutover.
 
+- **New task (owner, 2026-09-28): extract non-goods spend from Odoo** (rent, services, software, payroll, freight: vendor bills by accounting account) for branches operating on Odoo. Today only cost of sales comes from Odoo accounting (`extract/costs/odoo_cost_report.py`); `getexpenses_factura` only has those branches up to their Odoo start date, so their spend by account is missing from the warehouse afterwards. Starting point: `ControlPresupuestos_AP` already pulls paid Odoo vendor bills and classifies them by expense type (database `presupuestos_ap`).
+
 ## Older backlog
 - **Inventory valuation for pure-Odoo branches** (Puebla, CentroMyJ): no cost/value field on inventory movements; needed for a real COGS.
 - **Root-cause the residual 7-19% Compras gap** between Odoo and Wansoft's `Costo operativo` (Acoxpa, Coyoacán, Oceanía).

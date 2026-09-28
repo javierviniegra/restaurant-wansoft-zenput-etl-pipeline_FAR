@@ -6,7 +6,7 @@ Audience: external teams building their own ETL on top of these databases (for
 example, a question-and-answer / chatbot layer). It tells you **which table to
 use for each business question, which fields matter, how tables join, and the
 traps to avoid**. Every rule here was checked against the live schema and data
-on 2026-09-28.
+on 2026-09-28. PDF version: [data-access-guide.en.pdf](data-access-guide.en.pdf).
 
 ## Contents
 
@@ -317,8 +317,10 @@ Gastos directos, Sueldos y salarios, Fletes, ...), including services, software
 and payroll that are not goods. Odoo purchase orders only cover goods. So:
 - For goods purchases across both systems, use the analytics layer.
 - To compare with Wansoft's "Compras" reports, use only `Cuenta = 'Costo operativo'`.
-- Spend by account for branches already on Odoo is **not** in these databases
-  after their start date.
+- **Non-goods spend** (rent, services, software, payroll, freight...) of
+  branches already operating on Odoo is **not** extracted from Odoo today. In
+  `getexpenses_factura` those branches only have invoices up to their Odoo start
+  date. From Odoo accounting only the cost of sales is taken (Section 5.2).
 
 Some Wansoft invoices have an empty `Cuenta`. Amounts and dates in this table
 are text.
