@@ -225,7 +225,19 @@ Found on the first run, both fixed the same day:
   `run_daily_cycle.ps1` now keeps one shared handle open and also echoes to the
   console.
 
-Measured: _(pending)_.
+Measured 2026-09-28 on the tasks VM against the `_prueba` databases:
+- Full cycle: **35.3 min, 15/15 stages OK** (the Sales stage was the silent
+  failure above; slowest stage: analytics purchase pipeline, 16 min).
+- Sales re-run after the fix (`-Only Ventas`): **59.2 min, 190 XML available,
+  0 missing** (19 branches x 10 days). Slow only because the XML folder started
+  empty and the test copy lacked Friday-Sunday, so every day was downloaded and
+  several rewritten; on dev the whole cycle takes about 27 minutes. The first
+  shadow run gives the steady-state timing.
+
+Decided 2026-09-28: after cutover the pipeline does **not** keep downloading
+Wansoft invoices/entries/exits for the branches migrated to Odoo (the legacy
+tasks did). Their purchases and inventory come only from Odoo from their start
+date; the Odoo-vs-Wansoft validation was already done.
 
 ---
 
@@ -287,6 +299,17 @@ What this runbook still does by hand, in priority order:
 4. **Restore verification** (Step 3) → fail automatically when a copy has more
    rows than its source.
 5. **Secrets** (Step 1.6) stay manual until there is a vault.
+
+## 7b. Pending business change: costs of migrated branches
+
+Costs (`costeomensual*`, `gettotalcostbydate`) come from Wansoft's own cost
+report for every branch except those listed in `COSTS_ODOO_SOURCE_COMPANIES`
+(`core/config/companies.py`, today Puebla and CentroMyJ, the branches born on
+Odoo). Migrated branches still enter purchases in Wansoft in parallel, so
+Wansoft's cost stays complete. **When a migrated branch stops entering
+purchases in Wansoft, add it to `COSTS_ODOO_SOURCE_COMPANIES`**, or its Wansoft
+cost will silently become incomplete. Every new branch must be added there
+from day one.
 
 ## 8. Security follow-ups (after cutover)
 
