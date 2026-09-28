@@ -253,6 +253,19 @@ Section 17.6.
 2. **Stop the legacy tasks:** disable the 12 `FondaCroned_*` tasks (delete them
    after one or two good nights). Leave `ControlPresupuestos_AP`, the backup
    task and the system tasks alone.
+2b. **Pre-cutover backup, right before migrating** (owner's decision
+   2026-09-28; replaces the Wednesday backup in the original plan). With the
+   legacy tasks already stopped nothing writes to production, so this is the
+   exact final state and the rollback point:
+
+   ```powershell
+   & C:\Apps\Wansoft_ETL\deploy\backup\backup_mysql.ps1 -MysqlBin $bin -ConfigFile $cnf
+   ```
+
+   Check `backup.log` ends with `Backup finished`, then copy the new
+   `yyyyMMdd_HHmmss` folder to `C:\Backups\mysql\PRE_CORTE_2026-10-01` (outside
+   the pruning pattern, so the weekly retention never deletes it). About 30
+   minutes. Do not start step 3 until it is verified.
 3. **Migrate the live `wansoft`:** fresh dump from dev (Step 5.1, new date),
    loaded with the client, then parts 2 and 3:
 

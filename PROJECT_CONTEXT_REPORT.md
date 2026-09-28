@@ -2,7 +2,7 @@
 
 Master continuity document. Generated/updated automatically at the close of major steps, on explicit request ("Generate project context report"), when the conversation gets very long, when consumed context exceeds ~70%, or when a new chat needs to be opened due to token limits. Always regenerated in full, never as an incremental patch.
 
-Last generated: 2026-09-25 (Friday), closing the session because the context window is running out; it covers 2026-09-24 and 2026-09-25 on top of the earlier sessions kept below. This stretch was **infrastructure, not warehouse logic**: a production backup system was built and its first real run completed, the tasks VM was set up with the new code and a daily GitHub update, a run-once daily orchestrator was written, and the **go-live week (Mon 2026-09-28 to Thu 2026-10-01)** was planned. **Read this first if you're picking this up fresh, especially Section 0 (the two production machines), Section 17 (production infrastructure: current state, go-live week and cutover checklist) and Section 18 (handoff).**
+Last generated: 2026-09-28 (Monday), on the owner's request, at the close of the first day of the go-live week. It covers 2026-09-28 on top of the earlier sessions kept below. Today: the restore rehearsal was judged good, `zenput_prueba` restored, the full cutover migration rehearsed on `wansoft_prueba` (with two production data problems found and fixed), the first full daily cycle run on the tasks VM (four real deployment bugs found and fixed), the shadow run registered for 07:00, and a bilingual data access guide plus read-only users prepared for the external vendor tukanmx. **Read this first if you're picking this up fresh, especially Section 0 (the two production machines), Section 17 (production infrastructure, go-live week and cutover checklist), Section 13 (pending, in order) and Section 18 (handoff).** The command-level procedure lives in `docs/production-cutover-runbook.md`.
 
 ---
 
@@ -21,6 +21,8 @@ The shell/harness's own default working directory still resets to the old (dead)
 
 **MySQL dev is not a Windows service (deliberate, prior decision — do not re-suggest making it one).** It does not auto-start with the machine. If a dev DB connection fails at the start of a session (`Can't connect to MySQL server on 'localhost:3306'`), ask the user to start it rather than debugging further. Dev is MariaDB 10.4.32 under XAMPP (`C:\xampp\mysql\bin`).
 
+**If XAMPP's MySQL will not start (2026-09-28 incident, bug #33):** read `C:\xampp\mysql\data\mysql_error.log` and the Windows Application event log (provider `MariaDB`, and `Application Error` for `mysqld.exe`). A shutdown without stopping MySQL left the Aria recovery log inconsistent (`Aria recovery failed ... delete all aria_log.########`) and three Aria system tables crashed (`mysql.db`, `mysql.proxies_priv`, `mysql.roles_mapping`). Fix that worked: stop mysqld, move `aria_log.*` and `aria_log_control` to a backup folder (not delete), check every `mysql\*.MAI` with `aria_chk -e -s`, repair the damaged ones with the safe method `aria_chk -o` (the sort method `-r` failed on a tiny sort buffer), start from the XAMPP panel (a mysqld started from the harness shell dies with the shell), then re-insert the default `root@localhost` row in `mysql.proxies_priv` and `FLUSH PRIVILEGES`. Only `root` users exist on dev, so no real grant was lost; `mysql.db`'s data file had actually been overwritten with error-log text long before. Backups of every touched file: `C:\xampp\mysql\aria_log_backup_20260928\`.
+
 `core/config/.env` on the dev PC has `ENV=dev` and its `XML_DOWNLOAD_DIR_DEV` was corrected to the OneDrive path on 2026-09-17 (bug log #21). `.env` is gitignored, so every machine needs its own.
 
 Git and `.env` (credentials) both survived the OneDrive move intact.
@@ -33,11 +35,17 @@ Git and `.env` (credentials) both survived the OneDrive move intact.
 | Windows account that runs things | `analisisbi` | (RDP administrator) |
 | What it hosts | The 12 legacy `FondaCroned_*` scheduled tasks, the separate live project `ControlPresupuestos_AP` (`C:\Apps\ControlPresupuestos_AP`, 4 tasks), the new pipeline (`C:\Apps\Wansoft_ETL` with `.venv`, Python 3.12), the backups (`C:\Backups\mysql`, 412 GB free), the MariaDB client tools (`C:\Backups\mariadb-client\mariadb-10.4.28-winx64\bin`) | XAMPP **MariaDB 10.4.28**, datadir `C:\xampp\mysql\data\`, binary log off, all tables InnoDB; phpMyAdmin on plain http port 8088 |
 | Does NOT host | MySQL or phpMyAdmin (nothing listens on 3306/3307/8088) | Any pipeline or task |
-| Free disk | 412 GB on C: | 258 GB on C: |
+| Free disk | 412 GB on C: | 258 GB on C: (less now: `wansoft_prueba` is a full ~31 GB copy) |
 
-Databases (`wansoft` is the big one): `wansoft` 31 GB on disk (about 16 GB of data plus 15 GB of indexes, 22 base tables, zero views/triggers/routines/events), `zenput`, `odoo`, `presupuestos_ap`, `mysql`, `phpmyadmin`, `test`. The tasks VM reaches the database over the internal network (`192.168.100.183`); the dev PC reaches it through the public IP with read-only credentials for comparisons. **phpMyAdmin is served unencrypted on a public IP: restrict it after go-live.**
+Databases (`wansoft` is the big one): `wansoft` 31 GB on disk, `zenput`, `odoo`, `presupuestos_ap`, `mysql`, `phpmyadmin`, `test`, plus the test copies `wansoft_prueba` (migrated, 61 tables) and `zenput_prueba`. The tasks VM reaches the database over the internal network (`192.168.100.183`); the dev PC reaches it through the public IP. **phpMyAdmin is served unencrypted on a public IP: restrict it after go-live.**
 
-**Hard rule until cutover:** the new pipeline must never write to the real `wansoft` / `zenput` databases before go-live, because the legacy tasks still write to them every night. The tasks VM `.env` points at `wansoft_prueba` / `zenput_prueba` on purpose (Section 17.4).
+**Database users (checked 2026-09-28):**
+- `backup` (used by the backup/restore scripts via `C:\Backups\mysql\backup.cnf`): read-only on everything, `ALL` on `wansoft_prueba` and `zenput_prueba`.
+- `wansoftuser` and `zenputuser` are the **pipeline's** accounts (`WANSOFT_DB_USER` / `ZENPUT_DB_USER` in the VM's `.env`). They got `ALL PRIVILEGES` on `wansoft_prueba` / `zenput_prueba` on 2026-09-28 (they had none; the preflight caught it).
+- **`wansoftuser` is NOT read-only**, contrary to what earlier reports said: `SHOW GRANTS` shows `ALL PRIVILEGES ON wansoft.* ... WITH GRANT OPTION`. It is also the credential the dev PC uses for "read-only" comparisons. Only ever SELECT with it from dev. Split it after go-live (runbook Section 8).
+- It cannot see `wansoft_prueba`/`zenput_prueba` from the dev PC's connection; checks on the test databases are run from the tasks VM with the `backup` user.
+
+**Hard rule until cutover:** the new pipeline must never write to the real `wansoft` / `zenput` databases before go-live, because the legacy tasks still write to them every night. The tasks VM `.env` points at `wansoft_prueba` / `zenput_prueba` on purpose; since the same users can write to both, those two `.env` lines are the only barrier. Check them before any manual run (`Select-String -Path core\config\.env -Pattern '^(ENV|WANSOFT_DB_(HOST|USER|NAME)|ZENPUT_DB_(HOST|USER|NAME))='` shows them without secrets).
 
 ---
 
@@ -45,19 +53,19 @@ Databases (`wansoft` is the big one): `wansoft` 31 GB on disk (about 16 GB of da
 
 **Overall project goal:** build a unified analytical layer in MySQL that integrates Wansoft, Odoo, and Zenput, hiding from the end user which system originates each piece of data.
 
-**Delivery layer goal (decided 2026-09-23, Section 16):** no longer "repoint the user's Power BI reports at the unified layer"; instead a **new Django web application** replicating the validated Power BI pages with interactive filters and charts and role-based access (Dirección, Gerente, CGI, Usuario básico, Administrador general). Power BI is now the validation reference, not the target. Not started yet; the role scopes are still undefined.
+**Delivery layer goal (decided 2026-09-23, Section 16):** a **new Django web application** replicating the validated Power BI pages with interactive filters and role-based access. Not started; role scopes undefined. **New (2026-09-28):** an external vendor, **tukanmx.com**, will also connect to these databases, build its own ETL and deliver a question-and-answer / chatbot layer (Section 19).
 
-**Data-warehouse state:** the acceptance gate remains formally accepted (2026-08-31). Sales, Meseros, Costs and Purchases were validated live against the user's Power BI for four representative branches (Acoxpa, La Esquina Coyoacán, San Jerónimo, Oceanía; September 2026): Ventas and Meseros exact everywhere, Costos exact once refresh timing is accounted for, Compras understood after correcting the comparison scope (Sections 6, 14, 15). The user confirmed that is enough; the remaining 15 branches are not validated individually.
+**Data-warehouse state:** acceptance gate accepted (2026-08-31); Sales, Meseros, Costs and Purchases validated against the owner's Power BI for Acoxpa, La Esquina Coyoacán, San Jerónimo and Oceanía (Sections 6, 14, 15).
 
-**Infrastructure state (this stretch, Section 17):**
-- **Backups:** a weekly MariaDB backup system exists (`deploy/backup/`), keeps the 4 most recent runs, verifies each dump, and warns about databases missing from its list. The first real backup completed on 2026-09-24 (`wansoft` 3.38 GB compressed from about 24 GB of SQL, 29.8 minutes over the internal network). A first attempt failed on a real bug (Int32 overflow above 2 GB, bug #25), fixed and re-run.
-- **Tasks VM deployment:** repository cloned to `C:\Apps\Wansoft_ETL`, virtual environment with pinned `requirements.txt`, `.env` in place, and a daily GitHub update task (00:30) verified end to end.
-- **Run-once orchestrator:** `scripts/run_daily_cycle.py` plus PowerShell wrappers, prepared but the task is registered **disabled**.
-- **Restore rehearsal:** a one-time task restores the backup into `wansoft_prueba` at 22:00 on Friday 2026-09-25; `zenput_prueba` exists and awaits its restore.
+**Infrastructure state (Section 17):**
+- **Backups:** weekly system in place; first backup (2026-09-24) proven by a full restore into `wansoft_prueba` (22 tables, 121.5 min, every `DIFF` lower than production by one night of loads).
+- **Migration rehearsed** on `wansoft_prueba` on 2026-09-28: 41 tables + 2 views loaded from a dev dump, 3 generated columns, 5 unique keys + 1 index, 4 old tables dropped, and two production data problems cleaned (77,370 exact duplicate rows in `getoutgoinginventory_salida`, 48 zero-valued duplicate captures in `costeomensual_semanapyq`). All in `sql/migrations/` + a dump; timings in the runbook.
+- **First full cycle on the tasks VM:** 15/15 stages, 35.3 min, but four real deployment bugs surfaced and were fixed the same day (bugs #27-#30). Sales re-run: 190 of 190 XML.
+- **Shadow run registered:** `Wansoft_Pipeline_Diario` enabled at **07:00** against the test databases; first run Tuesday 2026-09-29.
 
-**Go-live:** Thursday **2026-10-01**, coordinated with the Odoo cutover of Isabel La Católica, San Jerónimo and Vía Vallejo, so all 10 Odoo-sourced branches start together. The week before is a shadow run on test databases (Section 17.5). Definitive daily pipeline time: **01:30** (the latest cash closing in 30 days was 01:07).
+**Go-live:** Thursday **2026-10-01**, with the Odoo cutover of Isabel La Católica, San Jerónimo and Vía Vallejo. Wednesday night go/no-go. Definitive daily time 01:30. **New:** a production backup is taken on Thursday right before migrating, after the legacy tasks are stopped.
 
-**Current block:** the go-live week. First action on Monday 2026-09-28: read the restore log, then apply the schema migration to `wansoft_prueba` (41 tables, 2 views, 5 columns missing versus production).
+**Next action (Tuesday 2026-09-29 morning):** read `C:\Apps\Wansoft_ETL\logs\daily_cycle_20260929.log` (expect `0 failed`, measure the steady-state duration), then compare `wansoft_prueba` with production for the same days.
 
 ---
 
@@ -226,25 +234,27 @@ Explicitly stated: validating these 4 branches (Acoxpa, Coyoacán, San Jerónimo
 # 7. Detailed Status by Domain
 
 ### Sales
-No open issues in pipeline logic. Matches Power BI exactly in every branch checked to date (Acoxpa, Coyoacán, San Jerónimo, Oceanía; Puebla in the prior report round). **Open question, carried forward unchanged:** whether Antenas, Tepeyac, or CentroMyJ have the same Aug 1-27 dev-only history gap found on Acoxpa/Puebla — still not checked.
+No open issues in pipeline logic. Matches Power BI exactly in every branch checked (Acoxpa, Coyoacán, San Jerónimo, Oceanía; Puebla earlier). **Fixed 2026-09-28 (bug #27):** on a new machine the Candado could not write any XML (missing `data\xml\getAllOrdersByDay`) and still reported the stage as OK; it now creates the folder and exits 1 when not a single XML could be obtained. **Open, carried forward:** whether Antenas, Tepeyac or CentroMyJ have the Aug 1-27 dev-only history gap found on Acoxpa/Puebla.
+
+Sales table facts confirmed 2026-09-28 (now in the data access guide): join header to lines/payments/modifiers on `Sucursal` + `Movimento` = `Movimiento_Id` (full coverage); amounts and `Fecha` are `varchar`; `Estatus` is always 0; `TipoOrden` in `Restaurant` / `Para llevar` / `eCommerce`. The old tables `getallordenesbyday_venta`, `_detalleventa`, `_modificador` and the empty `getallordenesbyday_new_pagos` are unused backups; the owner confirmed nothing writes to them, and they are dropped at cutover (already dropped on dev and `wansoft_prueba`).
 
 ### Purchases
-Both August-round bugs (duplicate-insert date-column mismatch, internal-vendor exclusion) remain fixed and validated. **New this round:** the unconfirmed-RFQ bug (Section 6.2) is fixed for all 7 Odoo-source branches, not just Acoxpa. **New methodology finding:** for Odoo-migrated branches, business-facing Compras must be compared against Wansoft's `Cuenta='Costo operativo'` specifically, not the full Compras Mensuales total — the full total includes non-goods spend (software, admin, payroll, freight-as-service) that Odoo's purchase-order model will never contain. After that correction, Compras still runs 7-19% higher in Odoo than in Wansoft across the 3 Odoo branches checked (Acoxpa, Coyoacán, Oceanía) — real, stable, unresolved; candidate cause is a differing cutoff criterion (order-placed vs. invoice-registered) between the two systems.
+Both August-round bugs and the unconfirmed-RFQ bug (#24) remain fixed. Compare Odoo-migrated branches against Wansoft's `Cuenta='Costo operativo'` only; the residual 7-19% Odoo-over-Wansoft gap stays an open item. **Confirmed 2026-09-28:** the canonical/analytics layer already merges Wansoft history (invoice-type entries, `getinputinventory_entrada` with `TipoEntrada='Factura'`) before each branch's Odoo start date with confirmed Odoo orders from that date (`final_purchase_source_status` = `final_wansoft_enabled` / `wansoft_history_before_odoo`); a live check on Acoxpa showed January-June from Wansoft and July onward from Odoo, no month repeated or missing. **Decided 2026-09-28:** after cutover the pipeline does not keep downloading Wansoft invoices/entries/exits for migrated branches (the legacy tasks did); the Odoo-vs-Wansoft validation is considered done.
 
 ### Inventory
-No change this round for the Odoo-side valuation gap (still open, see Section 3.3/Backlog). **New finding for the still-100%-Wansoft branches:** Power BI's own "Entradas de Inventario por Factura" report is scoped to `TipoEntrada='Factura'` only — any raw comparison against `getinputinventory_entrada` must apply the same filter or it will look inflated by transfers/adjustments/processed-product entries that were never real purchases.
+No change to the Odoo-side valuation gap (still open). Production's `getoutgoinginventory_salida` held 77,370 surplus rows in 61,125 groups, all exact copies left by three bulk reloads of the legacy loader (2025-04, 2026-02, 2026-07; none in 2026-08/09); the cutover migration removes them before adding the unique key the new loader depends on (Section 17.8).
 
 ### Costs
-No change to the 3-way routing logic itself (see Section 3.4) — it continues to validate correctly. **New this round:** confirmed Power BI's own Costos page can lag its Wansoft source by up to a day for a given branch (seen on Oceanía); when a Costos comparison doesn't match, check dev's prior day's snapshot before assuming a bug. Cortesías/Cancelaciones continue to differ from Power BI by design (sale-value vs. cost-basis), unchanged and expected.
+3-way routing unchanged. **Business meaning clarified by the owner (2026-09-28):** new branches (Puebla, CentroMyJ and every future one) are born on Odoo for purchases, inventory and costs, with only sales and daily closings in Wansoft. Migrated branches still take costs from Wansoft **on purpose and temporarily**: they keep entering purchases in Wansoft in parallel (fallback if Odoo failed, and validation of Odoo), so Wansoft's cost stays complete. When a migrated branch stops entering purchases in Wansoft, add it to `COSTS_ODOO_SOURCE_COMPANIES` in `core/config/companies.py` (every new branch must be added from day one). Production's `costeomensual_semanapyq` held 48 duplicate (branch, day) captures from 2025-05-06..08 where the earlier row was all zeros; the migration keeps the later, real row. Cost table semantics (now documented): `costeomensual` = month-to-date through `created_date`; `costeomensual_semanapyq` = week-to-date from Monday through the day before `created_date`; `gettotalcostbydate` = the single day `created_date`.
 
-### Meseros (new: informally tracked as part of Sales validation)
-Confirmed: Power BI's Meseros ranking table excludes a per-branch delivery/app placeholder waiter from its total. Dev's raw data is complete and correct; validate by excluding the placeholder mesero before comparing to Power BI's "Total" row.
+### Meseros
+Power BI's ranking excludes the per-branch delivery/app placeholder waiter; validate by excluding it.
 
 ### Security / Configuration
-`.env`'s `XML_DOWNLOAD_DIR_DEV` fix remains local-machine-only (Section 0). **New:** `SALES_LOOKBACK_DAYS`, `WANSOFT_LOOKBACK_DAYS` (currently 5, tuned down from the 31-day default), `PURCHASES_LOOKBACK_DAYS` are also `.env`-driven now — same local-machine-only caveat applies; these need to be set again on any fresh machine/server (see Section 17 for the production deployment plan that must carry this forward).
+Lookbacks remain `.env`-driven (`SALES 10 / WANSOFT 5 / PURCHASES 35`). **New:** `scripts/check_env.py` now fails (not warns) when the configured database is not reachable by the configured user. Findings to act on after go-live: `wansoftuser` has full privileges with grant option; phpMyAdmin on plain http on a public IP; the production server accepts connections from the internet without TLS (relevant for the tukanmx users).
 
-### Deployment / operations (new, Section 17)
-Production is being moved to the new pipeline in place: the tasks VM now has the code, environment, daily GitHub update and a disabled run-once daily task; backups run weekly from the tasks VM against the database machine. Nothing writes to the real production databases from the new code yet.
+### Deployment / operations
+Tasks VM has the code, environment, daily GitHub update (00:30), the preflight, and now an **enabled** daily cycle at 07:00 writing only to the test databases (shadow run). Nothing new writes to the real production databases.
 
 ---
 
@@ -271,6 +281,18 @@ Production is being moved to the new pipeline in place: the tasks VM now has the
 | Backups: per-database gzip dumps taken over the internal network from the tasks VM, kept on the tasks VM, `--single-transaction`, keep 4, weekly | The user wanted backups separate from the database machine; all production tables are InnoDB so the dump does not block writers; dumps without `--databases` restore under any name | `deploy/backup/` |
 | The daily GitHub update task runs as `analisisbi` with its stored password | Git Credential Manager credentials are stored per Windows user, so SYSTEM cannot use them | `deploy/update_repo.ps1`, `deploy/register_update_task.ps1` |
 | Restore rehearsal into `wansoft_prueba`, then a shadow run on test databases for three days before cutover | Proves the backups restore and the new environment reproduces what the legacy tasks produce, without touching production | Section 17.5 |
+| Copy the 41 new tables and 2 views to production **with dev's data** (one dump), not as empty tables | Dimensions, the approved mapping dictionary, migration policies and catalogs are rebuilt by no daily stage, and the Wansoft side of the canonical purchase tables is incremental (35 days); dev holds exactly the state validated against Power BI | `NUEVAS_<date>/wansoft_nuevas.sql.gz`, runbook 5.1 |
+| Strip `DEFINER` from the dumped views and make them `SQL SECURITY INVOKER` | The `backup` user has no `SUPER`; a definer clause would fail the load | Runbook 5.1 |
+| Keep the **later** row of each `costeomensual_semanapyq` duplicate pair (not the lowest id) | In all 48 pairs the earlier capture is all zeros; the documented "keep lowest id" rule would keep the zeros | `sql/migrations/cutover_02_small_tables.sql` |
+| Remove the `getoutgoinginventory_salida` duplicates keeping the lowest id, only after proving every group is an exact copy | Materialise the groups once (two scans, 25.6 min) instead of re-scanning 37M rows per question; delete by primary key | `sql/migrations/cutover_03_large_inventory_tables.sql` |
+| Do not add `campo1`/`campo2` to production's `getallordenesbyday_venta`; drop the 4 old Sales tables at cutover instead | Dev's table was a 4-column leftover stub; production's is a 24-column backup nobody writes or reads | Owner's decision |
+| The Sales Candado exits non-zero when no XML at all was obtained | A single missing day can be a closed branch; zero XML is a system failure that must show as a failed stage | `legacy/wansoft/automaticos/extractAllOrdersByDay.py` |
+| The cycle wrapper keeps one shared log handle and echoes to the console | `Add-Content` per line collided with a reader and lost lines | `deploy/run_daily_cycle.ps1` |
+| Preflight: an unreachable database is a FAIL | `SHOW DATABASES` hides databases the user has no rights on; a WARN hid two blockers | `scripts/check_env.py` |
+| Pre-cutover backup on Thursday, after stopping the legacy tasks and before migrating (replaces Wednesday's) | Exact final state and rollback point | Runbook 6.2b |
+| External vendor access through two limited read-only users | Least privilege; the existing accounts have full rights | `sql/maintenance/create_tukan_readonly_users.sql` |
+| Bilingual (Spanish + English) data access guide with a PDF, as an explicit exception to the English-only GitHub rule | It is for an external reader; commit messages stay English | `docs/data-access-guide/` |
+| Mark PDF/images/gz/xlsx as binary in `.gitattributes` | `core.autocrlf` treated the PDF as text and would corrupt it on checkout | `.gitattributes` |
 
 ---
 
@@ -286,6 +308,9 @@ Production is being moved to the new pipeline in place: the tasks VM now has the
 - **Nothing new writes to production before cutover.** Test databases (`wansoft_prueba`, `zenput_prueba`) are the only targets until the cutover checklist (Section 17.6) is executed.
 - **An unattended job must fail loudly and leave a log.** Every scheduled piece of the new stack writes a dated log under `logs\` (or the backup folder) and exits non-zero on failure; a failed backup never deletes good backups.
 - **Backups are only real once restored.** The weekly dump is verified for completeness and readability, but the proof is the restore rehearsal with a row-count comparison.
+- **Costs source follows where purchases are captured.** New branches: Odoo from day one. Migrated branches: Wansoft while they keep entering purchases there in parallel, Odoo afterwards (manual switch in `COSTS_ODOO_SOURCE_COMPANIES`).
+- **A duplicate is only deleted after proving it is an exact copy**, and which copy to keep is decided from the data (zeros vs real values), not from a fixed rule.
+- **An external party never gets an existing project account**; it gets its own read-only user, limited to documented tables, with connection and query-time caps.
 
 ---
 
@@ -313,7 +338,14 @@ Production is being moved to the new pipeline in place: the tasks VM now has the
 - **`mysqldump` writes a `-- Dump completed` marker** at the end of a finished dump; the backup script uses it as the completeness check.
 - **Windows Task Scheduler sequencing**: `Set-ScheduledTask -Trigger` on a running task should be done after the run ends; the `MultipleInstances IgnoreNew` setting makes a second trigger during a run a no-op.
 
-**Git state:** branch `main`, up to date with `origin/main` through commit `9e64483` (plus the commit that carries this report). `inventory_not_found_analysis.csv` remains permanently uncommitted per convention. Loose untracked files at the repo root (`extractAllOrdersByDay.py`, `extractAllOrdersByDay_old.py`, `getAllOrdersByDay.py`) remain unexplained, not touched.
+- **A table-level `GRANT` fails on a table that does not exist yet** (MariaDB), so grants on tables created by a migration must run after it.
+- **`SHOW DATABASES` only lists databases the current user has privileges on**; "missing" can mean "not granted".
+- **`runpy` runs legacy scripts in-process**, so a legacy script's `sys.exit(1)` becomes a `SystemExit` the cycle records as FAILED; that is how to make a legacy stage fail loudly.
+- **xhtml2pdf quirks (PDF rendering):** a `div` with a background draws one box per list item (use a single-cell table instead); empty table cells collapse their column (put a dash); widths must be `width="%"` attributes on the header cells; `<pdf:toc />` builds a page-numbered table of contents from `h1`/`h2`, so the document title must not be an `h1`. xhtml2pdf is available in `ControlPresupuestos_AP\.venv`, not in this project.
+- **A process started from the harness shell dies when the command ends**; services such as mysqld must be started by the user (XAMPP panel).
+- **The dump/restore of the new tables took 5.7 + 11.6 minutes; adding both inventory indexes online took 4.8 minutes; a full `GROUP BY` over the 37M-row exits table took 31 minutes.** Use these to plan the cutover.
+
+**Git state:** branch `main`, pushed to `origin/main` (public repository; it must never hold passwords) through the commit that carries this report. `.gitattributes` now marks PDF/images/gz/xlsx as binary. `inventory_not_found_analysis.csv` remains permanently uncommitted per convention. Loose untracked files at the repo root (`extractAllOrdersByDay.py`, `extractAllOrdersByDay_old.py`, `getAllOrdersByDay.py`) remain unexplained, not touched.
 
 ---
 
@@ -332,6 +364,13 @@ See prior reports for bugs #1-#17.
 | 24 | Odoo purchase extraction had no `state` filter at all: unconfirmed RFQs (`state='sent'`) counted as real business purchases, inflating Compras for every Odoo-migrated branch | `extract/purchases/odoo_purchase_orders.py`, `odoo_purchase_order_lines.py` | **Fixed 2026-09-22** |
 | 25 | The backup script's completeness check used `[Math]::Min(512, $fs.Length)`, which binds to the Int32 overload and throws for any file over 2 GB; a real 24 GB dump was rejected and its folder deleted (first attempt, 2026-09-24 14:36). Found only because earlier tests used tiny dumps | `deploy/backup/backup_mysql.ps1` | **Fixed 2026-09-24** (`[long]512`), verified on a 3 GB synthetic file |
 | 26 | The four subprocess-based jobs ignored their pipeline's exit code, so a failed pipeline looked like a successful stage in any orchestrator | `pipelines/jobs/inventory_pipeline_job.py`, `purchases_pipeline_job.py`, `analytics_purchase_pipeline_job.py`, `product_mapping_backlog_job.py` | **Fixed 2026-09-25** (`check=True`). Note: the in-process legacy chain steps still swallow per-day errors internally (they print `[❌]` and continue); those are visible only in the logs |
+| 27 | Sales Candado on a new machine: `data\xml\getAllOrdersByDay` did not exist, every XML write failed, every day was skipped, and the stage still reported OK | `legacy/wansoft/automaticos/extractAllOrdersByDay.py` | **Fixed 2026-09-28**: creates the folder, exits 1 when no XML at all. Re-run on the VM: 190/190 |
+| 28 | The cycle wrapper lost log lines (and spammed errors) while another window followed the log: `Add-Content` reopened the file per line | `deploy/run_daily_cycle.ps1` | **Fixed 2026-09-28**: one shared write handle, UTF-8 with BOM, console echo; tested with a concurrent reader |
+| 29 | The preflight only warned when the configured database was not visible, hiding two real blockers on the VM | `scripts/check_env.py` | **Fixed 2026-09-28**: FAIL with "missing or not granted" |
+| 30 | Tasks VM configuration: `ZENPUT_DB_NAME` held the host IP instead of `zenput_prueba`; `wansoftuser`/`zenputuser` had no rights on the test databases | VM `.env`, database grants | **Fixed 2026-09-28** (line corrected; grants added) |
+| 31 | Production `getoutgoinginventory_salida`: 77,370 surplus rows in 61,125 groups, exact copies from three legacy bulk reloads; blocks the unique key the new loader needs | Production data | **Fixed on `wansoft_prueba`**; part of the cutover migration for production |
+| 32 | Production `costeomensual_semanapyq`: 48 duplicate captures (2025-05-06..08), the earlier one all zeros | Production data | **Fixed on `wansoft_prueba`**; part of the cutover migration |
+| 33 | Dev MySQL would not start: inconsistent Aria log after an unclean shutdown, then crashed `mysql.db` / `proxies_priv` / `roles_mapping` | Dev XAMPP datadir | **Fixed 2026-09-28** (Section 0.1) |
 
 **Also confirmed NOT bugs:**
 - Oceanía's Costos mismatch on 2026-09-23: Power BI's own Costos page was one day behind its Wansoft source; dev's prior-day snapshot matched exactly.
@@ -340,6 +379,10 @@ See prior reports for bugs #1-#17.
 - Power BI's Meseros table excluding the delivery/app placeholder waiter from its ranked total: a report display choice.
 - The first backup attempt over the public IP was simply slow (the path leaves the network and returns); switching to the internal IP fixed it.
 - `wansoft.sql` showing 0 MB while being written, and phpMyAdmin's #1046 after successful statements: display artifacts (Section 10).
+
+- The 12 `DIFF` lines of the `wansoft` restore rehearsal (and 3 of `zenput`): all lower than production by the loads since the backup.
+- The Sales re-run taking 59 minutes: the XML folder started empty and the test copy lacked Friday-Sunday, so everything was downloaded and several days rewritten; not the steady-state time.
+- Git warning "LF will be replaced by CRLF" on the PDF: the committed bytes were identical; `.gitattributes` now prevents a corrupting checkout.
 
 **Gate result:** unchanged, not reopened.
 
@@ -363,33 +406,46 @@ See prior reports for bugs #1-#17.
 - **Daily pipeline at 01:30**, after considering 23:30 and 06:00 (Section 17.4). During the shadow week the task runs at 07:00.
 - **Go-live week plan (2026-09-28 to 2026-10-01):** test on the `_prueba` databases Monday to Wednesday, go/no-go Wednesday night, cutover Thursday.
 - The user prefers to be walked step by step, with one command per block, and works in short windows (about 80 minutes at a time); keep steps small and verifiable.
+- **2026-09-28:** migration plan B (apply everything on `wansoft_prueba` during office hours) to rehearse exactly what Thursday needs and measure it.
+- **2026-09-28:** keep the later (non-zero) row of the 48 `costeomensual_semanapyq` pairs; drop `getallordenesbyday_venta`, `_detalleventa`, `_modificador` and `getallordenesbyday_new_pagos`, in production only on Thursday.
+- **2026-09-28:** no Wansoft purchase/inventory downloads for migrated branches after cutover; costs of migrated branches stay on Wansoft while they capture purchases there in parallel.
+- **2026-09-28:** production backup on Thursday right before migrating (replaces Wednesday's).
+- **2026-09-28:** tukanmx gets two read-only users (`tukan_wansoft`, `tukan_zenput`), created on Thursday after the migration, plus the data access guide in Spanish and English (PDF in Spanish, same layout as the ControlPresupuestos_AP manuals). The public GitHub repo is fine as long as it holds no passwords.
+- **2026-09-28:** the owner wants a runbook in git so a future production deployment can be automated (`docs/production-cutover-runbook.md`).
 
 ---
 
 # 13. Identified Legacy / Consolidated Backlog
 
 ## Go-live week (in order)
-1. **Mon AM: read the restore rehearsal log** (`C:\Backups\mysql\20260924_144209\restore_wansoft_prueba.log`, task `Wansoft_Restore_Ensayo` ran Fri 22:00). Expect per-table `DIFF` where the legacy tasks loaded data after the Thursday 14:42 snapshot (Friday 01:00-06:30 loads): the copy must have **fewer or equal** rows than production, by about one day of loads. More rows than production, or far fewer, would be a problem.
-2. **Restore `zenput` into `zenput_prueba`** (database and grants were created in phpMyAdmin on 2026-09-25; the restore command is in Section 17.5). Expect `DIFF` there too (Zenput tasks run 06:10 and 06:30).
-3. **Schema migration onto `wansoft_prueba` only:** 41 tables and 2 views to create (`vw_inventory_non_physical_snapshot`, `vw_inventory_physical_snapshot`) and 5 columns to add (`created_date` on `costeomensual`, `costeomensual_semanapyq`, `gettotalcostbydate`; `campo1` and `campo2` on `getallordenesbyday_venta`); the 6 production-only legacy tables (`getallordenesbyday_detalleventa`, `getallordenesbyday_modificador`, `getcostreport`, `getexpensesbyinputdate`, `getpendingpurchaseorders`, `getpendingpurchaseorders_details`) are left untouched; no type differences on the 16 common tables. Generate the DDL from dev's `SHOW CREATE TABLE` as a reviewable SQL file. Also identify which of the 41 tables hold **non-rebuildable data** that must be copied from dev (approved rows of `inventory_mapping_dictionary`, `odoo_company_migration_policy`, dimension seeds) versus tables the pipeline rebuilds. Carry `sql/maintenance/add_unique_keys_dedup_protection.sql` along.
-4. **First full manual cycle on the tasks VM** against the `_prueba` databases, to measure timing (expect about 30 minutes) and fix what breaks (run `python -m scripts.check_env` first, then `deploy\run_daily_cycle.ps1`, optionally `-Only` for single stages).
-5. **Shadow run Monday night to Wednesday:** register the daily task with `-Enable -Time 07:00` (after the legacy tasks end at 06:30, to avoid both calling the Wansoft SOAP API at once), and compare `wansoft_prueba` against production every morning for the same days (same methodology as Section 14/15).
-6. **Wednesday night: go/no-go** for the Thursday cutover.
-7. **Around 2026-09-30:** take the pre-cutover backup and copy its folder to a name outside the pruning pattern (for example `PRE_CORTE_2026-09-30`); the pruning only touches folders named `yyyyMMdd_HHmmss`.
-8. **Odoo readiness of the October wave:** as of 2026-09-23, Isabel had 14 and San Jerónimo 25 purchase orders, all `draft` (unconfirmed), and Vía Vallejo had none. Re-check live that real confirmed (`purchase`/`done`) orders exist before flipping `COMPANY_SOURCE` for the three (Section 17.6).
-9. **Housekeeping on the tasks VM:** replace the VM's `C:\Backups\scripts\backup_mysql.ps1` with the current one (adds the unlisted-database warning) or, better, re-register the backup task with `-ScriptPath C:\Apps\Wansoft_ETL\deploy\backup\backup_mysql.ps1` so it follows the daily `git pull`; run `restore_mysql.ps1` tests only against `_prueba` names.
+
+Done on Monday 2026-09-28: restore rehearsal judged good; `zenput_prueba` restored; migration rehearsed on `wansoft_prueba`; first full cycle on the VM (four bugs fixed); shadow run registered. Details in Section 17.8.
+
+1. **Tue 09-29 AM: read the first shadow run** (`C:\Apps\Wansoft_ETL\logs\daily_cycle_20260929.log`, task ran at 07:00): expect `CYCLE DONE ... 0 failed` and note the steady-state duration (dev: about 27 min). The Sales line should read `XML disponibles: 190 | sin XML: 0` or close. If the task did not run, check `Get-ScheduledTaskInfo Wansoft_Pipeline_Diario` (`LastRunTime`, `LastTaskResult`).
+2. **Tue 09-29: compare `wansoft_prueba` with production for the same days.** Same methodology as Sections 4.4/14/15: first find production's max loaded date per table, compare only through it. Checks to run from the tasks VM with the `backup` user (it reads both databases; the dev PC's user cannot see `_prueba`): daily sales totals and ticket counts per `Sucursal`; `getglobalcashclosing` per branch and `fecha_corte`; `costeomensual`/`gettotalcostbydate` latest snapshot per branch; `getexpenses_factura` and `getinputinventory_entrada` for Wansoft branches. Expected, not bugs: the test side has **no** Wansoft invoices/entries/exits for the 8 Odoo-sourced branches after their start date (by design), and cost/closing values can differ by capture time (a later capture wins).
+3. **Wed 09-30:** second shadow run and comparison; **go/no-go in the evening.**
+4. **Thu 10-01: cutover**, in the order of Section 17.6 and runbook Section 6 (backup right before migrating; tukanmx users after the migration).
+5. **Odoo readiness of the October wave:** as of 2026-09-23 Isabel had 14 and San Jerónimo 25 purchase orders, all `draft`, Vía Vallejo none. Re-check live that confirmed (`purchase`/`done`) orders exist before flipping `COMPANY_SOURCE` for the three.
+6. **Housekeeping on the tasks VM:** re-register the backup task with `-ScriptPath C:\Apps\Wansoft_ETL\deploy\backup\backup_mysql.ps1` so it follows the daily `git pull` (the VM's `C:\Backups\scripts\backup_mysql.ps1` lacks the unlisted-database warning); run `restore_mysql.ps1` only against `_prueba` names; `C:\Backups\mysql\NUEVAS_20260928\` (the rehearsal dump) can be deleted after cutover.
+
+## After go-live
+- Re-register `Wansoft_Pipeline_Diario` at 01:30 (it is at 07:00 for the shadow week).
+- Security: split `wansoftuser` into a read-only and a pipeline user; restrict phpMyAdmin; consider TLS or IP restrictions for external access (tukanmx).
+- **Costs of migrated branches:** move each one to `COSTS_ODOO_SOURCE_COMPANIES` when it stops entering purchases in Wansoft (owner's call, branch by branch).
+- README full cleanup (the appended step fragments at its end), moving detail to `docs/`.
+- Automation ideas listed in runbook Section 7: `scripts/compare_schema.py`, a numbered-migration runner with a ledger, a reference-data export/import script, automatic restore verification.
+- The dev PC's `wansoft` lacks the tables production keeps (fine) and dev dropped the old Sales tables on 2026-09-28; dev and production schemas should be compared again after cutover.
 
 ## Older backlog
-- **Inventory valuation for pure-Odoo branches** (Puebla, CentroMyJ): no existing table has a cost/value field on inventory movements; needed for a real COGS.
-- **Root-cause the residual 7-19% Compras gap** between Odoo and Wansoft's `Costo operativo` for Acoxpa, Coyoacán and Oceanía (candidate: order-placed versus invoice-registered cutoff); not chased.
-- **San Jerónimo:** an unexplained ~$5,915 gap in the "Gastos de venta" `Cuenta` bucket and $49,937 of Wansoft invoices with a blank `Cuenta`; not investigated. San Jerónimo changes routing at the October cutover; re-validate its Costs/Compras afterwards.
-- **Check whether Antenas, Tepeyac or CentroMyJ have the August 1-27 dev-only Sales history gap** found on Acoxpa and Puebla.
-- **Django app:** define what each role sees before building the permission model (Section 16.3).
-- Raise production's `innodb_buffer_pool_size` if it is still small (never checked on the production machine).
+- **Inventory valuation for pure-Odoo branches** (Puebla, CentroMyJ): no cost/value field on inventory movements; needed for a real COGS.
+- **Root-cause the residual 7-19% Compras gap** between Odoo and Wansoft's `Costo operativo` (Acoxpa, Coyoacán, Oceanía).
+- **San Jerónimo:** ~$5,915 gap in "Gastos de venta" and $49,937 of Wansoft invoices with blank `Cuenta`; re-validate its Costs/Compras after the October cutover.
+- **Check whether Antenas, Tepeyac or CentroMyJ have the August 1-27 dev-only Sales gap.**
+- **Django app:** define what each role sees before building permissions (Section 16.3).
+- Raise production's `innodb_buffer_pool_size` if still small (never checked).
 - The weekly product-mapping job (Sundays 11am) has never been observed running as scheduled; it is part of the run-once cycle on Sundays.
-- Restrict phpMyAdmin (plain http on a public IP) after go-live.
-- Origin of the loose untracked root files (`extractAllOrdersByDay.py`, `extractAllOrdersByDay_old.py`, `getAllOrdersByDay.py`, the last two contain the old OneDrive path); not in git, so they do not reach the server.
-- The tasks VM's `.env` is local to that machine (gitignored) and holds every credential; it is the only copy of its settings.
+- Origin of the loose untracked root files (`extractAllOrdersByDay.py`, `extractAllOrdersByDay_old.py`, `getAllOrdersByDay.py`).
+- The tasks VM's `.env` is local to that machine and holds every credential; it is the only copy of its settings.
 
 ---
 
@@ -511,92 +567,115 @@ Findings: (1) this is almost certainly the source of production's **duplicate Wa
 
 **Trade-off accepted by the user:** backups live on the tasks VM, not on the database machine, so losing the database machine does not lose them; losing the tasks VM does, so a Hyper-V export of the VMs from the host before go-live is still worth taking.
 
-## 17.3 Restore rehearsal (in progress)
+## 17.3 Restore rehearsal (done)
 
-- `wansoft_prueba` and `zenput_prueba` exist on the database machine; the `backup` user has `ALL PRIVILEGES` on each (production `wansoft` has no views, triggers, routines or events, so no `SUPER`/definer issue). Free disk on the database machine is 258 GB, enough for the 31 GB copy.
-- One-time task `Wansoft_Restore_Ensayo` (SYSTEM) runs `restore_mysql.ps1 -BackupFolder C:\Backups\mysql\20260924_144209 -SourceDatabase wansoft -TargetDatabase wansoft_prueba -ConfigFile C:\Backups\mysql\backup.cnf -MysqlBin ... -CompareWith wansoft` at **22:00 on Friday 2026-09-25**, expected to take one to three hours (about 15 GB of indexes to rebuild). The database machine must not sleep during the night (the user disabled sleep).
-- Pending: the equivalent restore for `zenput_prueba`.
+- `Wansoft_Restore_Ensayo` ran Friday 2026-09-25 22:00 to Saturday 00:17: **22 tables in 121.5 min**, 10 `SAME` (tables the legacy tasks do not load daily) and 12 `DIFF`, every one with the copy **below** production by about one night of loads (e.g. `new_venta` -795, `getglobalcashclosing` -18, `getexpenses_factura` -116). Verdict: the backup restores faithfully.
+- `zenput` restored into `zenput_prueba` on 2026-09-28: 4 tables in 0.1 min, 1 `SAME`, 3 `DIFF` all lower.
 
-## 17.4 The tasks VM deployment (done 2026-09-25)
+## 17.4 The tasks VM deployment (done 2026-09-25, updated 2026-09-28)
 
-- Repository cloned to `C:\Apps\Wansoft_ETL`; `.venv` created from the VM's Python 3.12 with the pinned `requirements.txt` (`python-dotenv 1.1.0, lxml 5.3.0, mysql-connector-python 9.4.0, numpy 2.1.3, pandas 2.2.3, PyMySQL 1.1.2, rapidfuzz 3.14.1, requests 2.32.3, zeep 4.3.2`, validated on Python 3.13.5 in dev; the repository had no dependency list before) and importing correctly.
-- `core\config\.env` created from the template, locked with `icacls` to SYSTEM and Administrators, with `ENV=prod` (so the non-`_DEV` keys apply), `WANSOFT_DB_HOST=192.168.100.183`, and, as a **fail-safe until cutover, `WANSOFT_DB_NAME=wansoft_prueba` and `ZENPUT_DB_NAME=zenput_prueba`**; `XML_DOWNLOAD_DIR=C:\Apps\Wansoft_ETL\data\xml`; lookbacks `SALES 10 / WANSOFT 5 / PURCHASES 35`. The preflight `python -m scripts.check_env` passed there; the only warnings were the two test databases not existing yet (now created).
-- **Daily update task `Wansoft_Update_Repo_Diario`** (00:30, runs `deploy\update_repo.ps1` as `analisisbi` with its stored password): `git pull --ff-only`, reinstalls dependencies only when `requirements.txt` changed, logs to `logs\update.log`, exits non-zero on failure. Verified end to end: a real update (`15d1428 -> 1d47615`, later `45aed32 -> 11c5ec1`) and a task run with `LastTaskResult 0` (which also proved the Git credentials work non-interactively).
-- **Run-once cycle, prepared and NOT scheduled:** `scripts/run_daily_cycle.py` (15 stages in order, the weekly product mapping added on Sundays; `--list`, `--only`; continues after a failed stage; prints a summary; exits 1 if anything failed), `deploy/run_daily_cycle.ps1` (dated log `logs\daily_cycle_<yyyyMMdd>.log`, keeps 30 days), `deploy/register_daily_cycle_task.ps1` (registers `Wansoft_Pipeline_Diario` at **01:30**, **disabled unless `-Enable`**, asks for the account password, `-Time` is a parameter). `scripts/check_env.py` is a read-only `.env` preflight (missing keys, database and Odoo credentials, existence of the configured database, the 19 Wansoft passwords, the XML folder), never printing secrets.
+- Repository `C:\Apps\Wansoft_ETL`, `.venv` (Python 3.12, pinned `requirements.txt`), `core\config\.env` locked with `icacls`: `ENV=prod`, `WANSOFT_DB_HOST=192.168.100.183`, **`WANSOFT_DB_NAME=wansoft_prueba`, `ZENPUT_DB_NAME=zenput_prueba`** (the latter was mistyped as the IP until 2026-09-28), `XML_DOWNLOAD_DIR=C:\Apps\Wansoft_ETL\data\xml`, lookbacks `10 / 5 / 35`. Preflight `python -m scripts.check_env`: **11 passed, 0 failed** on 2026-09-28.
+- `Wansoft_Update_Repo_Diario` (00:30, `git pull --ff-only`, as `analisisbi`), verified end to end.
+- `Wansoft_Pipeline_Diario`: **registered and ENABLED at 07:00 on 2026-09-28** (`register_daily_cycle_task.ps1 -Enable -Time 07:00`, State Ready) for the shadow week, writing only to the test databases. Move it to 01:30 at cutover.
+- `scripts/run_daily_cycle.py` + `deploy/run_daily_cycle.ps1`: every line now goes to the console and to `logs\daily_cycle_<yyyyMMdd>.log`; it is safe to follow the log with `Get-Content ... -Wait -Tail 20` from another window.
 
 ## 17.5 Go-live week (2026-09-28 to 2026-10-01)
 
-| When | What |
-|---|---|
-| Fri 09-25 22:00 | Restore rehearsal runs unattended (17.3) |
-| **Mon 09-28 AM** | Read `restore_wansoft_prueba.log` and judge the `DIFF` lines (copy must be at or below production by about one day of loads). Restore `zenput` into `zenput_prueba`: `restore_mysql.ps1 -BackupFolder C:\Backups\mysql\20260924_144209 -SourceDatabase zenput -TargetDatabase zenput_prueba -ConfigFile C:\Backups\mysql\backup.cnf -MysqlBin C:\Backups\mariadb-client\mariadb-10.4.28-winx64\bin -CompareWith zenput`. Prepare and apply the schema migration and reference data to `wansoft_prueba` (Section 13, item 3) |
-| Mon 09-28 PM | First full manual cycle on the VM against the `_prueba` databases; fix what breaks; measure timing |
-| Mon night to Wed | Shadow run: daily task enabled at **07:00** writing to the test databases; each morning compare `wansoft_prueba` with production for the same days |
-| Wed 09-30 | Take the pre-cutover backup and copy it to `PRE_CORTE_2026-09-30`; **go/no-go** in the evening |
-| **Thu 10-01** | Cutover (17.6) |
+| When | What | Status |
+|---|---|---|
+| Fri 09-25 22:00 | Restore rehearsal | Done, good |
+| Mon 09-28 | Read restore log; restore `zenput_prueba`; schema comparison; migration rehearsal on `wansoft_prueba`; first full cycle on the VM; register shadow run | **Done** (17.8) |
+| Tue 09-29 07:00 | First shadow run; compare `wansoft_prueba` vs production | Pending |
+| Wed 09-30 07:00 | Second shadow run and comparison; **go/no-go** in the evening | Pending |
+| **Thu 10-01** | Cutover (17.6) | Pending |
 
-## 17.6 Cutover checklist (Thursday 2026-10-01), to confirm with the user on Monday
+## 17.6 Cutover checklist (Thursday 2026-10-01)
 
-1. Confirm real confirmed Odoo orders exist for Isabel, San Jerónimo and Vía Vallejo (Section 13, item 8), then flip `COMPANY_SOURCE` to `"odoo"` for the three in `core/config/companies.py` and `ROLLOUT_COMPANY_EXPECTATIONS` to `active: True`, seed/maintenance SQL and `odoo_company_migration_policy` per `docs/purchases-company-migration-policy.md`, commit and push (the daily update brings it to the VM).
-2. Apply the proven schema migration and reference data to the real `wansoft` (additive changes only), and create/populate whatever `zenput` needs.
-3. On the VM `.env`, switch `WANSOFT_DB_NAME` to `wansoft` and `ZENPUT_DB_NAME` to `zenput`; run `python -m scripts.check_env`.
-4. Stop the legacy tasks: **recommended to disable the 12 `FondaCroned_*` tasks rather than delete them**, and delete after the first one or two successful nights (the user said "remove at go-live"; disabling is equivalent operationally and reversible; confirm this with the user). Leave `ControlPresupuestos_AP`, the backup task and the system tasks alone.
-5. Register/enable `Wansoft_Pipeline_Diario` at 01:30 (`register_daily_cycle_task.ps1 -Enable`); the first production run is the night of 10-01 to 10-02. Watch `logs\daily_cycle_<date>.log`.
-6. The weekly backup runs at 18:00 that same day (the first automatic one).
-7. Re-validate against Power BI with real data for all 10 Odoo-sourced branches over 10-01 to 10-03 (Sections 14/15); production's duplicate Wansoft Purchases/Inventory loading should be gone once the legacy tasks stop.
-8. Afterwards: restrict phpMyAdmin, start the Django app work (Section 16).
+Command-level detail, expected results and timings: `docs/production-cutover-runbook.md`, Section 6.
+
+1. **Odoo readiness:** confirmed orders exist for Isabel, San Jerónimo, Vía Vallejo; flip `COMPANY_SOURCE` to `"odoo"` and `ROLLOUT_COMPANY_EXPECTATIONS` to `active: True` in `core/config/companies.py`, seed/maintenance SQL and `odoo_company_migration_policy`; commit, push, `git pull` on the VM.
+2. **Stop the legacy tasks:** disable the 12 `FondaCroned_*` tasks (delete after one or two good nights). Leave `ControlPresupuestos_AP`, the backup task and system tasks alone.
+3. **Backup right before migrating** (owner's decision 2026-09-28, replaces the Wednesday backup): `backup_mysql.ps1`, verify `Backup finished`, copy the folder to `C:\Backups\mysql\PRE_CORTE_2026-10-01` (outside the pruning pattern). About 30 min.
+4. **Migrate the live `wansoft`** (additive, plus the agreed drops), with an account that has write rights on `wansoft` (the `backup` user only writes to `_prueba`; `restore_mysql.ps1` refuses live names on purpose, so load with the `mysql` client):
+   - Part 1: a **fresh** dump of the 41 tables + 2 views from dev (runbook 5.1; checks: `Dump completed`, 0 `DEFINER`, 41 `CREATE TABLE`, no `` `wansoft`. `` references). Rehearsal: 5.7 min dump, 176 MB, 11.6 min load.
+   - Part 2: `sql/migrations/cutover_02_small_tables.sql` (drops the 4 old Sales tables, dedups `costeomensual_semanapyq`, 3 generated columns, 4 unique keys). Re-check the duplicate count first. Seconds.
+   - Part 3: `sql/migrations/cutover_03_large_inventory_tables.sql`, **one step at a time**: A materialise duplicates (~26 min), B prove they are exact copies (must equal), C delete by primary key keeping the lowest id, D the two indexes online (~5 min), E drop helpers. Budget about 35 min.
+5. **Switch the VM `.env`:** `WANSOFT_DB_NAME=wansoft`, `ZENPUT_DB_NAME=zenput`; `python -m scripts.check_env` must be all PASS.
+6. **Daily cycle to 01:30:** `register_daily_cycle_task.ps1 -Enable` (default time 01:30). First production run the night of 10-01 to 10-02; watch `logs\daily_cycle_<date>.log`.
+7. **tukanmx users:** run `sql/maintenance/create_tukan_readonly_users.sql` as root with real passwords (never committed; restrict `'%'` to their IPs if given); hand over the credentials privately with `docs/data-access-guide/`.
+8. The first automatic weekly backup runs at 18:00 that day.
+9. Re-validate against Power BI for the 10 Odoo-sourced branches over 10-01 to 10-03.
+10. Afterwards: security follow-ups (runbook Section 8), then the Django app (Section 16).
 
 ## 17.7 Risks and things not to forget
-- The shadow run and the legacy tasks both call the Wansoft SOAP API; keep them apart in time (07:00 versus 01:00-06:30).
-- A dump or restore over the network at the wrong time slows the database used by Power BI and `ControlPresupuestos_AP`; run heavy jobs after hours.
+- The shadow run (07:00) and the legacy tasks (01:00-06:30) both call the Wansoft SOAP API; they are kept apart in time.
+- Heavy operations (dump, restore, the big `GROUP BY`/`ALTER`) slow the database used by Power BI and `ControlPresupuestos_AP`; the rehearsal ran them in office hours without complaints, but prefer quiet hours on Thursday.
+- Nothing may write to `getoutgoinginventory_salida` between part 3 steps A and D, so part 3 runs only after the legacy tasks are disabled.
 - The pipeline task needs the `analisisbi` password at registration; nothing else stores it.
-- If anything is unclear about which machine a command runs on, check Section 0.2 before running it.
+- `wansoftuser` can write to the live `wansoft`; until step 5 the `.env` database names are the only barrier.
+- If anything is unclear about which machine a command runs on, check Section 0.2 first.
+
+## 17.8 Monday 2026-09-28 — what was done and found
+
+1. **Restore rehearsal judged good** (17.3); `zenput_prueba` restored.
+2. **Schema comparison dev vs production** (read-only, from the dev PC): `zenput` identical; `wansoft` missing 41 tables and 2 views, 3 generated `created_date` columns, **5 unique keys and 1 index** from `sql/maintenance/add_unique_keys_dedup_protection.sql` (applied to dev 2026-09-14, never to production; `getOutgoingInventory.py` upserts against one of them, so it is mandatory). Dev's `campo1`/`campo2` on `getallordenesbyday_venta` were a leftover stub (not migrated). `getexpenses_factura`'s key already existed in production.
+3. **Migration rehearsed on `wansoft_prueba`** (owner chose to run everything in office hours to measure it): dump 5.7 min / 176 MB; load 11.6 min (65 tables); part 2 in seconds (48 found, 48 deleted, 4 keys); exits table: plain duplicate count 31.4 min, materialise 25.6 min (61,125 groups / 138,495 rows), all groups exact copies, 77,370 deleted, both indexes online in 4.8 min; helpers dropped; final **61 tables**.
+4. **First full cycle on the VM:** 15/15 OK in 35.3 min, with four bugs found and fixed (#27 Sales XML folder and false OK; #28 log lines lost; #29 preflight WARN; #30 `.env` typo and missing grants). Sales re-run: 59.2 min, **190/190 XML**.
+5. **Shadow run registered** at 07:00, State Ready.
+6. **Documentation:** `docs/production-cutover-runbook.md` (new, step-by-step with timings and automation ideas), README updated (it had not changed since 2026-08-20), `docs/data-access-guide/` (Section 19).
+7. **Commits of the day:** `08e3425`, `1c052c0`, `aa1af8a`, `fb1f15b`, `743e442`, `7f38fb1`, `9861ff6`, `572f93b`, `fe9bb41`, `9f3c3b8`, plus the runbook backup step and this report.
 
 ---
 
 # 18. Next Steps — HANDOFF PROMPT
 
-**Paste this as the first message when resuming (Monday 2026-09-28):**
+**Paste this as the first message when resuming (Tuesday 2026-09-29):**
 
 ```
 Continúo el proyecto Wansoft + Odoo + Zenput Data Warehouse & ETL Pipeline.
 Lee completo PROJECT_CONTEXT_REPORT.md en la raíz del repositorio antes de
-responder, especialmente la Sección 0.2 (las dos máquinas de producción,
-no confundirlas), la Sección 17 (infraestructura: estado actual, semana
-del corte y checklist del jueves) y la Sección 13 (pendientes en orden).
+responder, especialmente la Sección 0.2 (las dos máquinas y los usuarios de
+base de datos), la Sección 17 (semana del corte, checklist del jueves y lo
+hecho el lunes en 17.8) y la Sección 13 (pendientes en orden). El detalle de
+comandos está en docs/production-cutover-runbook.md.
 
-Resumen rápido: el jueves 24 y viernes 25 de sept se construyó el sistema
-de respaldos semanales (hay un primer respaldo real completo y verificado),
-se preparó la VM de tareas con el código nuevo, un entorno de Python y una
-tarea diaria que actualiza desde GitHub a las 00:30, y se escribió el
-orquestador de ciclo diario que corre de una sola vez (tarea registrada
-DESHABILITADA a propósito, con hora 01:30). El .env de la VM apunta a
-wansoft_prueba y zenput_prueba como seguro: no debe escribirse nada en las
-bases reales antes del corte. El viernes a las 22:00 corre sola la
-restauración del respaldo en wansoft_prueba, y zenput_prueba ya existe pero
-falta restaurarle su respaldo.
+Resumen rápido: el lunes 28 se validó la restauración, se restauró
+zenput_prueba, se ensayó completa la migración sobre wansoft_prueba (41
+tablas, 2 vistas, llaves y limpieza de 77,370 duplicados en salidas y 48
+capturas en ceros en costos semana PyQ), se corrió el primer ciclo completo
+en la VM (15/15, 35 min; se corrigieron 4 fallas reales) y se registró la
+corrida en sombra, HABILITADA a las 07:00, que escribe solo en las bases de
+prueba. También quedó la guía de datos para tukanmx (español/inglés + PDF) y
+el script de sus usuarios de solo lectura, que se crean el jueves.
 
-Hoy (lunes) toca: (1) leer el log de la restauración
-(C:\Backups\mysql\20260924_144209\restore_wansoft_prueba.log): debe haber
-DIFF solo donde las tareas viejas cargaron datos el viernes de madrugada,
-y la copia debe tener igual o menos filas que producción; (2) restaurar
-zenput en zenput_prueba; (3) migración de esquema solo sobre
-wansoft_prueba: faltan 41 tablas, 2 vistas y 5 columnas respecto a
-producción, más los datos de referencia (mapeos aprobados, políticas de
-migración); (4) primera corrida completa del ciclo en la VM contra las
-bases de prueba; (5) desde el lunes en la noche hasta el miércoles,
-corrida en sombra a las 07:00 comparando prueba contra producción cada
-mañana; (6) el miércoles en la noche, decisión de seguir o no con el corte
-del jueves 1 de octubre. La hora definitiva del ciclo diario es 01:30.
+Hoy (martes) toca: (1) revisar logs\daily_cycle_20260929.log en la VM:
+debe terminar con 0 failed, medir cuánto tarda y ver la línea de ventas
+"XML disponibles"; (2) comparar wansoft_prueba contra producción para los
+mismos días (ventas, cierre de caja, costos, facturas de sucursales Wansoft),
+desde la VM con el usuario backup, sabiendo que las sucursales en Odoo ya no
+tienen facturas/entradas/salidas de Wansoft en prueba (es a propósito). El
+miércoles se repite y en la noche se decide si seguimos con el corte del
+jueves 1 de octubre, que empieza con un respaldo justo antes de migrar.
 
 Reglas que no se pueden olvidar: la VM de tareas es DESKTOP-1HTRVT4
-(usuario analisisbi) y NO tiene MySQL; la base está en otra máquina
-(192.168.100.183); las 12 tareas FondaCroned_* siguen corriendo hasta el
-corte; las tareas de ControlPresupuestos_AP no se tocan; y me gusta ir paso
-a paso, un comando por bloque, en ventanas cortas de trabajo.
+(usuario analisisbi) y NO tiene MySQL; la base está en 192.168.100.183;
+wansoftuser tiene todos los permisos, así que las dos líneas de nombre de
+base del .env de la VM son la única barrera antes del corte; las 12 tareas
+FondaCroned_* siguen hasta el corte; las de ControlPresupuestos_AP no se
+tocan; y me gusta ir paso a paso, un comando por bloque, en ventanas cortas.
 ```
 
-**Suggested title for the new chat**: `FONDA (Wansoft): Paso 25: Ensayo en paralelo en el servidor y corte a producción del 1 de octubre`
+**Suggested title for the new chat**: `FONDA (Wansoft): Paso 25-2: Corrida en sombra y decisión de corte del 1 de octubre`
+
+---
+
+# 19. External data access — tukanmx (new 2026-09-28)
+
+tukanmx.com will connect to the `wansoft` and `zenput` databases, build its own ETL and deliver a question-and-answer / chatbot layer.
+
+- **Guide:** `docs/data-access-guide/data-access-guide.es.md` and `.en.md` (kept in sync), plus `data-access-guide.es.pdf` rendered from `data-access-guide.es.html` with `render_pdf.py` (xhtml2pdf, run with `ControlPresupuestos_AP\.venv\Scripts\python.exe`; same layout as that project's manuals; page-numbered contents). It covers layers, seven golden rules, the branch crosswalk (three different branch identifiers across tables; name mismatches such as Metepec = "Tollocan", Versalles = "Taquería Exhibimex", Napoles = "Polyforum", Acoxpa = "Costa Nera"; `7697` Taqueria San Fernando only in historical costs), which table answers which question, per-domain fields/joins/example SQL (all three examples run on dev), tables not to use, freshness and access.
+- **Users:** `sql/maintenance/create_tukan_readonly_users.sql` creates `tukan_wansoft` (SELECT on the documented `wansoft` tables only) and `tukan_zenput` (SELECT on `zenput`), each with `MAX_USER_CONNECTIONS 4` and `MAX_STATEMENT_TIME 1800`. Tested on dev (allowed read works; other tables, writes and cross-database access denied). Run at cutover after the migration (table-level grants need the tables to exist). Passwords are placeholders; never commit them.
+- **Keep in sync:** when a table is added to or retired from the business layer, update both guides, the HTML/PDF and the grants file.
 
 ---
 
