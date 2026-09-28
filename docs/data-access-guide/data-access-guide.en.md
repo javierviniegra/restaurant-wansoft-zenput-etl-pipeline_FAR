@@ -323,7 +323,9 @@ and payroll that are not goods. Odoo purchase orders only cover goods. So:
   date. From Odoo accounting only the cost of sales is taken (Section 5.2).
 
 Some Wansoft invoices have an empty `Cuenta`. Amounts and dates in this table
-are text.
+are text. **`Estatus = 'Por pagar'` does not mean unpaid:** invoices are rarely
+marked paid in Wansoft (payment is recorded elsewhere), so do not use that field
+for accounts payable.
 
 ### 5.4 Inventory
 

@@ -330,7 +330,9 @@ cubren mercancía. Por eso:
   de venta (sección 5.2).
 
 Algunas facturas de Wansoft traen `Cuenta` vacía. En esta tabla montos y
-fechas son texto.
+fechas son texto. **`Estatus = 'Por pagar'` no significa que no se haya
+pagado:** en Wansoft las facturas casi nunca se marcan como pagadas (el pago se
+registra en otro lado), así que no uses ese campo para cuentas por pagar.
 
 ### 5.4 Inventario
 

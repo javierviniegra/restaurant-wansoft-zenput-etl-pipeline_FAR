@@ -396,7 +396,9 @@ mercancía. Las órdenes de compra de Odoo solo cubren mercancía. Por eso:
   costo de venta (sección 5.2).</li>
 </ul>
 Algunas facturas de Wansoft traen <code>Cuenta</code> vacía. En esta tabla montos
-y fechas son texto.
+y fechas son texto. <b><code>Estatus = 'Por pagar'</code> no significa que no se haya
+pagado:</b> en Wansoft las facturas casi nunca se marcan como pagadas (el pago se
+registra en otro lado), así que no uses ese campo para cuentas por pagar.
 </td></tr></table>
 
 <h2>5.4 Inventario</h2>
