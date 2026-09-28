@@ -14,6 +14,7 @@ reales el 2026-09-28. Versión en PDF: [data-access-guide.es.pdf](data-access-gu
 2. [Reglas de oro](#2-reglas-de-oro-léelas-antes-de-escribir-cualquier-consulta)
 3. [Equivalencias de sucursales](#3-equivalencias-de-sucursales)
 4. [Qué tabla responde cada pregunta](#4-qué-tabla-responde-cada-pregunta)
+   - [4.1 Histórico disponible](#41-histórico-disponible)
 5. [Dominios](#5-dominios)
    - [5.1 Ventas](#51-ventas-wansoft-todas-las-sucursales)
    - [5.2 Costos](#52-costos-wansoft-sucursales-nuevas-desde-odoo)
@@ -149,7 +150,7 @@ Notas:
 | Costo de venta, merma y margen del mes | `costeomensual` | foto acumulada del mes; toma el último día |
 | Costo de la semana | `costeomensual_semanapyq` | foto acumulada de la semana |
 | Costo de venta del día | `gettotalcostbydate` | una fila por sucursal por día |
-| Rendimientos de tablajería | `gettablajeriareport` | solo sucursales Wansoft |
+| Rendimientos de tablajería | `gettablajeriareport` | solo histórico de sucursales Wansoft; va de salida (ver 5.2) |
 | Compras (mercancía) de cualquier sucursal y periodo | `analytics_purchase_order_lines` / `analytics_purchase_orders` / `analytics_purchase_daily_company_product` | `include_in_business_views = 1` |
 | Gasto por cuenta contable (Costo operativo, Gastos directos...) | `getexpenses_factura` | solo Wansoft (ver 5.3) |
 | Detalle de entradas y salidas de inventario (Wansoft) | `getinputinventory_entrada`, `getoutgoinginventory_salida` | sucursales Wansoft |
@@ -157,6 +158,28 @@ Notas:
 | Resultados de checklists | `zenput.submissions` + `zenput.submission_answers` | |
 | Tareas | `zenput.zenput_tasks` | |
 | Qué fuente alimenta cada sucursal | `analytics_company_domain_coverage` | |
+
+### 4.1 Histórico disponible
+
+Fechas medidas en producción el 2026-09-28. Las tablas se siguen llenando a diario hasta el día anterior.
+
+| Dato | Tabla | Fuente | Desde | Notas |
+|---|---|---|---|---|
+| Ventas: tickets, detalle, modificadores | `getallordenesbyday_new_venta`, `_new_detalleventa`, `_new_modificador` | Wansoft | 2021-09-01 | Del 14 al 31 de diciembre de 2021 casi no hay tickets (hueco del histórico de origen, aceptado) |
+| Ventas: pagos por ticket | `getallordenesbyday_new_pago` | Wansoft | 2025-01-01 | Antes de 2025 no hay pagos por ticket; usa el cierre de caja |
+| Cierre de caja diario | `getglobalcashclosing` | Wansoft | 2022-01-01 |  |
+| Costo de venta diario | `gettotalcostbydate` | Wansoft (nuevas: Odoo) | 2021-07-31 |  |
+| Costo mensual acumulado | `costeomensual` | Wansoft (nuevas: Odoo) | 2022-01-01 |  |
+| Costo semanal acumulado | `costeomensual_semanapyq` | Wansoft (nuevas: Odoo) | 2024-01-02 |  |
+| Tablajería | `gettablajeriareport` | Wansoft | 2022-01-01 | Va de salida (sección 5.2) |
+| Facturas de proveedor por cuenta contable | `getexpenses_factura` | Wansoft | 2019-02-18 | El histórico más antiguo; solo mientras la sucursal captura en Wansoft |
+| Entradas de inventario | `getinputinventory_entrada` | Wansoft | 2021-09-01 |  |
+| Salidas de inventario | `getoutgoinginventory_salida` | Wansoft | 2020-11-30 | Unas 1.15 millones de filas traen fecha vacía (`0000-00-00`); exclúyelas |
+| **Compras unificadas** | `analytics_purchase_order_lines`, `analytics_purchase_orders`, `analytics_purchase_daily_company_product` | **Wansoft + Odoo** | **2021-09-01** | Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde entonces (junio de 2026 en adelante). Verificado año por año: mismos renglones y pesos que las facturas de Wansoft en producción |
+| **Existencias unificadas** | `analytics_inventory_current_product_location`, `analytics_inventory_balance` | **Wansoft + Odoo** | Foto actual | Sin histórico por diseño; el saldo de Wansoft se recalcula cada noche con todos los movimientos desde 2020-11-30 |
+| Checklists | `zenput.submissions`, `zenput.submission_answers` | Zenput | 2025-06-11 |  |
+| Tareas | `zenput.zenput_tasks` | Zenput | 2025-06-03 |  |
+| Calendario | `dim_time` | — | 2020-01-01 | Hasta 2035-12-31 |
 
 ---
 
@@ -250,6 +273,8 @@ JOIN (SELECT subsidiary_id, MAX(created_date) AS d
       WHERE created_date >= '2026-08-01' AND created_date < '2026-09-01'
       GROUP BY subsidiary_id) last ON last.subsidiary_id = c.subsidiary_id AND last.d = c.created_date;
 ```
+
+**Tablajería (`gettablajeriareport`) va de salida.** Solo existe para sucursales que capturan compras e inventario en Wansoft: las nuevas (Puebla, CentroMyJ) no tienen datos, y las migradas dejarán de tenerlos cuando dejen de capturar compras en Wansoft. En Odoo la tablajería no se registra así: se aplica con rendimientos calculados y al final del mes se verifica que el inventario real cuadre con el calculado. Úsala solo como histórico de sucursales Wansoft.
 
 ### 5.3 Compras (histórico de Wansoft + Odoo, ya unidos)
 

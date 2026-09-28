@@ -14,6 +14,7 @@ on 2026-09-28.
 2. [Golden rules](#2-golden-rules-read-before-writing-any-query)
 3. [Branch crosswalk](#3-branch-crosswalk)
 4. [Which table answers which question](#4-which-table-answers-which-question)
+   - [4.1 Available history](#41-available-history)
 5. [Domains](#5-domains)
    - [5.1 Sales](#51-sales-wansoft-all-branches)
    - [5.2 Costs](#52-costs-wansoft-new-branches-from-odoo)
@@ -146,7 +147,7 @@ Notes:
 | Monthly cost of sales, waste, margin | `costeomensual` | month-to-date snapshot; take the last day |
 | Weekly cost | `costeomensual_semanapyq` | week-to-date snapshot |
 | Daily cost of sales | `gettotalcostbydate` | one row per branch per day |
-| Butchery yields | `gettablajeriareport` | Wansoft branches only |
+| Butchery yields | `gettablajeriareport` | history of Wansoft branches only; being phased out (see 5.2) |
 | Purchases (goods) for any branch, any period | `analytics_purchase_order_lines` / `analytics_purchase_orders` / `analytics_purchase_daily_company_product` | `include_in_business_views = 1` |
 | Spend by accounting account (Costo operativo, Gastos directos, ...) | `getexpenses_factura` | Wansoft only (see 5.3) |
 | Inventory entries/exits detail (Wansoft) | `getinputinventory_entrada`, `getoutgoinginventory_salida` | Wansoft branches |
@@ -154,6 +155,28 @@ Notes:
 | Checklist results | `zenput.submissions` + `zenput.submission_answers` | |
 | Tasks | `zenput.zenput_tasks` | |
 | Which source feeds each branch | `analytics_company_domain_coverage` | |
+
+### 4.1 Available history
+
+Dates measured in production on 2026-09-28. Tables keep filling daily through the previous day.
+
+| Data | Table | Source | Since | Notes |
+|---|---|---|---|---|
+| Sales: tickets, lines, modifiers | `getallordenesbyday_new_venta`, `_new_detalleventa`, `_new_modificador` | Wansoft | 2021-09-01 | 2021-12-14 to 2021-12-31 has almost no tickets (a gap in the source history, accepted) |
+| Sales: payments per ticket | `getallordenesbyday_new_pago` | Wansoft | 2025-01-01 | No payments per ticket before 2025; use the cash closing |
+| Daily cash closing | `getglobalcashclosing` | Wansoft | 2022-01-01 |  |
+| Daily cost of sales | `gettotalcostbydate` | Wansoft (new branches: Odoo) | 2021-07-31 |  |
+| Month-to-date cost | `costeomensual` | Wansoft (new branches: Odoo) | 2022-01-01 |  |
+| Week-to-date cost | `costeomensual_semanapyq` | Wansoft (new branches: Odoo) | 2024-01-02 |  |
+| Butchery yields | `gettablajeriareport` | Wansoft | 2022-01-01 | Being phased out (Section 5.2) |
+| Supplier invoices by accounting account | `getexpenses_factura` | Wansoft | 2019-02-18 | The oldest history; only while a branch enters purchases in Wansoft |
+| Inventory entries | `getinputinventory_entrada` | Wansoft | 2021-09-01 |  |
+| Inventory exits | `getoutgoinginventory_salida` | Wansoft | 2020-11-30 | About 1.15 million rows have an empty date (`0000-00-00`); exclude them |
+| **Unified purchases** | `analytics_purchase_order_lines`, `analytics_purchase_orders`, `analytics_purchase_daily_company_product` | **Wansoft + Odoo** | **2021-09-01** | Wansoft until each branch's Odoo start date, Odoo from then on (June 2026 onward). Checked year by year: same rows and amounts as production's Wansoft invoices |
+| **Unified stock** | `analytics_inventory_current_product_location`, `analytics_inventory_balance` | **Wansoft + Odoo** | Current snapshot | No history by design; the Wansoft balance is recomputed nightly from every movement since 2020-11-30 |
+| Checklists | `zenput.submissions`, `zenput.submission_answers` | Zenput | 2025-06-11 |  |
+| Tasks | `zenput.zenput_tasks` | Zenput | 2025-06-03 |  |
+| Calendar | `dim_time` | — | 2020-01-01 | Until 2035-12-31 |
 
 ---
 
@@ -245,6 +268,8 @@ JOIN (SELECT subsidiary_id, MAX(created_date) AS d
       WHERE created_date >= '2026-08-01' AND created_date < '2026-09-01'
       GROUP BY subsidiary_id) last ON last.subsidiary_id = c.subsidiary_id AND last.d = c.created_date;
 ```
+
+**Butchery yields (`gettablajeriareport`) are being phased out.** They only exist for branches that enter purchases and inventory in Wansoft: new branches (Puebla, CentroMyJ) have none, and migrated branches will stop having them once they stop entering purchases in Wansoft. Odoo does not record butchery this way: it applies calculated yields, and at month end the real inventory is checked against the calculated one. Use this table only as history for Wansoft branches.
 
 ### 5.3 Purchases (Wansoft history + Odoo, merged)
 

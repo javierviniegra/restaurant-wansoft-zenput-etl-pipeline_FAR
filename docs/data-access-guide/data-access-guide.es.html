@@ -201,7 +201,7 @@ datos reales el 28 de septiembre de 2026.
   <tr><td>Costo de venta, merma y margen del mes</td><td><code>costeomensual</code></td><td>foto acumulada del mes; toma el último día</td></tr>
   <tr><td>Costo de la semana</td><td><code>costeomensual_semanapyq</code></td><td>foto acumulada de la semana</td></tr>
   <tr><td>Costo de venta del día</td><td><code>gettotalcostbydate</code></td><td>una fila por sucursal por día</td></tr>
-  <tr><td>Rendimientos de tablajería</td><td><code>gettablajeriareport</code></td><td>solo sucursales Wansoft</td></tr>
+  <tr><td>Rendimientos de tablajería</td><td><code>gettablajeriareport</code></td><td>solo histórico de sucursales Wansoft; va de salida (ver 5.2)</td></tr>
   <tr><td>Compras (mercancía) de cualquier sucursal y periodo</td><td><code>analytics_purchase_order_lines</code>, <code>analytics_purchase_orders</code>, <code>analytics_purchase_daily_company_product</code></td><td><code>include_in_business_views = 1</code></td></tr>
   <tr><td>Gasto por cuenta contable (Costo operativo, Gastos directos...)</td><td><code>getexpenses_factura</code></td><td>solo Wansoft (ver 5.3)</td></tr>
   <tr><td>Detalle de entradas y salidas de inventario (Wansoft)</td><td><code>getinputinventory_entrada</code>, <code>getoutgoinginventory_salida</code></td><td>sucursales Wansoft</td></tr>
@@ -209,6 +209,29 @@ datos reales el 28 de septiembre de 2026.
   <tr><td>Resultados de checklists</td><td><code>zenput.submissions</code> + <code>zenput.submission_answers</code></td><td>—</td></tr>
   <tr><td>Tareas</td><td><code>zenput.zenput_tasks</code></td><td>—</td></tr>
   <tr><td>Qué fuente alimenta cada sucursal</td><td><code>analytics_company_domain_coverage</code></td><td>—</td></tr>
+</table>
+
+<div class="salto"></div>
+
+<h2>4.1 Histórico disponible</h2>
+<p>Fechas medidas en producción el 2026-09-28. Las tablas se siguen llenando a diario hasta el día anterior.</p>
+<table class="compacta">
+  <tr><th width="17%">Dato</th><th width="36%">Tabla</th><th width="11%">Fuente</th><th width="10%">Desde</th><th width="26%">Notas</th></tr>
+  <tr><td>Ventas: tickets, detalle, modificadores</td><td><code>getallordenesbyday_new_venta</code>, <code>_new_detalleventa</code>, <code>_new_modificador</code></td><td>Wansoft</td><td>2021-09-01</td><td>Del 14 al 31 de diciembre de 2021 casi no hay tickets (hueco del histórico de origen, aceptado)</td></tr>
+  <tr><td>Ventas: pagos por ticket</td><td><code>getallordenesbyday_new_pago</code></td><td>Wansoft</td><td>2025-01-01</td><td>Antes de 2025 no hay pagos por ticket; usa el cierre de caja</td></tr>
+  <tr><td>Cierre de caja diario</td><td><code>getglobalcashclosing</code></td><td>Wansoft</td><td>2022-01-01</td><td>—</td></tr>
+  <tr><td>Costo de venta diario</td><td><code>gettotalcostbydate</code></td><td>Wansoft (nuevas: Odoo)</td><td>2021-07-31</td><td>—</td></tr>
+  <tr><td>Costo mensual acumulado</td><td><code>costeomensual</code></td><td>Wansoft (nuevas: Odoo)</td><td>2022-01-01</td><td>—</td></tr>
+  <tr><td>Costo semanal acumulado</td><td><code>costeomensual_semanapyq</code></td><td>Wansoft (nuevas: Odoo)</td><td>2024-01-02</td><td>—</td></tr>
+  <tr><td>Tablajería</td><td><code>gettablajeriareport</code></td><td>Wansoft</td><td>2022-01-01</td><td>Va de salida (sección 5.2)</td></tr>
+  <tr><td>Facturas de proveedor por cuenta contable</td><td><code>getexpenses_factura</code></td><td>Wansoft</td><td>2019-02-18</td><td>El histórico más antiguo; solo mientras la sucursal captura en Wansoft</td></tr>
+  <tr><td>Entradas de inventario</td><td><code>getinputinventory_entrada</code></td><td>Wansoft</td><td>2021-09-01</td><td>—</td></tr>
+  <tr><td>Salidas de inventario</td><td><code>getoutgoinginventory_salida</code></td><td>Wansoft</td><td>2020-11-30</td><td>Unas 1.15 millones de filas traen fecha vacía (<code>0000-00-00</code>); exclúyelas</td></tr>
+  <tr><td><b>Compras unificadas</b></td><td><code>analytics_purchase_order_lines</code>, <code>analytics_purchase_orders</code>, <code>analytics_purchase_daily_company_product</code></td><td><b>Wansoft + Odoo</b></td><td><b>2021-09-01</b></td><td>Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde entonces (junio de 2026 en adelante). Verificado año por año: mismos renglones y pesos que las facturas de Wansoft en producción</td></tr>
+  <tr><td><b>Existencias unificadas</b></td><td><code>analytics_inventory_current_product_location</code>, <code>analytics_inventory_balance</code></td><td><b>Wansoft + Odoo</b></td><td>Foto actual</td><td>Sin histórico por diseño; el saldo de Wansoft se recalcula cada noche con todos los movimientos desde 2020-11-30</td></tr>
+  <tr><td>Checklists</td><td><code>zenput.submissions</code>, <code>zenput.submission_answers</code></td><td>Zenput</td><td>2025-06-11</td><td>—</td></tr>
+  <tr><td>Tareas</td><td><code>zenput.zenput_tasks</code></td><td>Zenput</td><td>2025-06-03</td><td>—</td></tr>
+  <tr><td>Calendario</td><td><code>dim_time</code></td><td>—</td><td>2020-01-01</td><td>Hasta 2035-12-31</td></tr>
 </table>
 
 <div class="salto"></div>
@@ -306,6 +329,10 @@ JOIN (SELECT subsidiary_id, MAX(created_date) AS d
       WHERE created_date &gt;= '2026-08-01' AND created_date &lt; '2026-09-01'
       GROUP BY subsidiary_id) last
   ON last.subsidiary_id = c.subsidiary_id AND last.d = c.created_date;</pre>
+
+<div class="nota">
+<span class="nota-titulo">Tablajería (<code>gettablajeriareport</code>) va de salida.</span> Solo existe para sucursales que capturan compras e inventario en Wansoft: las nuevas (Puebla, CentroMyJ) no tienen datos, y las migradas dejarán de tenerlos cuando dejen de capturar compras en Wansoft. En Odoo la tablajería no se registra así: se aplica con rendimientos calculados y al final del mes se verifica que el inventario real cuadre con el calculado. Úsala solo como histórico de sucursales Wansoft.
+</div>
 
 <div class="salto"></div>
 
