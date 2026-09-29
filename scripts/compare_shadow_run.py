@@ -7,7 +7,10 @@ For each table it compares, per day and branch, row counts and amounts between
 the live database and its _prueba copy, only for days both sides have loaded.
 Branches that buy on Odoo are expected to have no Wansoft invoices, entries or
 butchery rows in the test copy after their Odoo start date; those gaps are
-labelled EXPECTED, not DIFF. Only SELECT statements are issued.
+labelled EXPECTED, not DIFF (also when the test copy has fewer rows: the
+restored backup still held some). Costs of branches born on Odoo that the
+legacy tasks store as zero are labelled ODOO_COST (the new pipeline computes
+them from Odoo). Only SELECT statements are issued.
 """
 import argparse
 import os
@@ -16,7 +19,7 @@ import unicodedata
 from datetime import date, timedelta
 
 from core.database.mysql import get_mysql_connection
-from core.config.companies import COMPANY_SOURCE, WANSOFT_SUBSIDIARY_SOURCE_KEY
+from core.config.companies import COMPANY_SOURCE, COSTS_ODOO_SOURCE_COMPANIES, WANSOFT_SUBSIDIARY_SOURCE_KEY
 
 ODOO_KEYS = {k for k, v in COMPANY_SOURCE.items() if v == "odoo"}
 # Words that identify the Odoo-sourced branches inside Wansoft's long names.
@@ -41,9 +44,9 @@ CHECKS = [
     ("Ventas (tickets)", "wansoft", "getallordenesbyday_new_venta", "Sucursal", "DATE(Fecha)", "CAST(Total AS DECIMAL(14,2))", False),
     ("Ventas (pagos)", "wansoft", "getallordenesbyday_new_pago", "Sucursal", "DATE(Fecha)", "CAST(Total AS DECIMAL(14,2))", False),
     ("Cierre de caja", "wansoft", "getglobalcashclosing", "subsidiary_id", "DATE(fecha_corte)", "total_ventas", False),
-    ("Costo mensual", "wansoft", "costeomensual", "subsidiary_id", "DATE(created_at)", "CostoTotal", False),
-    ("Costo semanal", "wansoft", "costeomensual_semanapyq", "subsidiary_id", "DATE(created_at)", "CostoTotal", False),
-    ("Costo por dia", "wansoft", "gettotalcostbydate", "subsidiary_id", "DATE(created_at)", "CostoTotalVenta", False),
+    ("Costo mensual", "wansoft", "costeomensual", "subsidiary_id", "DATE(created_at)", "CostoTotal", "cost"),
+    ("Costo semanal", "wansoft", "costeomensual_semanapyq", "subsidiary_id", "DATE(created_at)", "CostoTotal", "cost"),
+    ("Costo por dia", "wansoft", "gettotalcostbydate", "subsidiary_id", "DATE(created_at)", "CostoTotalVenta", "cost"),
     ("Tablajeria", "wansoft", "gettablajeriareport", "subsidiary_id", "InputDate", "totalCostOfGeneratedProduct", True),
     ("Facturas", "wansoft", "getexpenses_factura", "Sucursal", "DATE(LEFT(FechaDeExpedicion,10))", "CAST(Subtotal AS DECIMAL(14,2))", True),
     ("Entradas", "wansoft", "getinputinventory_entrada", "subsidiary_name", "DATE(FechaEntrada)", "Cantidad*CostoUnitario", True),
@@ -77,7 +80,7 @@ def main():
         prod = fetch(cur, kind, table, branch, day, amount, since)
         test = fetch(cur, schemas[kind], table, branch, day, amount, since)
         last_common = min(max((d for _, d in prod), default=since), max((d for _, d in test), default=since))
-        same = expected = 0
+        same = expected = odoo_cost = 0
         diffs = []
         for key in sorted(set(prod) | set(test)):
             if key[1] > last_common:
@@ -87,16 +90,21 @@ def main():
                 same += 1
                 continue
             label, is_odoo = branch_label(key[0])
-            if odoo_gap and is_odoo and t[0] == 0:
+            if odoo_gap is True and is_odoo and t[0] <= p[0]:
                 expected += 1
+                continue
+            if odoo_gap == "cost" and label in COSTS_ODOO_SOURCE_COMPANIES and p[1] == 0 and t[1] != 0:
+                odoo_cost += 1
                 continue
             diffs.append((label, key[1], p, t))
         total_diff += len(diffs)
-        print(f"\n== {name} ({table}) through {last_common}: {same} same, {expected} expected (Odoo branch), {len(diffs)} DIFF")
-        for label, d, p, t in diffs[:15]:
-            print(f"   DIFF {d} {label[:32]:32s} prod {p[0]:>6} ${p[1]:>14,.2f} | prueba {t[0]:>6} ${t[1]:>14,.2f}")
-        if len(diffs) > 15:
-            print(f"   ... {len(diffs) - 15} more")
+        extra = f", {odoo_cost} ODOO_COST" if odoo_cost else ""
+        print(f"\n== {name} ({table}) through {last_common}: {same} same, {expected} expected (Odoo branch){extra}, {len(diffs)} DIFF")
+        for label, d, p, t in diffs[:60]:
+            pct = f"{(t[1] - p[1]) / p[1] * 100:+.2f}%" if p[1] else "n/a"
+            print(f"   DIFF {d} {label[:32]:32s} prod {p[0]:>6} ${p[1]:>14,.2f} | prueba {t[0]:>6} ${t[1]:>14,.2f} | {pct}")
+        if len(diffs) > 60:
+            print(f"   ... {len(diffs) - 60} more")
     print(f"\nTotal DIFF groups: {total_diff}")
 
 
