@@ -411,6 +411,7 @@ See prior reports for bugs #1-#17.
 - **2026-09-28:** no Wansoft purchase/inventory downloads for migrated branches after cutover; costs of migrated branches stay on Wansoft while they capture purchases there in parallel.
 - **2026-09-28:** production backup on Thursday right before migrating (replaces Wednesday's).
 - **2026-09-28:** tukanmx gets two read-only users (`tukan_wansoft`, `tukan_zenput`), created on Thursday after the migration, plus the data access guide in Spanish and English (PDF in Spanish, same layout as the ControlPresupuestos_AP manuals). The public GitHub repo is fine as long as it holds no passwords.
+- **2026-09-29:** first shadow comparison: sales, payments, cash closing, butchery, invoices and Zenput identical; Puebla/CentroMyJ costs now real (production's legacy tasks store zeros); remaining cost differences only on days older than the 5-day window, because Wansoft recalculates costs afterwards. Owner chose a separate **`COSTS_LOOKBACK_DAYS=10`** (monthly, weekly PyQ and daily cost scripts; default in code, no `.env` change needed); butchery and cash closing stay on `WANSOFT_LOOKBACK_DAYS=5`.
 - **2026-09-28:** the owner wants a runbook in git so a future production deployment can be automated (`docs/production-cutover-runbook.md`).
 
 ---

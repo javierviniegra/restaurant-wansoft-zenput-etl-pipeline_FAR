@@ -23,3 +23,7 @@ def lookback_days(env_name, default):
 SALES_LOOKBACK_DAYS = lookback_days("SALES_LOOKBACK_DAYS", 10)
 WANSOFT_LOOKBACK_DAYS = lookback_days("WANSOFT_LOOKBACK_DAYS", 31)
 PURCHASES_LOOKBACK_DAYS = lookback_days("PURCHASES_LOOKBACK_DAYS", 35)
+# Wansoft recalculates cost snapshots after the fact (seen up to ~10% on a single
+# day, 6+ days later), so costs get a longer window than the other Wansoft
+# reports; 10 days also keeps the month-end snapshot fresh until the 10th.
+COSTS_LOOKBACK_DAYS = lookback_days("COSTS_LOOKBACK_DAYS", 10)

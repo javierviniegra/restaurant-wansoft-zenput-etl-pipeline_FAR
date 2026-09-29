@@ -78,7 +78,7 @@ def main():
     xml_dir = os.getenv(xml_key)
     check(bool(xml_dir) and Path(xml_dir).is_dir(), f"{xml_key} points to an existing folder", xml_dir or "not set")
 
-    for k in ("SALES_LOOKBACK_DAYS", "WANSOFT_LOOKBACK_DAYS", "PURCHASES_LOOKBACK_DAYS"):
+    for k in ("SALES_LOOKBACK_DAYS", "WANSOFT_LOOKBACK_DAYS", "PURCHASES_LOOKBACK_DAYS", "COSTS_LOOKBACK_DAYS"):
         if not os.getenv(k):
             warn(f"{k} not set, the code default is used")
 
