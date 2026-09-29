@@ -99,8 +99,55 @@ ROLLOUT_COMPANY_EXPECTATIONS = [
 ]
 
 
+# Days after a migrated branch's Odoo start date before its first Odoo
+# purchase orders are required (the first night after a cutover may have none).
+ODOO_ROWS_GRACE_DAYS = 3
+
+
 def now_iso() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def load_start_dates() -> Dict[str, pd.Timestamp]:
+    """Odoo start date per company_source_key, as the canonical load uses it."""
+    from extract.purchases.canonical_purchase_etl import load_wansoft_operational_start_dates
+    return load_wansoft_operational_start_dates()
+
+
+def check_migrated_split(company_df: pd.DataFrame, start_date) -> List[str]:
+    """
+    Problems with a migrated_from_wansoft branch's source split, date-aware
+    (2026-09-29: the migrated branches' Odoo start moved to 2026-10-01, so
+    before that date they legitimately have Wansoft history and no Odoo rows):
+      - Wansoft history must exist and end before the start date;
+      - no Wansoft row may be final_wansoft_enabled;
+      - no Odoo row may predate the start date;
+      - Odoo rows are required once the start date is ODOO_ROWS_GRACE_DAYS old.
+    """
+    problems = []
+    statuses = set(company_df["final_purchase_source_status"].dropna().unique())
+    wansoft = company_df[company_df["source_system"] == "wansoft"]
+    odoo = company_df[company_df["source_system"] == "odoo"]
+
+    if "wansoft_history_before_odoo" not in statuses:
+        problems.append("no wansoft/wansoft_history_before_odoo rows")
+    if "final_wansoft_enabled" in statuses:
+        problems.append("has wansoft/final_wansoft_enabled rows")
+    if start_date is None or pd.isna(start_date):
+        problems.append("no Odoo start date in odoo_company_migration_policy")
+        return problems
+
+    start = pd.Timestamp(start_date).normalize()
+    if not wansoft.empty and pd.to_datetime(wansoft["max_order_date"]).max() >= start:
+        problems.append(f"Wansoft rows on or after the Odoo start date {start.date()}")
+    if not odoo.empty and pd.to_datetime(odoo["min_order_date"]).min() < start:
+        problems.append(f"Odoo rows before the Odoo start date {start.date()}")
+
+    odoo_due = pd.Timestamp.now().normalize() >= start + pd.Timedelta(days=ODOO_ROWS_GRACE_DAYS)
+    has_odoo_final = not odoo.empty and "final_odoo_enabled" in set(odoo["final_purchase_source_status"])
+    if odoo_due and not has_odoo_final:
+        problems.append(f"no odoo/final_odoo_enabled rows {ODOO_ROWS_GRACE_DAYS}+ days after {start.date()}")
+    return problems
 
 
 def read_sql(query: str) -> pd.DataFrame:
@@ -234,22 +281,16 @@ def validate_antenas_split(results: Dict[str, bool]) -> None:
     df = read_sql(query)
     print_df(df)
 
-    if df.empty:
-        passed = False
-    else:
-        statuses = set(df["final_purchase_source_status"].dropna().unique())
-        systems = set(df["source_system"].dropna().unique())
-
-        passed = (
-            "odoo" in systems
-            and "wansoft" in systems
-            and "final_odoo_enabled" in statuses
-            and "wansoft_history_before_odoo" in statuses
-        )
+    start_date = load_start_dates().get("Antenas")
+    problems = ["no canonical rows"] if df.empty else check_migrated_split(df, start_date)
+    passed = not problems
 
     results["antenas_source_split"] = passed
 
     print("\nValidation:")
+    print(f"odoo_start_date: {start_date}")
+    for problem in problems:
+        print(f"problem: {problem}")
     print(f"status: {'PASS' if passed else 'FAIL'}")
 
 
@@ -474,6 +515,7 @@ def validate_rollout_company_patterns(results: Dict[str, bool]) -> None:
     print_df(df)
 
     failed = []
+    start_dates = load_start_dates()
 
     for expectation in ROLLOUT_COMPANY_EXPECTATIONS:
         company_key = expectation["company_source_key"]
@@ -493,30 +535,12 @@ def validate_rollout_company_patterns(results: Dict[str, bool]) -> None:
         systems = set(company_df["source_system"].dropna().unique())
 
         if rollout_type == "migrated_from_wansoft":
-            has_odoo_final = (
-                "odoo" in systems
-                and "final_odoo_enabled" in statuses
-            )
-            has_wansoft_history = (
-                "wansoft" in systems
-                and "wansoft_history_before_odoo" in statuses
-            )
-            has_bad_wansoft_final = (
-                "wansoft" in systems
-                and "final_wansoft_enabled" in statuses
-            )
+            problems = check_migrated_split(company_df, start_dates.get(company_key))
 
-            passed = (
-                has_odoo_final
-                and has_wansoft_history
-                and not has_bad_wansoft_final
-            )
-
-            if not passed:
+            if problems:
                 failed.append(
-                    f"{company_key}: expected migrated_from_wansoft pattern "
-                    "with odoo/final_odoo_enabled and "
-                    "wansoft/wansoft_history_before_odoo only."
+                    f"{company_key}: migrated_from_wansoft pattern broken: "
+                    + "; ".join(problems)
                 )
 
         elif rollout_type == "new_odoo_branch":
