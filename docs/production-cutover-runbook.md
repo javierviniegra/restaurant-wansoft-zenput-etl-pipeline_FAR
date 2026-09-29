@@ -294,7 +294,12 @@ Section 17.6.
    Never use `scripts/reload_purchase_canonical_wansoft_side.py` for this: it
    deletes the whole Wansoft side and the ETL only reloads its window, so the
    history since 2021 would be lost. Rehearsed on `wansoft_prueba` on
-   2026-09-29 (measured time: _pending_).
+   2026-09-29: **21 min** (purchases 6.1 min, of which the 125-day Wansoft
+   canonical load 3.2 min / 54,243 lines; analytics rebuild 14.9 min). Result
+   checked per month: the 5 branches show only `wansoft` from May to
+   September, Puebla `odoo` from June; the canonical validation then passes
+   8/8 (it needed a date-aware fix, commit `66b7f27`, to accept migrated
+   branches with no Odoo rows before their start date).
 4. **Switch the `.env`:** `WANSOFT_DB_NAME=wansoft`, `ZENPUT_DB_NAME=zenput`;
    run `python -m scripts.check_env`.
 5. **Enable the daily cycle:** `deploy\register_daily_cycle_task.ps1 -Enable`

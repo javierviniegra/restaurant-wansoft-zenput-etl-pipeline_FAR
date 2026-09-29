@@ -370,6 +370,7 @@ See prior reports for bugs #1-#17.
 | 30 | Tasks VM configuration: `ZENPUT_DB_NAME` held the host IP instead of `zenput_prueba`; `wansoftuser`/`zenputuser` had no rights on the test databases | VM `.env`, database grants | **Fixed 2026-09-28** (line corrected; grants added) |
 | 31 | Production `getoutgoinginventory_salida`: 77,370 surplus rows in 61,125 groups, exact copies from three legacy bulk reloads; blocks the unique key the new loader needs | Production data | **Fixed on `wansoft_prueba`**; part of the cutover migration for production |
 | 32 | Production `costeomensual_semanapyq`: 48 duplicate captures (2025-05-06..08), the earlier one all zeros | Production data | **Fixed on `wansoft_prueba`**; part of the cutover migration |
+| 34 | The purchases canonical validation required Odoo rows for every migrated branch, so moving their Odoo start to 2026-10-01 failed the purchases pipeline on `wansoft_prueba` (and would have every night) | `scripts/validate_purchases_canonical_layer.py` | **Fixed 2026-09-29** (`66b7f27`): date-aware check (Wansoft history ends before the start date, no Odoo rows before it, Odoo rows required 3 days after it); 8/8 PASS on dev and `wansoft_prueba` |
 | 33 | Dev MySQL would not start: inconsistent Aria log after an unclean shutdown, then crashed `mysql.db` / `proxies_priv` / `roles_mapping` | Dev XAMPP datadir | **Fixed 2026-09-28** (Section 0.1) |
 
 **Also confirmed NOT bugs:**
