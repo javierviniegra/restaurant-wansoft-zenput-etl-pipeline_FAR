@@ -17,7 +17,7 @@ on 2026-09-28. PDF version: [data-access-guide.en.pdf](data-access-guide.en.pdf)
    - [4.1 Available history](#41-available-history)
 5. [Domains](#5-domains)
    - [5.1 Sales](#51-sales-wansoft-all-branches)
-   - [5.2 Costs](#52-costs-wansoft-new-branches-from-odoo)
+   - [5.2 Costs](#52-costs-wansoft-or-odoo-by-branch)
    - [5.3 Purchases](#53-purchases-wansoft-history--odoo-merged)
    - [5.4 Inventory](#54-inventory)
    - [5.5 Zenput](#55-zenput-zenput-database)
@@ -121,13 +121,10 @@ Notes:
 - **New branches** (today Puebla and CentroMyJ, and every branch opened from
   now on) are born on Odoo: purchases, inventory and costs come from Odoo; in
   Wansoft they only record sales and daily closings.
-- **Costs of migrated branches:** they still come from Wansoft today, on
-  purpose and temporarily. As a safety measure these branches keep entering
-  their purchases in Wansoft too (a fallback if Odoo failed, and a way to
-  validate that Odoo purchases match Wansoft's), so Wansoft still computes
-  their full cost. Once they stop entering purchases in Wansoft and only sales
-  and daily closings remain there, their cost will be computed from Odoo. See
-  Section 5.2.
+- **Costs:** every branch operating on Odoo, migrated or new, takes its cost
+  from Odoo **from its start date on**, and from Wansoft before that date.
+  **Temporary exception: Antenas** keeps Wansoft costs while its Odoo database
+  is repaired (it was the prototype). See Section 5.2.
 - Internal providers **El Bodegón de Fito** and **Las Empanadas de María Eva**
   (central kitchens) are excluded as buying companies from business views.
 - The same information, as data: `dim_company_analytical` and
@@ -165,9 +162,9 @@ Dates measured in production on 2026-09-28. Tables keep filling daily through th
 | Sales: tickets, lines, modifiers | `getallordenesbyday_new_venta`, `_new_detalleventa`, `_new_modificador` | Wansoft | 2021-09-01 | 2021-12-14 to 2021-12-31 has almost no tickets (a gap in the source history, accepted) |
 | Sales: payments per ticket | `getallordenesbyday_new_pago` | Wansoft | 2025-01-01 | No payments per ticket before 2025; use the cash closing |
 | Daily cash closing | `getglobalcashclosing` | Wansoft | 2022-01-01 |  |
-| Daily cost of sales | `gettotalcostbydate` | Wansoft (new branches: Odoo) | 2021-07-31 |  |
-| Month-to-date cost | `costeomensual` | Wansoft (new branches: Odoo) | 2022-01-01 |  |
-| Week-to-date cost | `costeomensual_semanapyq` | Wansoft (new branches: Odoo) | 2024-01-02 |  |
+| Daily cost of sales | `gettotalcostbydate` | Wansoft or Odoo (5.2) | 2021-07-31 |  |
+| Month-to-date cost | `costeomensual` | Wansoft or Odoo (5.2) | 2022-01-01 |  |
+| Week-to-date cost | `costeomensual_semanapyq` | Wansoft or Odoo (5.2) | 2024-01-02 |  |
 | Butchery yields | `gettablajeriareport` | Wansoft | 2022-01-01 | Being phased out (Section 5.2) |
 | Supplier invoices by accounting account | `getexpenses_factura` | Wansoft | 2019-02-18 | The oldest history; only while a branch enters purchases in Wansoft |
 | Inventory entries | `getinputinventory_entrada` | Wansoft | 2021-09-01 |  |
@@ -227,15 +224,22 @@ GROUP BY Sucursal, DATE(Fecha);
 counts/amounts of courtesies, cancellations, discounts, voids, promotions.
 Amounts here are **sale value**. Use it to reconcile daily totals.
 
-### 5.2 Costs (Wansoft; new branches from Odoo)
+### 5.2 Costs (Wansoft or Odoo, by branch)
 
 Where each branch's cost comes from:
 
 | Branch type | Cost source today |
 |---|---|
 | Wansoft only | Wansoft cost report |
-| Migrated to Odoo (Acoxpa, Antenas, Tepeyac, Oceanía, La Esquina Coyoacán; from 2026-10-01 also Isabel La Católica, San Jeronimo, Vía Vallejo) | Wansoft cost report, **temporarily**: they keep entering purchases in Wansoft in parallel as a fallback and to validate Odoo. Moves to Odoo when they stop |
-| New, born on Odoo (Puebla, CentroMyJ and any branch opened later) | Computed from Odoo accounting (direct-cost accounts) and stored in the same tables |
+| Migrated to Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán; from 2026-10-01 also Isabel La Católica, San Jeronimo, Vía Vallejo) | Odoo from its start date (Section 3); Wansoft before |
+| New, born on Odoo (Puebla, CentroMyJ and any branch opened later) | Odoo |
+| **Antenas (temporary exception)** | Wansoft, while its Odoo database is repaired |
+
+Odoo cost is computed from Odoo accounting (direct-cost accounts) and stored in
+the same tables. It fills `CostoTotal`, `CostoDeProductosVendidos` and
+`CostoDeMerma`; `CostoDeCortesías` and `CostoDeCancelaciones` come from the
+cash closing; the other columns stay empty (no Odoo equivalent). The switch is
+per day: days before the start date keep Wansoft's cost.
 
 Keyed by `subsidiary_id` (Wansoft id). All three are **snapshots**:
 

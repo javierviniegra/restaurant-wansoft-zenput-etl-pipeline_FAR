@@ -351,13 +351,10 @@ on 2026-09-28. PDF version: <a href="data-access-guide.en.pdf">data-access-guide
 <li><strong>New branches</strong> (today Puebla and CentroMyJ, and every branch opened from
   now on) are born on Odoo: purchases, inventory and costs come from Odoo; in
   Wansoft they only record sales and daily closings.</li>
-<li><strong>Costs of migrated branches:</strong> they still come from Wansoft today, on
-  purpose and temporarily. As a safety measure these branches keep entering
-  their purchases in Wansoft too (a fallback if Odoo failed, and a way to
-  validate that Odoo purchases match Wansoft's), so Wansoft still computes
-  their full cost. Once they stop entering purchases in Wansoft and only sales
-  and daily closings remain there, their cost will be computed from Odoo. See
-  Section 5.2.</li>
+<li><strong>Costs:</strong> every branch operating on Odoo, migrated or new, takes its cost
+  from Odoo <strong>from its start date on</strong>, and from Wansoft before that date.
+  <strong>Temporary exception: Antenas</strong> keeps Wansoft costs while its Odoo database
+  is repaired (it was the prototype). See Section 5.2.</li>
 <li>Internal providers <strong>El Bodegón de Fito</strong> and <strong>Las Empanadas de María Eva</strong>
   (central kitchens) are excluded as buying companies from business views.</li>
 <li>The same information, as data: <code>dim_company_analytical</code> and
@@ -491,21 +488,21 @@ on 2026-09-28. PDF version: <a href="data-access-guide.en.pdf">data-access-guide
 <tr>
 <td>Daily cost of sales</td>
 <td><code>gettotalcostbydate</code></td>
-<td>Wansoft (new branches: Odoo)</td>
+<td>Wansoft or Odoo (5.2)</td>
 <td>2021-07-31</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Month-to-date cost</td>
 <td><code>costeomensual</code></td>
-<td>Wansoft (new branches: Odoo)</td>
+<td>Wansoft or Odoo (5.2)</td>
 <td>2022-01-01</td>
 <td>—</td>
 </tr>
 <tr>
 <td>Week-to-date cost</td>
 <td><code>costeomensual_semanapyq</code></td>
-<td>Wansoft (new branches: Odoo)</td>
+<td>Wansoft or Odoo (5.2)</td>
 <td>2024-01-02</td>
 <td>—</td>
 </tr>
@@ -647,7 +644,7 @@ GROUP BY Sucursal, DATE(Fecha);
 <code>fecha_corte</code>): <code>total_ventas</code>, <code>no_ordenes</code>, <code>total_personas</code>, averages, and
 counts/amounts of courtesies, cancellations, discounts, voids, promotions.
 Amounts here are <strong>sale value</strong>. Use it to reconcile daily totals.</p>
-<h2>5.2 Costs (Wansoft; new branches from Odoo)</h2>
+<h2>5.2 Costs (Wansoft or Odoo, by branch)</h2>
 <p>Where each branch's cost comes from:</p>
 <table class="compacta">
 <thead>
@@ -662,15 +659,24 @@ Amounts here are <strong>sale value</strong>. Use it to reconcile daily totals.<
 <td>Wansoft cost report</td>
 </tr>
 <tr>
-<td>Migrated to Odoo (Acoxpa, Antenas, Tepeyac, Oceanía, La Esquina Coyoacán; from 2026-10-01 also Isabel La Católica, San Jeronimo, Vía Vallejo)</td>
-<td>Wansoft cost report, <strong>temporarily</strong>: they keep entering purchases in Wansoft in parallel as a fallback and to validate Odoo. Moves to Odoo when they stop</td>
+<td>Migrated to Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán; from 2026-10-01 also Isabel La Católica, San Jeronimo, Vía Vallejo)</td>
+<td>Odoo from its start date (Section 3); Wansoft before</td>
 </tr>
 <tr>
 <td>New, born on Odoo (Puebla, CentroMyJ and any branch opened later)</td>
-<td>Computed from Odoo accounting (direct-cost accounts) and stored in the same tables</td>
+<td>Odoo</td>
+</tr>
+<tr>
+<td><strong>Antenas (temporary exception)</strong></td>
+<td>Wansoft, while its Odoo database is repaired</td>
 </tr>
 </tbody>
 </table>
+<p>Odoo cost is computed from Odoo accounting (direct-cost accounts) and stored in
+the same tables. It fills <code>CostoTotal</code>, <code>CostoDeProductosVendidos</code> and
+<code>CostoDeMerma</code>; <code>CostoDeCortesías</code> and <code>CostoDeCancelaciones</code> come from the
+cash closing; the other columns stay empty (no Odoo equivalent). The switch is
+per day: days before the start date keep Wansoft's cost.</p>
 <p>Keyed by <code>subsidiary_id</code> (Wansoft id). All three are <strong>snapshots</strong>:</p>
 <table class="compacta">
 <thead>

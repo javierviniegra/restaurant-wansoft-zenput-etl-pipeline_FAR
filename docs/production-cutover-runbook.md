@@ -313,16 +313,24 @@ What this runbook still does by hand, in priority order:
    rows than its source.
 5. **Secrets** (Step 1.6) stay manual until there is a vault.
 
-## 7b. Pending business change: costs of migrated branches
+## 7b. Costs source rule (changed 2026-09-29)
 
-Costs (`costeomensual*`, `gettotalcostbydate`) come from Wansoft's own cost
-report for every branch except those listed in `COSTS_ODOO_SOURCE_COMPANIES`
-(`core/config/companies.py`, today Puebla and CentroMyJ, the branches born on
-Odoo). Migrated branches still enter purchases in Wansoft in parallel, so
-Wansoft's cost stays complete. **When a migrated branch stops entering
-purchases in Wansoft, add it to `COSTS_ODOO_SOURCE_COMPANIES`**, or its Wansoft
-cost will silently become incomplete. Every new branch must be added there
-from day one.
+Costs (`costeomensual*`, `gettotalcostbydate`) follow
+`extract/costs/cost_routing.py`: a branch on Odoo takes its cost from Odoo
+from its `odoo_company_migration_policy.operational_start_date` on, per day,
+and from Wansoft before; branches in `COSTS_WANSOFT_TEMPORARY_EXCEPTIONS`
+(`core/config/companies.py`, today **Antenas**, whose Odoo cost data is broken
+by prototype-era tests) stay on Wansoft. Nothing to do at cutover: once
+`COMPANY_SOURCE` flips Isabel, San Jerónimo and Vía Vallejo to Odoo, their
+costs switch on 2026-10-01 and September stays on Wansoft. **Remove Antenas
+from the exception set once the owner confirms its Odoo database is
+repaired.** Every new branch needs its migration-policy row, or its costs stay
+on Wansoft (with a warning in the log).
+
+Consequence to expect in Power BI until it is repointed: the migrated
+branches' costs in the warehouse now come from Odoo (September 1-27: within
+-3% to +5% of Wansoft's Costo Teórico for Acoxpa, Tepeyac, Oceanía and
+Coyoacán), while Power BI still reads Wansoft.
 
 ## 8. Security follow-ups (after cutover)
 

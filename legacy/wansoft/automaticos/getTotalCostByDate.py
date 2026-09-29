@@ -63,33 +63,29 @@ subsidiaries = [
     {"id":12802, "nombreCorto": "CentroMyJ", "name":"Fonda Argentina - Centro Mario y July", "password": os.getenv("WANSOFT_PWD_12802")},
     {"id":12806, "nombreCorto": "Puebla", "name":"Fonda Argentina - Puebla", "password": os.getenv("WANSOFT_PWD_12806")}
 ]
-from core.config.companies import is_company_wansoft_source_for_costs
+from extract.costs.cost_routing import load_costs_odoo_start_dates, costs_source, split_subsidiaries
 
-# Costs routing (see COSTS_ODOO_SOURCE_COMPANIES in core/config/companies.py):
-# Wansoft still has real cost data for branches migrated FROM Wansoft, but
-# genuinely has nothing for branches that started directly on Odoo
-# (Puebla, CentroMyJ) -- those go through the odoo_subsidiaries path below
-# instead (extract/costs/odoo_cost_report.py).
-wansoft_subsidiaries = [
-    s for s in subsidiaries
-    if is_company_wansoft_source_for_costs(s["nombreCorto"])
-]
-odoo_subsidiaries = [
-    s for s in subsidiaries
-    if not is_company_wansoft_source_for_costs(s["nombreCorto"])
-]
-print(wansoft_subsidiaries)
-print(odoo_subsidiaries)
+# Costs routing, per branch and per day (extract/costs/cost_routing.py): a
+# branch on Odoo takes costs from Odoo from its Odoo start date on, Wansoft
+# before; temporary exceptions stay on Wansoft. The lists are built below,
+# once the date window is known.
+COSTS_START_DATES = load_costs_odoo_start_dates()
 
 #--------------------Reviso integridad
 start_date_range = datetime.now() - timedelta(days=COSTS_LOOKBACK_DAYS)
 end_date_range = datetime.now() - timedelta(days=1)
+wansoft_subsidiaries, odoo_subsidiaries = split_subsidiaries(subsidiaries, start_date_range, end_date_range, COSTS_START_DATES)
+print("Costos Wansoft:", [s["nombreCorto"] for s in wansoft_subsidiaries])
+print("Costos Odoo:", [s["nombreCorto"] for s in odoo_subsidiaries])
 
 
 # Loop para obtener datos de cada subsidiaria (fuente Wansoft)
 for subsidiary in wansoft_subsidiaries:
     current_date = start_date_range
     while current_date <= end_date_range:
+        if costs_source(subsidiary["nombreCorto"], current_date, COSTS_START_DATES) != "wansoft":
+            current_date += timedelta(days=1)
+            continue
         # Convertir la fecha actual a string
         current_date_str = current_date.strftime("%Y-%m-%dT%H:%M:%S")
 
@@ -205,6 +201,8 @@ if odoo_subsidiaries:
 
         for _, row in df_cost.iterrows():
             lafecha = row["fecha"]
+            if costs_source(subsidiary["nombreCorto"], datetime.strptime(lafecha, "%Y-%m-%d"), COSTS_START_DATES) != "odoo":
+                continue
             total_costo = float(row["CostoTotal"])
             mes_ano = datetime.strptime(lafecha, "%Y-%m-%d").strftime("%m-%Y")
 

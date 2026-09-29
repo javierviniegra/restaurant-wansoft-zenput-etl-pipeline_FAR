@@ -174,13 +174,10 @@ datos reales el 28 de septiembre de 2026.
   <li><b>Sucursales nuevas</b> (hoy Puebla y CentroMyJ, y todas las que abran
   después) nacen en Odoo: compras, inventario y costos vienen de Odoo; en
   Wansoft solo registran ventas y cierres diarios.</li>
-  <li><b>Costos de las sucursales migradas:</b> hoy siguen viniendo de Wansoft,
-  a propósito y de forma temporal. Por seguridad, estas sucursales siguen
-  capturando sus compras también en Wansoft (respaldo si Odoo fallara, y para
-  validar que las compras de Odoo corresponden a las de Wansoft), así que
-  Wansoft sigue calculando su costo completo. Cuando dejen de capturar compras
-  en Wansoft y ahí solo queden ventas y cierres diarios, su costo pasará a
-  calcularse desde Odoo. Ver sección 5.2.</li>
+  <li><b>Costos:</b> toda sucursal que opera en Odoo, migrada o nueva, toma su
+  costo de Odoo <b>a partir de su fecha de arranque</b>, y de Wansoft antes de esa
+  fecha. <b>Excepción temporal: Antenas</b> sigue con costo de Wansoft mientras se
+  repara su base de datos en Odoo (fue el prototipo). Ver sección 5.2.</li>
   <li>Los proveedores internos <b>El Bodegón de Fito</b> y <b>Las Empanadas de
   María Eva</b> (cocinas centrales) se excluyen como empresa compradora en las
   vistas de negocio.</li>
@@ -220,9 +217,9 @@ datos reales el 28 de septiembre de 2026.
   <tr><td>Ventas: tickets, detalle, modificadores</td><td><code>getallordenesbyday_new_venta</code>, <code>_new_detalleventa</code>, <code>_new_modificador</code></td><td>Wansoft</td><td>2021-09-01</td><td>Del 14 al 31 de diciembre de 2021 casi no hay tickets (hueco del histórico de origen, aceptado)</td></tr>
   <tr><td>Ventas: pagos por ticket</td><td><code>getallordenesbyday_new_pago</code></td><td>Wansoft</td><td>2025-01-01</td><td>Antes de 2025 no hay pagos por ticket; usa el cierre de caja</td></tr>
   <tr><td>Cierre de caja diario</td><td><code>getglobalcashclosing</code></td><td>Wansoft</td><td>2022-01-01</td><td>—</td></tr>
-  <tr><td>Costo de venta diario</td><td><code>gettotalcostbydate</code></td><td>Wansoft (nuevas: Odoo)</td><td>2021-07-31</td><td>—</td></tr>
-  <tr><td>Costo mensual acumulado</td><td><code>costeomensual</code></td><td>Wansoft (nuevas: Odoo)</td><td>2022-01-01</td><td>—</td></tr>
-  <tr><td>Costo semanal acumulado</td><td><code>costeomensual_semanapyq</code></td><td>Wansoft (nuevas: Odoo)</td><td>2024-01-02</td><td>—</td></tr>
+  <tr><td>Costo de venta diario</td><td><code>gettotalcostbydate</code></td><td>Wansoft u Odoo (5.2)</td><td>2021-07-31</td><td>—</td></tr>
+  <tr><td>Costo mensual acumulado</td><td><code>costeomensual</code></td><td>Wansoft u Odoo (5.2)</td><td>2022-01-01</td><td>—</td></tr>
+  <tr><td>Costo semanal acumulado</td><td><code>costeomensual_semanapyq</code></td><td>Wansoft u Odoo (5.2)</td><td>2024-01-02</td><td>—</td></tr>
   <tr><td>Tablajería</td><td><code>gettablajeriareport</code></td><td>Wansoft</td><td>2022-01-01</td><td>Va de salida (sección 5.2)</td></tr>
   <tr><td>Facturas de proveedor por cuenta contable</td><td><code>getexpenses_factura</code></td><td>Wansoft</td><td>2019-02-18</td><td>El histórico más antiguo; solo mientras la sucursal captura en Wansoft</td></tr>
   <tr><td>Entradas de inventario</td><td><code>getinputinventory_entrada</code></td><td>Wansoft</td><td>2021-09-01</td><td>—</td></tr>
@@ -288,15 +285,24 @@ GROUP BY Sucursal, DATE(Fecha);</pre>
 de cortesías, cancelaciones, descuentos, anulaciones y promociones. Aquí los
 montos son <b>valor de venta</b>. Úsalo para cuadrar los totales del día.</p>
 
-<h2>5.2 Costos (Wansoft; sucursales nuevas desde Odoo)</h2>
+<h2>5.2 Costos (Wansoft u Odoo, según la sucursal)</h2>
 
 <p>De dónde viene el costo de cada sucursal:</p>
 <table>
   <tr><th style="width: 38%;">Tipo de sucursal</th><th>Fuente del costo hoy</th></tr>
   <tr><td>Solo Wansoft</td><td>Reporte de costos de Wansoft</td></tr>
-  <tr><td>Migrada a Odoo (Acoxpa, Antenas, Tepeyac, Oceanía, La Esquina Coyoacán; desde 2026-10-01 también Isabel La Católica, San Jeronimo, Vía Vallejo)</td><td>Reporte de costos de Wansoft, <b>temporalmente</b>: siguen capturando compras en paralelo en Wansoft como respaldo y para validar Odoo. Pasará a Odoo cuando dejen de hacerlo</td></tr>
-  <tr><td>Nueva, nacida en Odoo (Puebla, CentroMyJ y las que abran después)</td><td>Calculado desde la contabilidad de Odoo (cuentas de costo directo) y guardado en las mismas tablas</td></tr>
+  <tr><td>Migrada a Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán; desde 2026-10-01 también Isabel La Católica, San Jeronimo, Vía Vallejo)</td><td>Odoo desde su fecha de arranque (sección 3); Wansoft antes</td></tr>
+  <tr><td>Nueva, nacida en Odoo (Puebla, CentroMyJ y las que abran después)</td><td>Odoo</td></tr>
+  <tr><td><b>Antenas (excepción temporal)</b></td><td>Wansoft, mientras se repara su base de datos en Odoo</td></tr>
 </table>
+
+<p>El costo de Odoo se calcula desde su contabilidad (cuentas de costo directo) y
+se guarda en las mismas tablas. Trae <code>CostoTotal</code>,
+<code>CostoDeProductosVendidos</code> y <code>CostoDeMerma</code>;
+<code>CostoDeCortesías</code> y <code>CostoDeCancelaciones</code> vienen del cierre
+de caja; el resto de las columnas queda vacío (no tiene equivalente en Odoo). El
+cambio de fuente aplica por día: los días anteriores al arranque conservan el
+costo de Wansoft.</p>
 
 <p>Identificados por <code>subsidiary_id</code> (ID de Wansoft). Las tres tablas son <b>fotos</b>:</p>
 <table>

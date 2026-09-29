@@ -72,28 +72,23 @@ subsidiaries = [
     {"id":12802, "nombreCorto": "CentroMyJ", "name":"Fonda Argentina - Centro Mario y July", "password": os.getenv("WANSOFT_PWD_12802")},
     {"id":12806, "nombreCorto": "Puebla", "name":"Fonda Argentina - Puebla", "password": os.getenv("WANSOFT_PWD_12806")}
 ]
-from core.config.companies import is_company_wansoft_source_for_costs
+from extract.costs.cost_routing import load_costs_odoo_start_dates, costs_source, split_subsidiaries
 
-# Costs routing (see COSTS_ODOO_SOURCE_COMPANIES in core/config/companies.py):
-# Wansoft still has real cost data for branches migrated FROM Wansoft, but
-# genuinely has nothing for branches that started directly on Odoo
-# (Puebla, CentroMyJ) -- those go through the odoo_subsidiaries path below
-# instead (extract/costs/odoo_cost_report.py).
-wansoft_subsidiaries = [
-    s for s in subsidiaries
-    if is_company_wansoft_source_for_costs(s["nombreCorto"])
-]
-odoo_subsidiaries = [
-    s for s in subsidiaries
-    if not is_company_wansoft_source_for_costs(s["nombreCorto"])
-]
-print(wansoft_subsidiaries)
-print(odoo_subsidiaries)
+# Costs routing, per branch and per day (extract/costs/cost_routing.py): a
+# branch on Odoo takes costs from Odoo from its Odoo start date on, Wansoft
+# before; temporary exceptions stay on Wansoft.
+COSTS_START_DATES = load_costs_odoo_start_dates()
+wansoft_subsidiaries, odoo_subsidiaries = split_subsidiaries(subsidiaries, start_date_range, end_date_range, COSTS_START_DATES)
+print("Costos Wansoft:", [s["nombreCorto"] for s in wansoft_subsidiaries])
+print("Costos Odoo:", [s["nombreCorto"] for s in odoo_subsidiaries])
 
 # Loop para obtener datos de cada subsidiaria (fuente Wansoft)
 for subsidiary in wansoft_subsidiaries:
     current_date = start_date_range
     while current_date <= end_date_range:
+        if costs_source(subsidiary["nombreCorto"], current_date, COSTS_START_DATES) != "wansoft":
+            current_date = current_date + timedelta(days=1)
+            continue
         # Calcular las fechas de inicio y fin del mes
         #start_date = current_date.replace(day=1)
         #next_month = start_date.month % 12 + 1
@@ -312,6 +307,12 @@ if odoo_subsidiaries:
         fetch_end = end_date_range.strftime("%Y-%m-%d")
         df_daily = get_daily_cost(odoo_models, odoo_uid, odoo_db, odoo_password, odoo_company_id, fetch_start, fetch_end)
 
+        # Only Odoo days from the branch's start date on: earlier Odoo data is
+        # pilot noise and must not leak into the month-to-date sums.
+        odoo_start = COSTS_START_DATES.get(subsidiary["nombreCorto"])
+        if odoo_start is not None and not df_daily.empty:
+            df_daily = df_daily[df_daily["fecha"] >= odoo_start.strftime("%Y-%m-%d")]
+
         if df_daily.empty:
             continue
 
@@ -348,7 +349,7 @@ if odoo_subsidiaries:
             mes_ano = current_date.strftime("%m-%Y")
             row_match = df_daily[df_daily["fecha"] == lafecha]
 
-            if row_match.empty:
+            if row_match.empty or costs_source(subsidiary["nombreCorto"], current_date, COSTS_START_DATES) != "odoo":
                 current_date += timedelta(days=1)
                 continue
 

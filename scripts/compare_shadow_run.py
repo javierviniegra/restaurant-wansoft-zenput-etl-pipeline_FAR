@@ -8,9 +8,9 @@ the live database and its _prueba copy, only for days both sides have loaded.
 Branches that buy on Odoo are expected to have no Wansoft invoices, entries or
 butchery rows in the test copy after their Odoo start date; those gaps are
 labelled EXPECTED, not DIFF (also when the test copy has fewer rows: the
-restored backup still held some). Costs of branches born on Odoo that the
-legacy tasks store as zero are labelled ODOO_COST (the new pipeline computes
-them from Odoo). Only SELECT statements are issued.
+restored backup still held some). Cost rows the new pipeline takes from Odoo
+(extract/costs/cost_routing.py) while the legacy tasks still store Wansoft's
+cost, or zero, are labelled ODOO_COST. Only SELECT statements are issued.
 """
 import argparse
 import os
@@ -19,7 +19,8 @@ import unicodedata
 from datetime import date, timedelta
 
 from core.database.mysql import get_mysql_connection
-from core.config.companies import COMPANY_SOURCE, COSTS_ODOO_SOURCE_COMPANIES, WANSOFT_SUBSIDIARY_SOURCE_KEY
+from core.config.companies import COMPANY_SOURCE, WANSOFT_SUBSIDIARY_SOURCE_KEY
+from extract.costs.cost_routing import costs_source, load_costs_odoo_start_dates
 
 ODOO_KEYS = {k for k, v in COMPANY_SOURCE.items() if v == "odoo"}
 # Words that identify the Odoo-sourced branches inside Wansoft's long names.
@@ -74,6 +75,7 @@ def main():
             sys.exit(f"Refusing to run: {kind.upper()}_DB_NAME is '{test}', not a _prueba database.")
 
     conns = {kind: get_mysql_connection(kind) for kind in schemas}
+    start_dates = load_costs_odoo_start_dates()
     total_diff = 0
     for name, kind, table, branch, day, amount, odoo_gap in CHECKS:
         cur = conns[kind].cursor()
@@ -93,7 +95,7 @@ def main():
             if odoo_gap is True and is_odoo and t[0] <= p[0]:
                 expected += 1
                 continue
-            if odoo_gap == "cost" and label in COSTS_ODOO_SOURCE_COMPANIES and p[1] == 0 and t[1] != 0:
+            if odoo_gap == "cost" and t[0] and costs_source(label, key[1], start_dates) == "odoo":
                 odoo_cost += 1
                 continue
             diffs.append((label, key[1], p, t))

@@ -144,6 +144,19 @@ def is_company_wansoft_source_for_costs(company_name: str) -> bool:
     return company_name not in COSTS_ODOO_SOURCE_COMPANIES
 
 
+# UPDATE 2026-09-29 (owner): the three cost-report scripts no longer use the
+# set above. Every branch operating on Odoo takes its costs from Odoo from its
+# Odoo start date, per day, via extract/costs/cost_routing.py; the set above
+# now only means "born on Odoo" (no Wansoft history at all) and still drives
+# getTablajeriaReport.py. Branches listed here keep Wansoft costs regardless,
+# as a TEMPORARY exception: Antenas was the Odoo prototype and its Odoo cost
+# data is broken by pilot tests while that database is repaired. Remove it
+# from this set once the owner confirms the repair.
+COSTS_WANSOFT_TEMPORARY_EXCEPTIONS = {
+    "Antenas",
+}
+
+
 
 # =====================================================
 # ODOO COMPANY NAME TO OPERATIONAL SOURCE KEY
