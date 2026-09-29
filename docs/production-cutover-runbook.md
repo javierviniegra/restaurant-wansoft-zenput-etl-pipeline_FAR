@@ -278,6 +278,23 @@ Section 17.6.
 
    The `backup` user only has write access to the `_prueba` databases; use an
    account with `ALL` on `wansoft` for this step (decide which on the day).
+3c. **Odoo start 2026-10-01 for the migrated branches** (owner, 2026-09-29):
+   run `sql/migrations/cutover_04_migrated_branches_start_oct1.sql` against
+   `wansoft` (expect `rows_updated_expected_5` = 5), then, **after step 4**
+   (the `.env` must already point at `wansoft`), one purchases + analytics run
+   with a Wansoft window reaching back before June, so the June-September
+   Wansoft invoices of Acoxpa, Antenas, Tepeyac, Oceanía and Coyoacán are
+   reclassified into the canonical layer and their pre-October Odoo orders drop
+   out:
+
+   ```powershell
+   cd C:\Apps\Wansoft_ETL; $env:PURCHASES_LOOKBACK_DAYS = '125'; powershell -NoProfile -ExecutionPolicy Bypass -File deploy\run_daily_cycle.ps1 -Only "Purchases pipeline,Analytics purchase"; Remove-Item Env:PURCHASES_LOOKBACK_DAYS
+   ```
+
+   Never use `scripts/reload_purchase_canonical_wansoft_side.py` for this: it
+   deletes the whole Wansoft side and the ETL only reloads its window, so the
+   history since 2021 would be lost. Rehearsed on `wansoft_prueba` on
+   2026-09-29 (measured time: _pending_).
 4. **Switch the `.env`:** `WANSOFT_DB_NAME=wansoft`, `ZENPUT_DB_NAME=zenput`;
    run `python -m scripts.check_env`.
 5. **Enable the daily cycle:** `deploy\register_daily_cycle_task.ps1 -Enable`

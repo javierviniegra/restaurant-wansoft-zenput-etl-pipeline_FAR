@@ -90,22 +90,22 @@ Layers inside `wansoft`:
 
 | Wansoft id | Short key (`Sucursal`, `company_source_key`) | Wansoft long name (costs) | Odoo company | Purchases & inventory source | Odoo start date |
 |---|---|---|---|---|---|
-| 5320 | Acoxpa | Fonda Argentina - Acoxpa | FONDA COSTA NERA | Odoo | 2026-07-01 |
+| 5320 | Acoxpa | Fonda Argentina - Acoxpa | FONDA COSTA NERA | Wansoft → **Odoo from 2026-10-01** | 2026-10-01 |
 | 4959 | Aeropuerto | Fonda Argentina - Aeropuerto | FONDA ARGENTINA AEROPUERTO | Wansoft | — |
-| 4960 | Antenas | Fonda Argentina - Antenas | FONDA ARGENTINA LAS ANTENAS | Odoo | 2026-06-01 |
+| 4960 | Antenas | Fonda Argentina - Antenas | FONDA ARGENTINA LAS ANTENAS | Wansoft → **Odoo from 2026-10-01** | 2026-10-01 |
 | 6175 | Cancun | Fonda Argentina - Cancún | — | Wansoft | — |
 | 12802 | CentroMyJ | Fonda Argentina - Centro Mario y July | MARIO Y JULY | Odoo (born on Odoo) | 2026-06-01 |
 | 4958 | Isabel La Católica | Fonda Argentina - Isabel La Católica | FONDA ARGENTINA | Wansoft → **Odoo from 2026-10-01** | 2026-10-01 |
-| 12057 | La Esquina Coyoacán | Fonda Argentina - Coyoacan | FONDA ARGENTINA COYOACAN | Odoo | 2026-06-01 |
+| 12057 | La Esquina Coyoacán | Fonda Argentina - Coyoacan | FONDA ARGENTINA COYOACAN | Wansoft → **Odoo from 2026-10-01** | 2026-10-01 |
 | 4752 | Metepec | Fonda Argentina - Tollocan | FONDA ARGENTINA TOLLOCAN | Wansoft | — |
 | 4433 | Napoles | Fonda Argentina - Nápoles | FONDA ARGENTINA POLYFORUM | Wansoft | — |
-| 5943 | Oceanía | Fonda Argentina - Oceanía | FONDA ARGENTINA ENCUENTRO OCEANIA | Odoo | 2026-06-30 |
+| 5943 | Oceanía | Fonda Argentina - Oceanía | FONDA ARGENTINA ENCUENTRO OCEANIA | Wansoft → **Odoo from 2026-10-01** | 2026-10-01 |
 | 6174 | Playa del Carmen | Fonda Argentina - Playa del Carmen | — | Wansoft | — |
 | 12806 | Puebla | Fonda Argentina - Puebla | FONDA ARGENTINA PUEBLA | Odoo (born on Odoo) | 2026-06-10 |
 | 5319 | San Jeronimo | Fonda Argentina – San Jerónimo | FONDA ARGENTINA SAN JERONIMO | Wansoft → **Odoo from 2026-10-01** | 2026-10-01 |
 | 5321 | Taquería parroquia | Fonda Argentina – Taquería Parroquía | — | Wansoft | — |
 | 4962 | Taquería Viaducto | Fonda Argentina - Taqueria Viaducto | — | Wansoft | — |
-| 6560 | Tepeyac | Fonda Argentina - Tepeyac | FONDA ARGENTINA MAQ | Odoo | 2026-06-01 |
+| 6560 | Tepeyac | Fonda Argentina - Tepeyac | FONDA ARGENTINA MAQ | Wansoft → **Odoo from 2026-10-01** | 2026-10-01 |
 | 5396 | Versalles | Fonda Argentina - Taquería Exhibimex | — | Wansoft | — |
 | 5318 | Vía Vallejo | Fonda Argentina – Vía Vallejo | FONDA ARGENTINA VALLEJO | Wansoft → **Odoo from 2026-10-01** | 2026-10-01 |
 | 4961 | Viaducto | Fonda Argentina - Viaducto | FONDA ARGENTINA VIADUCTO | Wansoft | — |
@@ -169,7 +169,7 @@ Dates measured in production on 2026-09-28. Tables keep filling daily through th
 | Supplier invoices by accounting account | `getexpenses_factura` | Wansoft | 2019-02-18 | The oldest history; only while a branch enters purchases in Wansoft |
 | Inventory entries | `getinputinventory_entrada` | Wansoft | 2021-09-01 |  |
 | Inventory exits | `getoutgoinginventory_salida` | Wansoft | 2020-11-30 | About 1.15 million rows have an empty date (`0000-00-00`); exclude them |
-| **Unified purchases** | `analytics_purchase_order_lines`, `analytics_purchase_orders`, `analytics_purchase_daily_company_product` | **Wansoft + Odoo** | **2021-09-01** | Wansoft until each branch's Odoo start date, Odoo from then on (June 2026 onward). Checked year by year: same rows and amounts as production's Wansoft invoices |
+| **Unified purchases** | `analytics_purchase_order_lines`, `analytics_purchase_orders`, `analytics_purchase_daily_company_product` | **Wansoft + Odoo** | **2021-09-01** | Wansoft until each branch's Odoo start date, Odoo from then on (2026-10-01 for the migrated branches; Puebla and CentroMyJ since they opened in June). Checked year by year: same rows and amounts as production's Wansoft invoices |
 | **Unified stock** | `analytics_inventory_current_product_location`, `analytics_inventory_balance` | **Wansoft + Odoo** | Current snapshot | No history by design; the Wansoft balance is recomputed nightly from every movement since 2020-11-30 |
 | Checklists | `zenput.submissions`, `zenput.submission_answers` | Zenput | 2025-06-11 |  |
 | Tasks | `zenput.zenput_tasks` | Zenput | 2025-06-03 |  |
@@ -311,9 +311,10 @@ WHERE include_in_business_views = 1
 GROUP BY company_source_key, mes, source_system;
 ```
 
-Real example (Acoxpa, Odoo start 2026-07-01): January to June come back with
-`source_system = 'wansoft'` and July onward with `'odoo'`, with no month
-repeated or missing.
+Example: the migrated branches (Acoxpa, Antenas, Tepeyac, Oceanía, Coyoacán)
+come back with `source_system = 'wansoft'` through September 2026 and with
+`'odoo'` from October, with no month repeated or missing; Puebla and
+CentroMyJ, born on Odoo, come back with `'odoo'` since they opened in June 2026.
 
 **`getexpenses_factura` is a different thing:** every Wansoft supplier invoice
 classified by accounting account (`Cuenta`: Costo operativo, Gastos de venta,

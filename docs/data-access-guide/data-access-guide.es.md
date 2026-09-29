@@ -92,22 +92,22 @@ Capas dentro de `wansoft`:
 
 | ID Wansoft | Clave corta (`Sucursal`, `company_source_key`) | Nombre largo Wansoft (costos) | Empresa en Odoo | Fuente de compras e inventario | Arranque en Odoo |
 |---|---|---|---|---|---|
-| 5320 | Acoxpa | Fonda Argentina - Acoxpa | FONDA COSTA NERA | Odoo | 2026-07-01 |
+| 5320 | Acoxpa | Fonda Argentina - Acoxpa | FONDA COSTA NERA | Wansoft → **Odoo desde 2026-10-01** | 2026-10-01 |
 | 4959 | Aeropuerto | Fonda Argentina - Aeropuerto | FONDA ARGENTINA AEROPUERTO | Wansoft | — |
-| 4960 | Antenas | Fonda Argentina - Antenas | FONDA ARGENTINA LAS ANTENAS | Odoo | 2026-06-01 |
+| 4960 | Antenas | Fonda Argentina - Antenas | FONDA ARGENTINA LAS ANTENAS | Wansoft → **Odoo desde 2026-10-01** | 2026-10-01 |
 | 6175 | Cancun | Fonda Argentina - Cancún | — | Wansoft | — |
 | 12802 | CentroMyJ | Fonda Argentina - Centro Mario y July | MARIO Y JULY | Odoo (nació en Odoo) | 2026-06-01 |
 | 4958 | Isabel La Católica | Fonda Argentina - Isabel La Católica | FONDA ARGENTINA | Wansoft → **Odoo desde 2026-10-01** | 2026-10-01 |
-| 12057 | La Esquina Coyoacán | Fonda Argentina - Coyoacan | FONDA ARGENTINA COYOACAN | Odoo | 2026-06-01 |
+| 12057 | La Esquina Coyoacán | Fonda Argentina - Coyoacan | FONDA ARGENTINA COYOACAN | Wansoft → **Odoo desde 2026-10-01** | 2026-10-01 |
 | 4752 | Metepec | Fonda Argentina - Tollocan | FONDA ARGENTINA TOLLOCAN | Wansoft | — |
 | 4433 | Napoles | Fonda Argentina - Nápoles | FONDA ARGENTINA POLYFORUM | Wansoft | — |
-| 5943 | Oceanía | Fonda Argentina - Oceanía | FONDA ARGENTINA ENCUENTRO OCEANIA | Odoo | 2026-06-30 |
+| 5943 | Oceanía | Fonda Argentina - Oceanía | FONDA ARGENTINA ENCUENTRO OCEANIA | Wansoft → **Odoo desde 2026-10-01** | 2026-10-01 |
 | 6174 | Playa del Carmen | Fonda Argentina - Playa del Carmen | — | Wansoft | — |
 | 12806 | Puebla | Fonda Argentina - Puebla | FONDA ARGENTINA PUEBLA | Odoo (nació en Odoo) | 2026-06-10 |
 | 5319 | San Jeronimo | Fonda Argentina – San Jerónimo | FONDA ARGENTINA SAN JERONIMO | Wansoft → **Odoo desde 2026-10-01** | 2026-10-01 |
 | 5321 | Taquería parroquia | Fonda Argentina – Taquería Parroquía | — | Wansoft | — |
 | 4962 | Taquería Viaducto | Fonda Argentina - Taqueria Viaducto | — | Wansoft | — |
-| 6560 | Tepeyac | Fonda Argentina - Tepeyac | FONDA ARGENTINA MAQ | Odoo | 2026-06-01 |
+| 6560 | Tepeyac | Fonda Argentina - Tepeyac | FONDA ARGENTINA MAQ | Wansoft → **Odoo desde 2026-10-01** | 2026-10-01 |
 | 5396 | Versalles | Fonda Argentina - Taquería Exhibimex | — | Wansoft | — |
 | 5318 | Vía Vallejo | Fonda Argentina – Vía Vallejo | FONDA ARGENTINA VALLEJO | Wansoft → **Odoo desde 2026-10-01** | 2026-10-01 |
 | 4961 | Viaducto | Fonda Argentina - Viaducto | FONDA ARGENTINA VIADUCTO | Wansoft | — |
@@ -172,7 +172,7 @@ Fechas medidas en producción el 2026-09-28. Las tablas se siguen llenando a dia
 | Facturas de proveedor por cuenta contable | `getexpenses_factura` | Wansoft | 2019-02-18 | El histórico más antiguo; solo mientras la sucursal captura en Wansoft |
 | Entradas de inventario | `getinputinventory_entrada` | Wansoft | 2021-09-01 |  |
 | Salidas de inventario | `getoutgoinginventory_salida` | Wansoft | 2020-11-30 | Unas 1.15 millones de filas traen fecha vacía (`0000-00-00`); exclúyelas |
-| **Compras unificadas** | `analytics_purchase_order_lines`, `analytics_purchase_orders`, `analytics_purchase_daily_company_product` | **Wansoft + Odoo** | **2021-09-01** | Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde entonces (junio de 2026 en adelante). Verificado año por año: mismos renglones y pesos que las facturas de Wansoft en producción |
+| **Compras unificadas** | `analytics_purchase_order_lines`, `analytics_purchase_orders`, `analytics_purchase_daily_company_product` | **Wansoft + Odoo** | **2021-09-01** | Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde entonces (1 de octubre de 2026 para las migradas; Puebla y CentroMyJ desde su apertura en junio). Verificado año por año: mismos renglones y pesos que las facturas de Wansoft en producción |
 | **Existencias unificadas** | `analytics_inventory_current_product_location`, `analytics_inventory_balance` | **Wansoft + Odoo** | Foto actual | Sin histórico por diseño; el saldo de Wansoft se recalcula cada noche con todos los movimientos desde 2020-11-30 |
 | Checklists | `zenput.submissions`, `zenput.submission_answers` | Zenput | 2025-06-11 |  |
 | Tareas | `zenput.zenput_tasks` | Zenput | 2025-06-03 |  |
@@ -316,9 +316,10 @@ WHERE include_in_business_views = 1
 GROUP BY company_source_key, mes, source_system;
 ```
 
-Ejemplo real (Acoxpa, arranque en Odoo el 2026-07-01): enero a junio salen
-con `source_system = 'wansoft'` y de julio en adelante con `'odoo'`, sin
-meses repetidos ni faltantes.
+Ejemplo: las sucursales migradas (Acoxpa, Antenas, Tepeyac, Oceanía, Coyoacán)
+salen con `source_system = 'wansoft'` hasta septiembre de 2026 y con `'odoo'`
+desde octubre, sin meses repetidos ni faltantes; Puebla y CentroMyJ, que
+nacieron en Odoo, salen con `'odoo'` desde su apertura en junio de 2026.
 
 **`getexpenses_factura` es otra cosa:** son todas las facturas de proveedor de
 Wansoft clasificadas por cuenta contable (`Cuenta`: Costo operativo, Gastos de

@@ -190,8 +190,8 @@ on 2026-09-28. PDF version: <a href="data-access-guide.en.pdf">data-access-guide
 <td>Acoxpa</td>
 <td>Fonda Argentina - Acoxpa</td>
 <td>FONDA COSTA NERA</td>
-<td>Odoo</td>
-<td>2026-07-01</td>
+<td>Wansoft → <strong>Odoo from 2026-10-01</strong></td>
+<td>2026-10-01</td>
 </tr>
 <tr>
 <td>4959</td>
@@ -206,8 +206,8 @@ on 2026-09-28. PDF version: <a href="data-access-guide.en.pdf">data-access-guide
 <td>Antenas</td>
 <td>Fonda Argentina - Antenas</td>
 <td>FONDA ARGENTINA LAS ANTENAS</td>
-<td>Odoo</td>
-<td>2026-06-01</td>
+<td>Wansoft → <strong>Odoo from 2026-10-01</strong></td>
+<td>2026-10-01</td>
 </tr>
 <tr>
 <td>6175</td>
@@ -238,8 +238,8 @@ on 2026-09-28. PDF version: <a href="data-access-guide.en.pdf">data-access-guide
 <td>La Esquina Coyoacán</td>
 <td>Fonda Argentina - Coyoacan</td>
 <td>FONDA ARGENTINA COYOACAN</td>
-<td>Odoo</td>
-<td>2026-06-01</td>
+<td>Wansoft → <strong>Odoo from 2026-10-01</strong></td>
+<td>2026-10-01</td>
 </tr>
 <tr>
 <td>4752</td>
@@ -262,8 +262,8 @@ on 2026-09-28. PDF version: <a href="data-access-guide.en.pdf">data-access-guide
 <td>Oceanía</td>
 <td>Fonda Argentina - Oceanía</td>
 <td>FONDA ARGENTINA ENCUENTRO OCEANIA</td>
-<td>Odoo</td>
-<td>2026-06-30</td>
+<td>Wansoft → <strong>Odoo from 2026-10-01</strong></td>
+<td>2026-10-01</td>
 </tr>
 <tr>
 <td>6174</td>
@@ -310,8 +310,8 @@ on 2026-09-28. PDF version: <a href="data-access-guide.en.pdf">data-access-guide
 <td>Tepeyac</td>
 <td>Fonda Argentina - Tepeyac</td>
 <td>FONDA ARGENTINA MAQ</td>
-<td>Odoo</td>
-<td>2026-06-01</td>
+<td>Wansoft → <strong>Odoo from 2026-10-01</strong></td>
+<td>2026-10-01</td>
 </tr>
 <tr>
 <td>5396</td>
@@ -539,7 +539,7 @@ on 2026-09-28. PDF version: <a href="data-access-guide.en.pdf">data-access-guide
 <td><code>analytics_purchase_order_lines</code>, <code>analytics_purchase_orders</code>, <code>analytics_purchase_daily_company_product</code></td>
 <td><strong>Wansoft + Odoo</strong></td>
 <td><strong>2021-09-01</strong></td>
-<td>Wansoft until each branch's Odoo start date, Odoo from then on (June 2026 onward). Checked year by year: same rows and amounts as production's Wansoft invoices</td>
+<td>Wansoft until each branch's Odoo start date, Odoo from then on (2026-10-01 for the migrated branches; Puebla and CentroMyJ since they opened in June). Checked year by year: same rows and amounts as production's Wansoft invoices</td>
 </tr>
 <tr>
 <td><strong>Unified stock</strong></td>
@@ -798,9 +798,10 @@ WHERE include_in_business_views = 1
   AND order_date &gt;= '2026-01-01'
 GROUP BY company_source_key, mes, source_system;
 </pre>
-<p>Real example (Acoxpa, Odoo start 2026-07-01): January to June come back with
-<code>source_system = 'wansoft'</code> and July onward with <code>'odoo'</code>, with no month
-repeated or missing.</p>
+<p>Example: the migrated branches (Acoxpa, Antenas, Tepeyac, Oceanía, Coyoacán)
+come back with <code>source_system = 'wansoft'</code> through September 2026 and with
+<code>'odoo'</code> from October, with no month repeated or missing; Puebla and
+CentroMyJ, born on Odoo, come back with <code>'odoo'</code> since they opened in June 2026.</p>
 <p><strong><code>getexpenses_factura</code> is a different thing:</strong> every Wansoft supplier invoice
 classified by accounting account (<code>Cuenta</code>: Costo operativo, Gastos de venta,
 Gastos directos, Sueldos y salarios, Fletes, ...), including services, software
