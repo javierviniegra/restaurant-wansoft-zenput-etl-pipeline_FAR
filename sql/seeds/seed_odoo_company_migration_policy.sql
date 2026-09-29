@@ -55,9 +55,9 @@ VALUES
     'migrated_from_wansoft',
     'wansoft',
     0,
-    '2026-06-01',
+    '2026-10-01',
     1,
-    'Initial policy seed from current purchase snapshot. Review company type before production.'
+    'Start moved from 2026-06-01 to 2026-10-01 on 2026-09-29 (owner): Wansoft history kept in production until the cutover.'
 ),
 (
     11,
@@ -65,9 +65,9 @@ VALUES
     'migrated_from_wansoft',
     'wansoft',
     0,
-    '2026-06-30',
+    '2026-10-01',
     1,
-    'Initial policy seed from current purchase snapshot. Review company type before production.'
+    'Start moved from 2026-06-30 to 2026-10-01 on 2026-09-29 (owner): Wansoft history kept in production until the cutover.'
 ),
 (
     9,
@@ -75,9 +75,9 @@ VALUES
     'migrated_from_wansoft',
     'wansoft',
     0,
-    '2026-06-01',
+    '2026-10-01',
     1,
-    'Initial policy seed from current purchase snapshot. Review company type before production.'
+    'Start moved from 2026-06-01 to 2026-10-01 on 2026-09-29 (owner): Wansoft history kept in production until the cutover.'
 ),
 (
     10,
@@ -85,9 +85,9 @@ VALUES
     'migrated_from_wansoft',
     'wansoft',
     0,
-    '2026-06-01',
+    '2026-10-01',
     1,
-    'Initial policy seed from current purchase snapshot. Review company type before production.'
+    'Start moved from 2026-06-01 to 2026-10-01 on 2026-09-29 (owner): Wansoft history kept in production until the cutover.'
 ),
 (
     34,
@@ -125,9 +125,9 @@ VALUES
     'migrated_from_wansoft',
     'wansoft',
     0,
-    '2026-07-01',
+    '2026-10-01',
     1,
-    'Initial policy seed from current purchase snapshot. Review company type before production.'
+    'Start moved from 2026-07-01 to 2026-10-01 on 2026-09-29 (owner): Wansoft history kept in production until the cutover.'
 ),
 (
     3,
