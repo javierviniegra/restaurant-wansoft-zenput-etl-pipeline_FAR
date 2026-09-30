@@ -26,4 +26,6 @@ PURCHASES_LOOKBACK_DAYS = lookback_days("PURCHASES_LOOKBACK_DAYS", 35)
 # Wansoft recalculates cost snapshots after the fact (seen up to ~10% on a single
 # day, 6+ days later), so costs get a longer window than the other Wansoft
 # reports; 10 days also keeps the month-end snapshot fresh until the 10th.
+# Butchery (getTablajeriaReport.py) uses it too since 2026-09-30: entries
+# registered late for a day outside the 5-day window were being missed.
 COSTS_LOOKBACK_DAYS = lookback_days("COSTS_LOOKBACK_DAYS", 10)
