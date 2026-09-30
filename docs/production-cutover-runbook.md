@@ -266,6 +266,30 @@ Section 17.6.
    `yyyyMMdd_HHmmss` folder to `C:\Backups\mysql\PRE_CORTE_2026-10-01` (outside
    the pruning pattern, so the weekly retention never deletes it). About 30
    minutes. Do not start step 3 until it is verified.
+2c. **Hyper-V checkpoints of both VMs** (owner, 2026-09-30; both VMs live on
+   the same Hyper-V host). Done from the **host**, not from inside the VMs,
+   after the backup of step 2b so the tasks VM checkpoint contains it:
+   1. On the database machine, stop MySQL (XAMPP panel) so its disk is
+      consistent; Power BI and ControlPresupuestos_AP lose the database for
+      one or two minutes.
+   2. On the host, in an elevated PowerShell (VM names as shown by `Get-VM`,
+      which may differ from the computer names):
+
+      ```powershell
+      Get-VM | Select-Object Name, State; Checkpoint-VM -Name '<database VM>' -SnapshotName 'PRE_CORTE_2026-10-01'; Checkpoint-VM -Name '<tasks VM>' -SnapshotName 'PRE_CORTE_2026-10-01'; Get-VMSnapshot -VMName '<database VM>','<tasks VM>' | Select-Object VMName, Name, CreationTime
+      ```
+
+   3. Start MySQL again on the database machine and check that Power BI /
+      the app connect.
+
+   Rollback, if the cutover has to be undone: on the host
+   `Restore-VMSnapshot -VMName '<database VM>' -Name 'PRE_CORTE_2026-10-01' -Confirm:$false`
+   (and the same for the tasks VM), start both VMs, and re-enable the
+   `FondaCroned_*` tasks. Minutes instead of the ~2 hours a `mysqldump` restore
+   takes. **Delete both checkpoints 2-3 days after a good cutover**
+   (`Remove-VMSnapshot -VMName '<vm>' -Name 'PRE_CORTE_2026-10-01'`): while they
+   exist every write goes to differencing disks that grow and slow the VMs.
+   Check the host's free disk before taking them.
 3. **Migrate the live `wansoft`:** fresh dump from dev (Step 5.1, new date),
    loaded with the client, then parts 2 and 3:
 

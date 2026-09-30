@@ -39,6 +39,8 @@ Git and `.env` (credentials) both survived the OneDrive move intact.
 
 Databases (`wansoft` is the big one): `wansoft` 31 GB on disk, `zenput`, `odoo`, `presupuestos_ap`, `mysql`, `phpmyadmin`, `test`, plus the test copies `wansoft_prueba` (migrated, 61 tables) and `zenput_prueba`. The tasks VM reaches the database over the internal network (`192.168.100.183`); the dev PC reaches it through the public IP. **phpMyAdmin is served unencrypted on a public IP: restrict it after go-live.**
 
+**Both machines are Hyper-V VMs on the same host** (owner, 2026-09-30). Checkpoints are taken from the host; the cutover takes one of each right after the pre-cutover backup (runbook step 2c).
+
 **Database users (checked 2026-09-28):**
 - `backup` (used by the backup/restore scripts via `C:\Backups\mysql\backup.cnf`): read-only on everything, `ALL` on `wansoft_prueba` and `zenput_prueba`.
 - `wansoftuser` and `zenputuser` are the **pipeline's** accounts (`WANSOFT_DB_USER` / `ZENPUT_DB_USER` in the VM's `.env`). They got `ALL PRIVILEGES` on `wansoft_prueba` / `zenput_prueba` on 2026-09-28 (they had none; the preflight caught it).
@@ -603,6 +605,7 @@ Command-level detail, expected results and timings: `docs/production-cutover-run
 1. **Odoo readiness:** confirmed orders exist for Isabel, San Jerónimo, Vía Vallejo; flip `COMPANY_SOURCE` to `"odoo"` and `ROLLOUT_COMPANY_EXPECTATIONS` to `active: True` in `core/config/companies.py`, seed/maintenance SQL and `odoo_company_migration_policy`; commit, push, `git pull` on the VM.
 2. **Stop the legacy tasks:** disable the 12 `FondaCroned_*` tasks (delete after one or two good nights). Leave `ControlPresupuestos_AP`, the backup task and system tasks alone.
 3. **Backup right before migrating** (owner's decision 2026-09-28, replaces the Wednesday backup): `backup_mysql.ps1`, verify `Backup finished`, copy the folder to `C:\Backups\mysql\PRE_CORTE_2026-10-01` (outside the pruning pattern). About 30 min.
+3b. **Hyper-V checkpoints of both VMs** from the host, after the backup, with MySQL stopped for a minute on the database VM (runbook 2c); rollback = restore both checkpoints and re-enable the legacy tasks; delete the checkpoints 2-3 days after a good cutover.
 4. **Migrate the live `wansoft`** (additive, plus the agreed drops), with an account that has write rights on `wansoft` (the `backup` user only writes to `_prueba`; `restore_mysql.ps1` refuses live names on purpose, so load with the `mysql` client):
    - Part 1: a **fresh** dump of the 41 tables + 2 views from dev (runbook 5.1; checks: `Dump completed`, 0 `DEFINER`, 41 `CREATE TABLE`, no `` `wansoft`. `` references). Rehearsal: 5.7 min dump, 176 MB, 11.6 min load.
    - Part 2: `sql/migrations/cutover_02_small_tables.sql` (drops the 4 old Sales tables, dedups `costeomensual_semanapyq`, 3 generated columns, 4 unique keys). Re-check the duplicate count first. Seconds.
