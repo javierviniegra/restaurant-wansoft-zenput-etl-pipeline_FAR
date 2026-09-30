@@ -340,7 +340,7 @@ Section 17.6.
    the two `CHANGE_ME` passwords replaced (never commit them; restrict `'%'` to
    tukanmx's IPs if they provide them). Hand over
    `docs/data-access-guide/` together with the credentials.
-7. Re-validate against Power BI for the 10 Odoo-sourced branches over 10-01 to 10-03.
+7. Validate the first nights (10-01 to 10-03) with the **commercial report of the Central de Reportes** (separate project in the owner's account), not Power BI: after the cutover Power BI reads the new database itself, so comparing against it proves nothing (owner, 2026-09-30). Focus on the 10 Odoo-sourced branches.
 
 ---
 

@@ -616,7 +616,7 @@ Command-level detail, expected results and timings: `docs/production-cutover-run
 6. **Daily cycle to 01:30:** `register_daily_cycle_task.ps1 -Enable` (default time 01:30). First production run the night of 10-01 to 10-02; watch `logs\daily_cycle_<date>.log`.
 7. **tukanmx users:** run `sql/maintenance/create_tukan_readonly_users.sql` as root with real passwords (never committed; restrict `'%'` to their IPs if given); hand over the credentials privately with `docs/data-access-guide/`.
 8. The first automatic weekly backup runs at 18:00 that day.
-9. Re-validate against Power BI for the 10 Odoo-sourced branches over 10-01 to 10-03.
+9. Validate the first nights (10-01 to 10-03) with the **commercial report of the Central de Reportes** (separate project in the owner's account), not Power BI: after the cutover Power BI reads the new database itself, so comparing against it proves nothing (owner, 2026-09-30). Focus on the 10 Odoo-sourced branches.
 10. Afterwards: security follow-ups (runbook Section 8), then the Django app (Section 16).
 
 ## 17.7 Risks and things not to forget
