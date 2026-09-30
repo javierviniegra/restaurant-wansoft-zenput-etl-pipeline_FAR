@@ -61,7 +61,7 @@
 example, a question-and-answer / chatbot layer). It tells you <strong>which table to
 use for each business question, which fields matter, how tables join, and the
 traps to avoid</strong>. Every rule here was checked against the live schema and data
-on 2026-09-28. PDF version: <a href="data-access-guide.en.pdf">data-access-guide.en.pdf</a>.</p>
+on 2026-09-28 and updated on 2026-09-30. PDF version: <a href="data-access-guide.en.pdf">data-access-guide.en.pdf</a>.</p>
 <h1>1. What is where</h1>
 <p>Two MySQL (MariaDB 10.4) databases on the same server:</p>
 <table class="compacta">
@@ -94,12 +94,12 @@ on 2026-09-28. PDF version: <a href="data-access-guide.en.pdf">data-access-guide
 <tbody>
 <tr>
 <td><strong>Wansoft</strong> (POS/ERP)</td>
-<td>Sales for all branches, costs, cash closing, and purchases/inventory for branches not yet on Odoo</td>
+<td>Sales and cash closing for all branches; costs, purchases and inventory for branches not yet on Odoo, and the others' history</td>
 <td>Daily download via its SOAP API</td>
 </tr>
 <tr>
 <td><strong>Odoo</strong></td>
-<td>Purchases and inventory for the branches migrated to Odoo</td>
+<td>Purchases, inventory and costs of the branches operating on Odoo, from their start date</td>
 <td>Daily read-only extraction</td>
 </tr>
 <tr>
@@ -120,9 +120,9 @@ on 2026-09-28. PDF version: <a href="data-access-guide.en.pdf">data-access-guide
 </thead>
 <tbody>
 <tr>
-<td>Raw Wansoft copies</td>
+<td>Operational tables</td>
 <td><code>get*</code>, <code>costeomensual*</code></td>
-<td>Sales, costs, cash closing, Wansoft-side detail</td>
+<td>Sales, cash closing and Wansoft-side detail (Wansoft copies); costs of every branch, computed from Wansoft or Odoo per branch (Section 5.2)</td>
 </tr>
 <tr>
 <td>Canonical</td>
@@ -166,8 +166,8 @@ on 2026-09-28. PDF version: <a href="data-access-guide.en.pdf">data-access-guide
    merges them without overlap</strong> (Section 5.3). Do not rebuild the merge from raw
    tables.</li>
 <li><strong>Data is loaded once a day, at about 01:30, through the previous day.</strong> Each
-   run also re-checks recent days (sales 10 days, Wansoft costs/inventory 5,
-   purchases 35), so the last few days can still change.</li>
+   run also re-checks recent days (sales 10 days, costs and butchery 10,
+   Wansoft invoices/inventory/cash closing 5, purchases 35), so the last few days can still change.</li>
 <li>Costs tables are <strong>cumulative snapshots</strong>, not daily amounts (Section 5.2).</li>
 </ol>
 
@@ -497,7 +497,7 @@ on 2026-09-28. PDF version: <a href="data-access-guide.en.pdf">data-access-guide
 <td><code>costeomensual</code></td>
 <td>Wansoft or Odoo (5.2)</td>
 <td>2022-01-01</td>
-<td>—</td>
+<td>Puebla and CentroMyJ have costs from July 2026 (5.2)</td>
 </tr>
 <tr>
 <td>Week-to-date cost</td>
@@ -659,12 +659,12 @@ Amounts here are <strong>sale value</strong>. Use it to reconcile daily totals.<
 <td>Wansoft cost report</td>
 </tr>
 <tr>
-<td>Migrated to Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán; from 2026-10-01 also Isabel La Católica, San Jeronimo, Vía Vallejo)</td>
-<td>Odoo from its start date (Section 3); Wansoft before</td>
+<td>Migrated to Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán, Isabel La Católica, San Jeronimo, Vía Vallejo)</td>
+<td>Wansoft through 2026-09-30; Odoo from 2026-10-01</td>
 </tr>
 <tr>
 <td>New, born on Odoo (Puebla, CentroMyJ and any branch opened later)</td>
-<td>Odoo</td>
+<td>Odoo since it opened. Odoo has no cost of sales for CentroMyJ before July 2026 nor for Puebla before 2026-07-27: those days are 0</td>
 </tr>
 <tr>
 <td><strong>Antenas (temporary exception)</strong></td>
@@ -677,8 +677,8 @@ the same tables. It fills <code>CostoTotal</code>, <code>CostoDeProductosVendido
 <code>CostoDeMerma</code>; <code>CostoDeCortesías</code> and <code>CostoDeCancelaciones</code> come from the
 cash closing; the other columns stay empty (no Odoo equivalent). <strong>In Odoo rows the columns with no equivalent are NULL</strong>: use <code>COALESCE(column, 0)</code>
 when adding or subtracting, or the result is NULL (e.g. <code>CostoTotal - CostoDeConsumo</code>
-is NULL for Puebla). The switch is
-per day: days before the start date keep Wansoft's cost.</p>
+is NULL for Puebla). The switch is per day: days before the start date keep
+Wansoft's cost.</p>
 <p>Keyed by <code>subsidiary_id</code> (Wansoft id). All three are <strong>snapshots</strong>:</p>
 <table class="compacta">
 <thead>
@@ -919,7 +919,8 @@ key; some Zenput locations have no POS branch.</p>
 <ul>
 <li>Daily pipeline at <strong>01:30</strong> (Mexico City time); data through the previous day.</li>
 <li>Rolling re-checks: sales 10 days (reconciled against Wansoft's own daily close),
-  Wansoft costs/inventory/cash closing 5 days, purchases 35 days.</li>
+  costs and butchery 10 days, Wansoft invoices/inventory/cash closing 5 days,
+  purchases 35 days.</li>
 <li>Costs in Wansoft can be recalculated by Wansoft after the fact; the latest
   snapshot wins.</li>
 <li>Weekly backup Thursdays 18:00. Avoid heavy queries at 01:30–03:00.</li>

@@ -6,7 +6,7 @@ Para: equipos externos que construirán su propio ETL sobre estas bases (por
 ejemplo, una capa de preguntas y respuestas / chatbot). Indica **qué tabla usar
 para cada pregunta de negocio, qué campos importan, cómo se unen las tablas y
 qué trampas evitar**. Cada regla se verificó contra el esquema y los datos
-reales el 2026-09-28. Versión en PDF: [data-access-guide.es.pdf](data-access-guide.es.pdf).
+reales el 2026-09-28 y se actualizó el 2026-09-30. Versión en PDF: [data-access-guide.es.pdf](data-access-guide.es.pdf).
 
 ## Índice
 
@@ -41,15 +41,15 @@ Sistemas de origen:
 
 | Origen | Qué aporta | Cómo llega |
 |---|---|---|
-| **Wansoft** (punto de venta / ERP) | Ventas de todas las sucursales, costos, cierre de caja, y compras/inventario de las sucursales que aún no están en Odoo | Descarga diaria por su API SOAP |
-| **Odoo** | Compras e inventario de las sucursales migradas a Odoo | Extracción diaria de solo lectura |
+| **Wansoft** (punto de venta / ERP) | Ventas y cierre de caja de todas las sucursales; costos, compras e inventario de las sucursales que aún no están en Odoo, y el histórico de las demás | Descarga diaria por su API SOAP |
+| **Odoo** | Compras, inventario y costos de las sucursales que operan en Odoo, desde su fecha de arranque | Extracción diaria de solo lectura |
 | **Zenput** | Checklists y tareas | Descarga diaria por API |
 
 Capas dentro de `wansoft`:
 
 | Capa | Tablas | Úsala para |
 |---|---|---|
-| Copias de Wansoft | `get*`, `costeomensual*` | Ventas, costos, cierre de caja, detalle del lado Wansoft |
+| Tablas operativas | `get*`, `costeomensual*` | Ventas, cierre de caja y detalle del lado Wansoft (copias de Wansoft); costos de todas las sucursales, calculados con Wansoft u Odoo según la sucursal (sección 5.2) |
 | Canónica | `canonical_purchase_*` | Interna: compras de Odoo y Wansoft en un mismo formato. Mejor usar la capa analítica |
 | **Analítica (lista para negocio)** | `analytics_*` | Compras e inventario de todas las sucursales, ambas fuentes ya unidas |
 | Dimensiones | `dim_company_analytical`, `dim_product`, `dim_vendor`, `dim_time` | Descripciones y atributos para la capa analítica |
@@ -82,7 +82,8 @@ Capas dentro de `wansoft`:
    sin traslape** (Sección 5.3). No reconstruyas la unión desde las tablas crudas.
 6. **Los datos se cargan una vez al día, alrededor de la 01:30, hasta el día
    anterior.** Cada corrida vuelve a revisar los días recientes (ventas 10 días,
-   costos/inventario de Wansoft 5, compras 35), así que los últimos días todavía
+   costos y tablajería 10, facturas/inventario/cierre de caja de Wansoft 5,
+   compras 35), así que los últimos días todavía
    pueden cambiar.
 7. Las tablas de costos son **fotos acumuladas**, no montos diarios (Sección 5.2).
 
@@ -166,7 +167,7 @@ Fechas medidas en producción el 2026-09-28. Las tablas se siguen llenando a dia
 | Ventas: pagos por ticket | `getallordenesbyday_new_pago` | Wansoft | 2025-01-01 | Antes de 2025 no hay pagos por ticket; usa el cierre de caja |
 | Cierre de caja diario | `getglobalcashclosing` | Wansoft | 2022-01-01 |  |
 | Costo de venta diario | `gettotalcostbydate` | Wansoft u Odoo (5.2) | 2021-07-31 |  |
-| Costo mensual acumulado | `costeomensual` | Wansoft u Odoo (5.2) | 2022-01-01 |  |
+| Costo mensual acumulado | `costeomensual` | Wansoft u Odoo (5.2) | 2022-01-01 | Puebla y CentroMyJ con costo desde julio de 2026 (5.2) |
 | Costo semanal acumulado | `costeomensual_semanapyq` | Wansoft u Odoo (5.2) | 2024-01-02 |  |
 | Tablajería | `gettablajeriareport` | Wansoft | 2022-01-01 | Va de salida (sección 5.2) |
 | Facturas de proveedor por cuenta contable | `getexpenses_factura` | Wansoft | 2019-02-18 | El histórico más antiguo; solo mientras la sucursal captura en Wansoft |
@@ -236,8 +237,8 @@ De dónde viene el costo de cada sucursal:
 | Tipo de sucursal | Fuente del costo hoy |
 |---|---|
 | Solo Wansoft | Reporte de costos de Wansoft |
-| Migrada a Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán; desde 2026-10-01 también Isabel La Católica, San Jeronimo, Vía Vallejo) | Odoo desde su fecha de arranque (sección 3); Wansoft antes |
-| Nueva, nacida en Odoo (Puebla, CentroMyJ y las que abran después) | Odoo |
+| Migrada a Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán, Isabel La Católica, San Jeronimo, Vía Vallejo) | Wansoft hasta el 30 de septiembre de 2026; Odoo desde el 1 de octubre |
+| Nueva, nacida en Odoo (Puebla, CentroMyJ y las que abran después) | Odoo desde su apertura. Odoo no tiene costo de venta de CentroMyJ antes de julio de 2026 ni de Puebla antes del 27 de julio de 2026: esos días valen 0 |
 | **Antenas (excepción temporal)** | Wansoft, mientras se repara su base de datos en Odoo |
 
 El costo de Odoo se calcula desde su contabilidad (cuentas de costo directo) y
@@ -246,8 +247,8 @@ y `CostoDeMerma`; `CostoDeCortesías` y `CostoDeCancelaciones` vienen del cierre
 de caja; el resto de las columnas queda vacío (no tiene equivalente en Odoo).
 **En las filas de Odoo las columnas sin equivalente son NULL**: usa
 `COALESCE(columna, 0)` al restar o sumar, o el resultado sale NULL (por ejemplo,
-`CostoTotal - CostoDeConsumo` da NULL en Puebla). El cambio de fuente aplica por día: los días anteriores al arranque conservan
-el costo de Wansoft.
+`CostoTotal - CostoDeConsumo` da NULL en Puebla). El cambio de fuente aplica
+por día: los días anteriores al arranque conservan el costo de Wansoft.
 
 Identificados por `subsidiary_id` (ID de Wansoft). Las tres son **fotos**:
 
@@ -399,7 +400,8 @@ de venta.
 - Pipeline diario a la **01:30** (hora de Ciudad de México); datos hasta el día
   anterior.
 - Revisiones continuas: ventas 10 días (cuadradas contra el cierre diario de
-  Wansoft), costos/inventario/cierre de caja de Wansoft 5 días, compras 35 días.
+  Wansoft), costos y tablajería 10 días, facturas/inventario/cierre de caja de
+  Wansoft 5 días, compras 35 días.
 - Wansoft puede recalcular sus costos después; manda la foto más reciente.
 - Respaldo semanal los jueves a las 18:00. Evita consultas pesadas entre la
   01:30 y las 03:00.

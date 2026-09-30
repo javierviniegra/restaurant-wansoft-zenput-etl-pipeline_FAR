@@ -57,7 +57,7 @@ Para equipos externos que construirán su propio ETL sobre estas bases (por
 ejemplo, una capa de preguntas y respuestas / chatbot). Indica <b>qué tabla
 usar para cada pregunta de negocio, qué campos importan, cómo se unen las
 tablas y qué trampas evitar</b>. Cada regla se verificó contra el esquema y los
-datos reales el 28 de septiembre de 2026.
+datos reales el 28 de septiembre de 2026 y se actualizó el 30 de septiembre.
 </p>
 
 <p class="indice-titulo">Índice</p>
@@ -77,15 +77,15 @@ datos reales el 28 de septiembre de 2026.
 <p>Sistemas de origen:</p>
 <table>
   <tr><th style="width: 22%;">Origen</th><th>Qué aporta</th><th style="width: 28%;">Cómo llega</th></tr>
-  <tr><td><b>Wansoft</b> (punto de venta / ERP)</td><td>Ventas de todas las sucursales, costos, cierre de caja, y compras/inventario de las sucursales que aún no están en Odoo</td><td>Descarga diaria por su API SOAP</td></tr>
-  <tr><td><b>Odoo</b></td><td>Compras e inventario de las sucursales migradas a Odoo</td><td>Extracción diaria de solo lectura</td></tr>
+  <tr><td><b>Wansoft</b> (punto de venta / ERP)</td><td>Ventas y cierre de caja de todas las sucursales; costos, compras e inventario de las sucursales que aún no están en Odoo, y el histórico de las demás</td><td>Descarga diaria por su API SOAP</td></tr>
+  <tr><td><b>Odoo</b></td><td>Compras, inventario y costos de las sucursales que operan en Odoo, desde su fecha de arranque</td><td>Extracción diaria de solo lectura</td></tr>
   <tr><td><b>Zenput</b></td><td>Checklists y tareas</td><td>Descarga diaria por API</td></tr>
 </table>
 
 <p>Capas dentro de <code>wansoft</code>:</p>
 <table>
   <tr><th style="width: 22%;">Capa</th><th style="width: 30%;">Tablas</th><th>Úsala para</th></tr>
-  <tr><td>Copias de Wansoft</td><td><code>get*</code>, <code>costeomensual*</code></td><td>Ventas, costos, cierre de caja, detalle del lado Wansoft</td></tr>
+  <tr><td>Tablas operativas</td><td><code>get*</code>, <code>costeomensual*</code></td><td>Ventas, cierre de caja y detalle del lado Wansoft (copias de Wansoft); costos de todas las sucursales, calculados con Wansoft u Odoo según la sucursal (sección 5.2)</td></tr>
   <tr><td>Canónica</td><td><code>canonical_purchase_*</code></td><td>Interna: compras de Odoo y Wansoft en un mismo formato. Mejor usar la capa analítica</td></tr>
   <tr><td><b>Analítica (lista para negocio)</b></td><td><code>analytics_*</code></td><td>Compras e inventario de todas las sucursales, ambas fuentes ya unidas</td></tr>
   <tr><td>Dimensiones</td><td><code>dim_company_analytical</code>, <code>dim_product</code>, <code>dim_vendor</code>, <code>dim_time</code></td><td>Descripciones y atributos para la capa analítica</td></tr>
@@ -124,7 +124,8 @@ datos reales el 28 de septiembre de 2026.
   une sin traslape</b> (sección 5.3). No reconstruyas la unión desde las tablas crudas.</li>
   <li><b>Los datos se cargan una vez al día, alrededor de la 01:30, hasta el día
   anterior.</b> Cada corrida vuelve a revisar los días recientes (ventas 10
-  días, costos/inventario de Wansoft 5, compras 35), así que los últimos días
+  días, costos y tablajería 10, facturas/inventario/cierre de caja de Wansoft 5,
+  compras 35), así que los últimos días
   todavía pueden cambiar.</li>
   <li>Las tablas de costos son <b>fotos acumuladas</b>, no montos diarios (sección 5.2).</li>
 </ol>
@@ -218,7 +219,7 @@ datos reales el 28 de septiembre de 2026.
   <tr><td>Ventas: pagos por ticket</td><td><code>getallordenesbyday_new_pago</code></td><td>Wansoft</td><td>2025-01-01</td><td>Antes de 2025 no hay pagos por ticket; usa el cierre de caja</td></tr>
   <tr><td>Cierre de caja diario</td><td><code>getglobalcashclosing</code></td><td>Wansoft</td><td>2022-01-01</td><td>—</td></tr>
   <tr><td>Costo de venta diario</td><td><code>gettotalcostbydate</code></td><td>Wansoft u Odoo (5.2)</td><td>2021-07-31</td><td>—</td></tr>
-  <tr><td>Costo mensual acumulado</td><td><code>costeomensual</code></td><td>Wansoft u Odoo (5.2)</td><td>2022-01-01</td><td>—</td></tr>
+  <tr><td>Costo mensual acumulado</td><td><code>costeomensual</code></td><td>Wansoft u Odoo (5.2)</td><td>2022-01-01</td><td>Puebla y CentroMyJ con costo desde julio de 2026 (5.2)</td></tr>
   <tr><td>Costo semanal acumulado</td><td><code>costeomensual_semanapyq</code></td><td>Wansoft u Odoo (5.2)</td><td>2024-01-02</td><td>—</td></tr>
   <tr><td>Tablajería</td><td><code>gettablajeriareport</code></td><td>Wansoft</td><td>2022-01-01</td><td>Va de salida (sección 5.2)</td></tr>
   <tr><td>Facturas de proveedor por cuenta contable</td><td><code>getexpenses_factura</code></td><td>Wansoft</td><td>2019-02-18</td><td>El histórico más antiguo; solo mientras la sucursal captura en Wansoft</td></tr>
@@ -291,8 +292,8 @@ montos son <b>valor de venta</b>. Úsalo para cuadrar los totales del día.</p>
 <table>
   <tr><th style="width: 38%;">Tipo de sucursal</th><th>Fuente del costo hoy</th></tr>
   <tr><td>Solo Wansoft</td><td>Reporte de costos de Wansoft</td></tr>
-  <tr><td>Migrada a Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán; desde 2026-10-01 también Isabel La Católica, San Jeronimo, Vía Vallejo)</td><td>Odoo desde su fecha de arranque (sección 3); Wansoft antes</td></tr>
-  <tr><td>Nueva, nacida en Odoo (Puebla, CentroMyJ y las que abran después)</td><td>Odoo</td></tr>
+  <tr><td>Migrada a Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán, Isabel La Católica, San Jeronimo, Vía Vallejo)</td><td>Wansoft hasta el 30 de septiembre de 2026; Odoo desde el 1 de octubre</td></tr>
+  <tr><td>Nueva, nacida en Odoo (Puebla, CentroMyJ y las que abran después)</td><td>Odoo desde su apertura. Odoo no tiene costo de venta de CentroMyJ antes de julio de 2026 ni de Puebla antes del 27 de julio de 2026: esos días valen 0</td></tr>
   <tr><td><b>Antenas (excepción temporal)</b></td><td>Wansoft, mientras se repara su base de datos en Odoo</td></tr>
 </table>
 
@@ -469,7 +470,8 @@ no tienen sucursal en el punto de venta.</p>
 <ul>
   <li>Pipeline diario a la <b>01:30</b> (hora de Ciudad de México); datos hasta el día anterior.</li>
   <li>Revisiones continuas: ventas 10 días (cuadradas contra el cierre diario de
-  Wansoft), costos/inventario/cierre de caja de Wansoft 5 días, compras 35 días.</li>
+  Wansoft), costos y tablajería 10 días, facturas/inventario/cierre de caja de
+  Wansoft 5 días, compras 35 días.</li>
   <li>Wansoft puede recalcular sus costos después; manda la foto más reciente.</li>
   <li>Respaldo semanal los jueves a las 18:00. Evita consultas pesadas entre la
   01:30 y las 03:00.</li>

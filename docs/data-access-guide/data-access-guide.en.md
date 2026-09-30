@@ -6,7 +6,7 @@ Audience: external teams building their own ETL on top of these databases (for
 example, a question-and-answer / chatbot layer). It tells you **which table to
 use for each business question, which fields matter, how tables join, and the
 traps to avoid**. Every rule here was checked against the live schema and data
-on 2026-09-28. PDF version: [data-access-guide.en.pdf](data-access-guide.en.pdf).
+on 2026-09-28 and updated on 2026-09-30. PDF version: [data-access-guide.en.pdf](data-access-guide.en.pdf).
 
 ## Contents
 
@@ -41,15 +41,15 @@ Source systems behind them:
 
 | Source | What it provides | How it arrives |
 |---|---|---|
-| **Wansoft** (POS/ERP) | Sales for all branches, costs, cash closing, and purchases/inventory for branches not yet on Odoo | Daily download via its SOAP API |
-| **Odoo** | Purchases and inventory for the branches migrated to Odoo | Daily read-only extraction |
+| **Wansoft** (POS/ERP) | Sales and cash closing for all branches; costs, purchases and inventory for branches not yet on Odoo, and the others' history | Daily download via its SOAP API |
+| **Odoo** | Purchases, inventory and costs of the branches operating on Odoo, from their start date | Daily read-only extraction |
 | **Zenput** | Checklists and tasks | Daily API download |
 
 Layers inside `wansoft`:
 
 | Layer | Tables | Use it for |
 |---|---|---|
-| Raw Wansoft copies | `get*`, `costeomensual*` | Sales, costs, cash closing, Wansoft-side detail |
+| Operational tables | `get*`, `costeomensual*` | Sales, cash closing and Wansoft-side detail (Wansoft copies); costs of every branch, computed from Wansoft or Odoo per branch (Section 5.2) |
 | Canonical | `canonical_purchase_*` | Internal: Odoo and Wansoft purchases merged into one shape. Prefer the analytics layer |
 | **Analytics (business-ready)** | `analytics_*` | Purchases and inventory for all branches, both sources merged |
 | Dimensions | `dim_company_analytical`, `dim_product`, `dim_vendor`, `dim_time` | Descriptions and attributes for the analytics layer |
@@ -80,8 +80,8 @@ Layers inside `wansoft`:
    merges them without overlap** (Section 5.3). Do not rebuild the merge from raw
    tables.
 6. **Data is loaded once a day, at about 01:30, through the previous day.** Each
-   run also re-checks recent days (sales 10 days, Wansoft costs/inventory 5,
-   purchases 35), so the last few days can still change.
+   run also re-checks recent days (sales 10 days, costs and butchery 10,
+   Wansoft invoices/inventory/cash closing 5, purchases 35), so the last few days can still change.
 7. Costs tables are **cumulative snapshots**, not daily amounts (Section 5.2).
 
 ---
@@ -163,7 +163,7 @@ Dates measured in production on 2026-09-28. Tables keep filling daily through th
 | Sales: payments per ticket | `getallordenesbyday_new_pago` | Wansoft | 2025-01-01 | No payments per ticket before 2025; use the cash closing |
 | Daily cash closing | `getglobalcashclosing` | Wansoft | 2022-01-01 |  |
 | Daily cost of sales | `gettotalcostbydate` | Wansoft or Odoo (5.2) | 2021-07-31 |  |
-| Month-to-date cost | `costeomensual` | Wansoft or Odoo (5.2) | 2022-01-01 |  |
+| Month-to-date cost | `costeomensual` | Wansoft or Odoo (5.2) | 2022-01-01 | Puebla and CentroMyJ have costs from July 2026 (5.2) |
 | Week-to-date cost | `costeomensual_semanapyq` | Wansoft or Odoo (5.2) | 2024-01-02 |  |
 | Butchery yields | `gettablajeriareport` | Wansoft | 2022-01-01 | Being phased out (Section 5.2) |
 | Supplier invoices by accounting account | `getexpenses_factura` | Wansoft | 2019-02-18 | The oldest history; only while a branch enters purchases in Wansoft |
@@ -231,8 +231,8 @@ Where each branch's cost comes from:
 | Branch type | Cost source today |
 |---|---|
 | Wansoft only | Wansoft cost report |
-| Migrated to Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán; from 2026-10-01 also Isabel La Católica, San Jeronimo, Vía Vallejo) | Odoo from its start date (Section 3); Wansoft before |
-| New, born on Odoo (Puebla, CentroMyJ and any branch opened later) | Odoo |
+| Migrated to Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán, Isabel La Católica, San Jeronimo, Vía Vallejo) | Wansoft through 2026-09-30; Odoo from 2026-10-01 |
+| New, born on Odoo (Puebla, CentroMyJ and any branch opened later) | Odoo since it opened. Odoo has no cost of sales for CentroMyJ before July 2026 nor for Puebla before 2026-07-27: those days are 0 |
 | **Antenas (temporary exception)** | Wansoft, while its Odoo database is repaired |
 
 Odoo cost is computed from Odoo accounting (direct-cost accounts) and stored in
@@ -240,8 +240,8 @@ the same tables. It fills `CostoTotal`, `CostoDeProductosVendidos` and
 `CostoDeMerma`; `CostoDeCortesías` and `CostoDeCancelaciones` come from the
 cash closing; the other columns stay empty (no Odoo equivalent). **In Odoo rows the columns with no equivalent are NULL**: use `COALESCE(column, 0)`
 when adding or subtracting, or the result is NULL (e.g. `CostoTotal - CostoDeConsumo`
-is NULL for Puebla). The switch is
-per day: days before the start date keep Wansoft's cost.
+is NULL for Puebla). The switch is per day: days before the start date keep
+Wansoft's cost.
 
 Keyed by `subsidiary_id` (Wansoft id). All three are **snapshots**:
 
@@ -389,7 +389,8 @@ key; some Zenput locations have no POS branch.
 
 - Daily pipeline at **01:30** (Mexico City time); data through the previous day.
 - Rolling re-checks: sales 10 days (reconciled against Wansoft's own daily close),
-  Wansoft costs/inventory/cash closing 5 days, purchases 35 days.
+  costs and butchery 10 days, Wansoft invoices/inventory/cash closing 5 days,
+  purchases 35 days.
 - Costs in Wansoft can be recalculated by Wansoft after the fact; the latest
   snapshot wins.
 - Weekly backup Thursdays 18:00. Avoid heavy queries at 01:30–03:00.
