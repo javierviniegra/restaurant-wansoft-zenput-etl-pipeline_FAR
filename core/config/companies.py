@@ -54,13 +54,13 @@ WANSOFT_SUBSIDIARY_SOURCE_KEY = {
 COMPANY_SOURCE = {
     "Acoxpa": "odoo",
     "Aeropuerto": "wansoft",
-    "Isabel La Católica": "wansoft",
+    "Isabel La Católica": "odoo",  # October wave: Odoo from 2026-10-01 (policy start date)
     "Antenas": "odoo",
     "Taquería parroquia": "wansoft",
-    "Vía Vallejo": "wansoft",
+    "Vía Vallejo": "odoo",  # October wave: Odoo from 2026-10-01 (policy start date)
     "Viaducto": "wansoft",
     "Taquería Viaducto": "wansoft",
-    "San Jeronimo": "wansoft",
+    "San Jeronimo": "odoo",  # October wave: Odoo from 2026-10-01 (policy start date)
     "Tepeyac": "odoo",
     "Playa del Carmen": "wansoft",
     "Oceanía": "odoo",

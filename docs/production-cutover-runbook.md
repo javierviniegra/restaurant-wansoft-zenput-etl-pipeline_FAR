@@ -280,7 +280,12 @@ Section 17.6.
    account with `ALL` on `wansoft` for this step (decide which on the day).
 3c. **Odoo start 2026-10-01 for the migrated branches** (owner, 2026-09-29):
    run `sql/migrations/cutover_04_migrated_branches_start_oct1.sql` against
-   `wansoft` (expect `rows_updated_expected_5` = 5), then, **after step 4**
+   `wansoft` (expect `rows_updated_expected_5` = 5) and
+   `sql/migrations/cutover_05_october_wave_relabel_wansoft_history.sql`
+   (relabels the October wave's Wansoft history, about 190K lines on dev; the
+   COMPANY_SOURCE flip of Isabel, San Jerónimo and Vía Vallejo is already in the
+   code since commit of 2026-09-30, so step 1 only needs the Odoo check), with
+   `--default-character-set=utf8mb4`. Then, **after step 4**
    (the `.env` must already point at `wansoft`), one purchases + analytics run
    with a Wansoft window reaching back before June, so the June-September
    Wansoft invoices of Acoxpa, Antenas, Tepeyac, Oceanía and Coyoacán are
