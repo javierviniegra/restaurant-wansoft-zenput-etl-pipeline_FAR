@@ -675,7 +675,9 @@ Amounts here are <strong>sale value</strong>. Use it to reconcile daily totals.<
 <p>Odoo cost is computed from Odoo accounting (direct-cost accounts) and stored in
 the same tables. It fills <code>CostoTotal</code>, <code>CostoDeProductosVendidos</code> and
 <code>CostoDeMerma</code>; <code>CostoDeCortesías</code> and <code>CostoDeCancelaciones</code> come from the
-cash closing; the other columns stay empty (no Odoo equivalent). The switch is
+cash closing; the other columns stay empty (no Odoo equivalent). <strong>In Odoo rows the columns with no equivalent are NULL</strong>: use <code>COALESCE(column, 0)</code>
+when adding or subtracting, or the result is NULL (e.g. <code>CostoTotal - CostoDeConsumo</code>
+is NULL for Puebla). The switch is
 per day: days before the start date keep Wansoft's cost.</p>
 <p>Keyed by <code>subsidiary_id</code> (Wansoft id). All three are <strong>snapshots</strong>:</p>
 <table class="compacta">
@@ -716,7 +718,7 @@ per day: days before the start date keep Wansoft's cost.</p>
 <tbody>
 <tr>
 <td>Costo Total</td>
-<td><code>CostoTotal - CostoDeConsumo</code></td>
+<td><code>CostoTotal - COALESCE(CostoDeConsumo, 0)</code></td>
 </tr>
 <tr>
 <td>Costo Teórico</td>
@@ -738,7 +740,7 @@ per day: days before the start date keep Wansoft's cost.</p>
 </table>
 <pre class="bloque-codigo">-- Month cost per branch: last snapshot of the month
 SELECT c.subsidiary_id, c.subsidiary_name, c.created_date,
-       c.CostoTotal - c.CostoDeConsumo AS costo_total,
+       c.CostoTotal - COALESCE(c.CostoDeConsumo, 0) AS costo_total,
        c.CostoDeProductosVendidos AS costo_teorico
 FROM costeomensual c
 JOIN (SELECT subsidiary_id, MAX(created_date) AS d

@@ -15,6 +15,7 @@ before the start date is pilot noise or empty, overwriting good Wansoft
 snapshots. Start dates come from odoo_company_migration_policy, the same
 table the purchases layer uses.
 """
+import os
 from datetime import date, datetime
 
 from core.config.companies import (
@@ -62,7 +63,18 @@ def costs_source(company_key, day, start_dates):
 
 
 def split_subsidiaries(subsidiaries, window_start, window_end, start_dates):
-    """(wansoft_list, odoo_list): a branch is in a list if any day of the window uses that source."""
+    """
+    (wansoft_list, odoo_list): a branch is in a list if any day of the window uses that source.
+
+    COSTS_ONLY_BRANCHES (optional env var, comma-separated short keys) limits a
+    run to those branches: used for one-off backfills with a long
+    COSTS_LOOKBACK_DAYS, e.g. Puebla and CentroMyJ at the cutover, without
+    re-asking Wansoft for months of every other branch. Unset in the nightly run.
+    """
+    only = {b.strip() for b in os.getenv("COSTS_ONLY_BRANCHES", "").split(",") if b.strip()}
+    if only:
+        subsidiaries = [s for s in subsidiaries if s["nombreCorto"] in only]
+        print(f"[COSTS_ONLY_BRANCHES] limitado a: {sorted(s['nombreCorto'] for s in subsidiaries)}")
     wansoft, odoo = [], []
     for s in subsidiaries:
         if costs_source(s["nombreCorto"], window_start, start_dates) == "wansoft":

@@ -244,7 +244,9 @@ El costo de Odoo se calcula desde su contabilidad (cuentas de costo directo) y
 se guarda en las mismas tablas. Trae `CostoTotal`, `CostoDeProductosVendidos`
 y `CostoDeMerma`; `CostoDeCortesías` y `CostoDeCancelaciones` vienen del cierre
 de caja; el resto de las columnas queda vacío (no tiene equivalente en Odoo).
-El cambio de fuente aplica por día: los días anteriores al arranque conservan
+**En las filas de Odoo las columnas sin equivalente son NULL**: usa
+`COALESCE(columna, 0)` al restar o sumar, o el resultado sale NULL (por ejemplo,
+`CostoTotal - CostoDeConsumo` da NULL en Puebla). El cambio de fuente aplica por día: los días anteriores al arranque conservan
 el costo de Wansoft.
 
 Identificados por `subsidiary_id` (ID de Wansoft). Las tres son **fotos**:
@@ -261,7 +263,7 @@ Campos de `costeomensual` y cómo los usan los reportes del dueño:
 
 | Cifra del reporte | Fórmula |
 |---|---|
-| Costo Total | `CostoTotal - CostoDeConsumo` |
+| Costo Total | `CostoTotal - COALESCE(CostoDeConsumo, 0)` |
 | Costo Teórico | `CostoDeProductosVendidos` |
 | Gasto de Venta | `CostoDeConsumo` |
 | Costo de Mermas | `CostoDeMerma` |
@@ -270,7 +272,7 @@ Campos de `costeomensual` y cómo los usan los reportes del dueño:
 ```sql
 -- Costo del mes por sucursal: última foto del mes
 SELECT c.subsidiary_id, c.subsidiary_name, c.created_date,
-       c.CostoTotal - c.CostoDeConsumo AS costo_total,
+       c.CostoTotal - COALESCE(c.CostoDeConsumo, 0) AS costo_total,
        c.CostoDeProductosVendidos AS costo_teorico
 FROM costeomensual c
 JOIN (SELECT subsidiary_id, MAX(created_date) AS d

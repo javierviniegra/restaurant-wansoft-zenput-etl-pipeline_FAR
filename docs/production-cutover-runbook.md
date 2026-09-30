@@ -329,6 +329,23 @@ Section 17.6.
    September, Puebla `odoo` from June; the canonical validation then passes
    8/8 (it needed a date-aware fix, commit `66b7f27`, to accept migrated
    branches with no Odoo rows before their start date).
+3d. **Cost history of Puebla and CentroMyJ** (found 2026-09-30): the legacy
+   tasks only read Wansoft's cost report, which is zero for branches born on
+   Odoo, so production holds **zeros** for their monthly, weekly and daily
+   costs since they opened; the nightly cycle only rewrites the last 10 days.
+   **After step 4**, one run of the three cost scripts with a long window,
+   limited to those two branches (`COSTS_ONLY_BRANCHES`, read by
+   `extract/costs/cost_routing.py`):
+
+   ```powershell
+   cd C:\Apps\Wansoft_ETL; $env:COSTS_LOOKBACK_DAYS = '125'; $env:COSTS_ONLY_BRANCHES = 'Puebla,CentroMyJ'; powershell -NoProfile -ExecutionPolicy Bypass -File deploy\run_daily_cycle.ps1 -Only "semana PyQ,descarga Wansoft,costo total por fecha"; Remove-Item Env:COSTS_LOOKBACK_DAYS, Env:COSTS_ONLY_BRANCHES
+   ```
+
+   Tested on dev: monthly cost in 19 s; month-end values CentroMyJ July
+   978,582 / August 877,604, Puebla August 1,156,603. Odoo has no cost-of-sale
+   lines for CentroMyJ in June nor for Puebla before 2026-07-27, so those days
+   stay at Wansoft's zero. Do not use `-Only "Costos"`: it would also run the
+   cash closing and a 125-day butchery load for every branch.
 4. **Switch the `.env`:** `WANSOFT_DB_NAME=wansoft`, `ZENPUT_DB_NAME=zenput`;
    run `python -m scripts.check_env`.
 5. **Enable the daily cycle:** `deploy\register_daily_cycle_task.ps1 -Enable`

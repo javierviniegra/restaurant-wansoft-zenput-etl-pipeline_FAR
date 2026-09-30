@@ -238,7 +238,9 @@ Where each branch's cost comes from:
 Odoo cost is computed from Odoo accounting (direct-cost accounts) and stored in
 the same tables. It fills `CostoTotal`, `CostoDeProductosVendidos` and
 `CostoDeMerma`; `CostoDeCortesías` and `CostoDeCancelaciones` come from the
-cash closing; the other columns stay empty (no Odoo equivalent). The switch is
+cash closing; the other columns stay empty (no Odoo equivalent). **In Odoo rows the columns with no equivalent are NULL**: use `COALESCE(column, 0)`
+when adding or subtracting, or the result is NULL (e.g. `CostoTotal - CostoDeConsumo`
+is NULL for Puebla). The switch is
 per day: days before the start date keep Wansoft's cost.
 
 Keyed by `subsidiary_id` (Wansoft id). All three are **snapshots**:
@@ -255,7 +257,7 @@ Fields in `costeomensual` and how the owner's reports use them:
 
 | Report figure | Formula |
 |---|---|
-| Costo Total | `CostoTotal - CostoDeConsumo` |
+| Costo Total | `CostoTotal - COALESCE(CostoDeConsumo, 0)` |
 | Costo Teórico | `CostoDeProductosVendidos` |
 | Gasto de Venta | `CostoDeConsumo` |
 | Costo de Mermas | `CostoDeMerma` |
@@ -264,7 +266,7 @@ Fields in `costeomensual` and how the owner's reports use them:
 ```sql
 -- Month cost per branch: last snapshot of the month
 SELECT c.subsidiary_id, c.subsidiary_name, c.created_date,
-       c.CostoTotal - c.CostoDeConsumo AS costo_total,
+       c.CostoTotal - COALESCE(c.CostoDeConsumo, 0) AS costo_total,
        c.CostoDeProductosVendidos AS costo_teorico
 FROM costeomensual c
 JOIN (SELECT subsidiary_id, MAX(created_date) AS d

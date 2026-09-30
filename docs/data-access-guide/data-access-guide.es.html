@@ -300,7 +300,9 @@ montos son <b>valor de venta</b>. Úsalo para cuadrar los totales del día.</p>
 se guarda en las mismas tablas. Trae <code>CostoTotal</code>,
 <code>CostoDeProductosVendidos</code> y <code>CostoDeMerma</code>;
 <code>CostoDeCortesías</code> y <code>CostoDeCancelaciones</code> vienen del cierre
-de caja; el resto de las columnas queda vacío (no tiene equivalente en Odoo). El
+de caja; el resto de las columnas queda vacío (no tiene equivalente en Odoo). <b>En las filas de Odoo las columnas sin equivalente son NULL</b>: usa
+<code>COALESCE(columna, 0)</code> al restar o sumar, o el resultado sale NULL (por ejemplo,
+<code>CostoTotal - CostoDeConsumo</code> da NULL en Puebla). El
 cambio de fuente aplica por día: los días anteriores al arranque conservan el
 costo de Wansoft.</p>
 
@@ -318,7 +320,7 @@ fila por (<code>subsidiary_id</code>, <code>created_date</code>).</p>
 <p>Campos de <code>costeomensual</code> y cómo los usan los reportes de la dirección:</p>
 <table>
   <tr><th style="width: 36%;">Cifra del reporte</th><th>Fórmula</th></tr>
-  <tr><td>Costo Total</td><td><code>CostoTotal - CostoDeConsumo</code></td></tr>
+  <tr><td>Costo Total</td><td><code>CostoTotal - COALESCE(CostoDeConsumo, 0)</code></td></tr>
   <tr><td>Costo Teórico</td><td><code>CostoDeProductosVendidos</code></td></tr>
   <tr><td>Gasto de Venta</td><td><code>CostoDeConsumo</code></td></tr>
   <tr><td>Costo de Mermas</td><td><code>CostoDeMerma</code></td></tr>
@@ -327,7 +329,7 @@ fila por (<code>subsidiary_id</code>, <code>created_date</code>).</p>
 
 <pre class="bloque-codigo">-- Costo del mes por sucursal: última foto del mes
 SELECT c.subsidiary_id, c.subsidiary_name, c.created_date,
-       c.CostoTotal - c.CostoDeConsumo AS costo_total,
+       c.CostoTotal - COALESCE(c.CostoDeConsumo, 0) AS costo_total,
        c.CostoDeProductosVendidos AS costo_teorico
 FROM costeomensual c
 JOIN (SELECT subsidiary_id, MAX(created_date) AS d
