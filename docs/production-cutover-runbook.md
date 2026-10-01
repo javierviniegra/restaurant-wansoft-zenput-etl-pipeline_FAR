@@ -17,7 +17,7 @@ day-by-day history lives in `PROJECT_CONTEXT_REPORT.md` (Section 17).
 
 | | Tasks VM | Database machine |
 |---|---|---|
-| Name | `DESKTOP-1HTRVT4` (Hyper-V guest) | `DESKTOP-5DELBQN`, internal `192.168.100.183` |
+| Name | `DESKTOP-1HTRVT4` (Hyper-V VM `Analisis_BI`) | `DESKTOP-5DELBQN` (Hyper-V VM `WansoftServer`), internal `192.168.100.183` |
 | Runs as | `analisisbi` | RDP administrator |
 | Hosts | Scheduled tasks, `C:\Apps\Wansoft_ETL` (repo + `.venv`), backups in `C:\Backups\mysql`, MariaDB client tools in `C:\Backups\mariadb-client\mariadb-10.4.28-winx64\bin` | XAMPP MariaDB 10.4.28, phpMyAdmin |
 | Does NOT host | MySQL | Any pipeline or task |
@@ -27,8 +27,12 @@ Rules:
 - **Every command below runs on the tasks VM** unless it says otherwise. The VM
   reaches the database over the internal network with
   `C:\Backups\mysql\backup.cnf` (user `backup`, host `192.168.100.183`).
+- Both VMs run on the Hyper-V host `SVR-HIKCENTER`; checkpoints and any
+  VM-level operation are done there.
 - Until cutover, the new pipeline writes **only** to `wansoft_prueba` and
   `zenput_prueba`. The VM's `core\config\.env` points there as a fail-safe.
+  **Since the 2026-10-01 cutover it points at the live `wansoft` / `zenput`**
+  (Section 6.1): a manual run on the VM writes to production.
 - `restore_mysql.ps1` refuses to restore onto live names (`wansoft`, `zenput`,
   `odoo`, ...). At cutover the schema/data changes are applied with the `mysql`
   client directly (Step 6), never with the restore script.
@@ -359,6 +363,117 @@ Section 17.6.
    `docs/data-access-guide/` together with the credentials.
 7. Validate the first nights (10-01 to 10-03) **against real source data and against past weeks**, not Power BI (after the cutover Power BI reads the new database itself, so comparing against it proves nothing; owner, 2026-09-30): (a) source check: sales against Wansoft's daily Z close (the Candado already reconciles it nightly), Odoo-sourced purchases against Odoo, costs against the Wansoft or Odoo cost report per branch; (b) purchases against Wansoft for every branch still entering purchases there: Wansoft-only branches (warehouse vs Wansoft) and Odoo branches still capturing in Wansoft in parallel (Odoo vs Wansoft, read live from the Wansoft API, read-only, since the pipeline no longer stores their Wansoft invoices; compare against the Costo operativo bucket); (c) coherence: per branch, daily/weekly sales, tickets, purchases and cost against the same weekdays of the previous 4 weeks, flagging zero days, doubled values and October-wave branches without Odoo purchases.
 
+### 6.1 What actually ran on 2026-10-01 (cutover log, all steps OK)
+
+Exact commands as executed, with measured times, so the next deployment can be
+scripted from them. Machines: **host** = Hyper-V host `SVR-HIKCENTER`; **DB** =
+`WansoftServer` VM (`DESKTOP-5DELBQN`, 192.168.100.183); **VM** = tasks VM
+`Analisis_BI` (`DESKTOP-1HTRVT4`, user `analisisbi`); **dev** = dev PC.
+In every VM block `$bin = 'C:\Backups\mariadb-client\mariadb-10.4.28-winx64\bin'`.
+
+| # | Time | Where | Step | Result |
+|---|---|---|---|---|
+| 1 | early morning | VM | Disable the 12 `FondaCroned_*` (they last ran 01:00-06:30) | 12 `Disabled` |
+| 2 | 09:19-09:52 | VM | `backup_mysql.ps1`, copy to `PRE_CORTE_2026-10-01` | `20261001_091949`, wansoft 3,392.6 MB in 32.2 min |
+| - | morning | host | Unplanned: delete unattached VHD/AVHDX of VMs removed weeks earlier | C: free 9 → 218 GB |
+| 3 | 10:30-10:32 | DB + host | MySQL stopped (XAMPP) 10:30:07, checkpoints, MySQL started 10:32:00 | 2 checkpoints, 218.2 GB still free |
+| 4 | 10:35-10:42 | dev | Fresh dump of the 41 tables + 2 views | 6.75 min, 175,943,354 bytes, all 4 checks pass |
+| 5.1 | ~11:00 | VM | Decompress + load into `wansoft` | 11.2 min, 63 tables + 2 views |
+| 5.2 | | VM | `cutover_02_small_tables.sql` | 48 / 48 deleted, 4 keys |
+| 5.3 | | VM | `cutover_03` steps A-E one by one | A 26.6 min (61,125 / 138,495 / 77,370), B identical, C 77,370 deleted, D 3.8 min, final 59 tables + 2 views |
+| 5.4 | | VM | `cutover_04` | 5 rows updated |
+| 5.5 | | VM | `cutover_05` | 0 relabelled (already applied on dev, so it arrived in the dump) |
+| 6 | | VM | `.env` → `wansoft` / `zenput`; `check_env` | 11 passed, 0 failed (1 expected WARN: `COSTS_LOOKBACK_DAYS` uses the code default) |
+| 7a | 12:23-13:12 | VM | Purchases + analytics, `PURCHASES_LOOKBACK_DAYS=125` | 49.2 min, 0 failed (purchases 5.7 min, **analytics 43.5 min**, rehearsal 14.9) |
+| 7b | 13:17-13:18 | VM | Costs backfill Puebla/CentroMyJ (3 stages, 125 days) | 1.2 min, 0 failed |
+| 8 | | VM | `register_daily_cycle_task.ps1 -Enable -Time 01:30` | Ready, next run 2026-10-02 01:30, AnalisisBI, Highest |
+| 9 | | DB | tukanmx users as root in phpMyAdmin (host `'%'`, no IPs given yet) | 22 table grants + `zenput.*`; access test passed |
+| 10 | | VM | Final review; `Wansoft_Restore_Ensayo` unregistered; temp files deleted | |
+
+**Step 3, checkpoints (host, elevated PowerShell):**
+
+```powershell
+Checkpoint-VM -Name 'WansoftServer' -SnapshotName 'PRE_CORTE_2026-10-01'; Checkpoint-VM -Name 'Analisis_BI' -SnapshotName 'PRE_CORTE_2026-10-01'; Get-VMSnapshot -VMName 'WansoftServer','Analisis_BI' | Format-Table VMName, Name, CreationTime -AutoSize; Get-PSDrive C | Format-Table @{n='LibreGB';e={[math]::Round($_.Free/1GB,1)}}
+```
+
+Both VMs use `CheckpointType Production`. `WansoftServer` also keeps its two
+checkpoints of April 2024 (merge planned for a weekend, not during a cutover:
+it rewrites hundreds of GB on the same disk the database uses). Use
+`Format-Table` explicitly when one PowerShell line prints several kinds of
+objects, otherwise columns of the later ones are silently dropped.
+
+**Step 4, dump (dev, Git Bash).** The object list is read from the previous
+dump so it cannot drift (`grep -oE '^(CREATE TABLE|/\*!50001 VIEW) `[^`]+`'`);
+on 2026-10-01 dev had 55 tables + 2 views and none created since 09-28. Checks:
+`Dump completed` = 1, `DEFINER=` = 0, `CREATE TABLE` = 41, `/*!50001 VIEW` = 2,
+`` `wansoft`. `` = 0. Uncompressed size 2,035,284,204 bytes. SHA256 of the
+`.gz` compared on the VM after the copy (`Get-FileHash ... -eq '<hash>'`).
+
+**Step 5, write access to `wansoft` (VM).** Account: `wansoftuser` (has `ALL` on
+`wansoft`; its password is already in the VM's `.env`). A temporary option file
+is generated from the `.env` without showing the secret, locked to analisisbi,
+SYSTEM and Administrators, and **deleted at the end of the day**:
+
+```powershell
+$cnf='C:\Backups\mysql\wansoft_write.cnf'; $e=@{}; foreach($l in Get-Content 'C:\Apps\Wansoft_ETL\core\config\.env'){ if($l -match '^\s*(WANSOFT_DB_(HOST|PORT|USER|PASSWORD))\s*=\s*(.*)$'){ $e[$matches[1]]=$matches[3].Trim().Trim('"').Trim("'") } }; $p=$e['WANSOFT_DB_PASSWORD'].Replace('\','\\').Replace('"','\"'); $port=if($e['WANSOFT_DB_PORT']){$e['WANSOFT_DB_PORT']}else{'3306'}; [IO.File]::WriteAllText($cnf, "[client]`r`nhost=$($e['WANSOFT_DB_HOST'])`r`nport=$port`r`nuser=$($e['WANSOFT_DB_USER'])`r`npassword=`"$p`"`r`n", (New-Object Text.ASCIIEncoding)); icacls $cnf /inheritance:r /grant:r "analisisbi:F" "SYSTEM:F" "Administradores:F" | Out-Null
+```
+
+(ASCII without BOM: MariaDB's option-file parser rejects a BOM.) Decompress
+with .NET (`IO.Compression.GZipStream`) and compare the length with the size
+measured on dev; then:
+
+```powershell
+& "$bin\mysql.exe" --defaults-extra-file=$cnf --default-character-set=utf8mb4 --database=wansoft --execute="source C:/Backups/mysql/NUEVAS_20261001/wansoft_nuevas.sql"
+```
+
+Before part 2, check duplicates on **all four** tables that get a unique key,
+not only `costeomensual_semanapyq` (expected 48 / 0 / 0 / 0); a new duplicate
+would make its `ALTER` fail half-way through the file. Part 3 was run as five
+separate `-e` commands copied from the file's steps A-E, checking each result.
+Parts 4 and 5 with `--default-character-set=utf8mb4`. Before part 4/5, check on
+dev whether they were already applied there: whatever dev has arrives with the
+dump (part 5 had been, so it relabelled 0 rows).
+
+**Step 7a, verification of the purchases switch** (by branch and month, only
+`include_in_business_views = 1`): the five migrated branches show only
+`wansoft` May-September and `odoo` from October (Acoxpa, Oceanía already had
+October Odoo lines at 13:15); Puebla and CentroMyJ `odoo` from June; no month
+with both systems. Totals after the rebuild: 801,670 lines (739,886 business),
+155,074 orders, 669,831 daily rows; dev on 09-24 had 802,637 / 739,794 /
+155,217.
+
+**Step 7b, verification of the costs backfill** (`costeomensual`, month-end
+`CostoTotal`): CentroMyJ July 978,581.55, August 877,603.88 (identical to dev),
+September 772,434.77; Puebla July 102,389.11, August 1,156,603.26 (identical to
+dev), September 816,400.38. Remaining zero days are the expected ones:
+CentroMyJ June (16 days), Puebla June (25) and July 1-26 (no Odoo cost of
+sales before 2026-07-27).
+
+**Step 9, tukanmx access test (VM; the password is typed at the prompt):**
+
+```powershell
+& "$bin\mysql.exe" -h 192.168.100.183 -u tukan_wansoft -p -t --database=wansoft -e "SELECT COUNT(*) AS dias_calendario FROM dim_time; SELECT COUNT(*) FROM canonical_purchase_order_snapshot;"
+```
+
+Expected and obtained: 5,844 rows, then `ERROR 1142 ... SELECT command denied`.
+Passwords were generated locally (24 alphanumeric characters) and never put in
+git or in the chat.
+
+**Step 10, final state of the VM's tasks:** 12 `FondaCroned_*` Disabled;
+`Wansoft_Update_Repo_Diario` 00:30, `Wansoft_Pipeline_Diario` 01:30,
+`Wansoft_Backup_MySQL_Semanal` Thursday 18:00 (first automatic run that day),
+all Ready; the 4 ControlPresupuestos_AP tasks untouched (result 0);
+`Wansoft_Restore_Ensayo` (one-shot of 09-25) unregistered. Deleted:
+`C:\Backups\mysql\wansoft_write.cnf` and the uncompressed `wansoft_nuevas.sql`
+(the `.gz` is kept). `FondaCroned_getInputInventory` shows last result
+**267014** (0x41306, terminated by the user): its 01:05 run was still going
+when the tasks were disabled, so Wansoft entries of 09-30 may be incomplete;
+the new cycle's 5-day window reloads them.
+
+**Rollback (if ever needed):** on the host `Restore-VMSnapshot -VMName 'WansoftServer' -Name 'PRE_CORTE_2026-10-01' -Confirm:$false` and the same
+for `Analisis_BI`, start both, then re-enable `FondaCroned_*`. Alternative
+without checkpoints: the `PRE_CORTE_2026-10-01` dump folder.
+
 ---
 
 ## 7. Toward full automation
@@ -407,7 +522,10 @@ Coyoacán), while Power BI still reads Wansoft.
   GRANT OPTION`, and it is also the pipeline's write account. Split it: one
   read-only user for comparisons from outside, one write user for the pipeline
   on the internal network only.
-- Until cutover the only thing keeping the pipeline away from the live
-  databases is `WANSOFT_DB_NAME` / `ZENPUT_DB_NAME` in the VM's `.env`, because
-  the same users can write to both. Check those two lines before every manual run.
+- Since the cutover (2026-10-01) the VM's `.env` points at the live `wansoft` /
+  `zenput`: any manual run on the VM writes to production. To rehearse
+  something on the test databases, switch those two lines back first.
 - phpMyAdmin is served over plain http on a public IP: restrict it.
+- `tukan_wansoft` / `tukan_zenput` were created with host `'%'` (tukanmx had
+  not given IP addresses): recreate them for their IPs when known, and add TLS
+  or a firewall rule for 3306.
