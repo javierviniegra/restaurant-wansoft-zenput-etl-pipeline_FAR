@@ -400,6 +400,13 @@ mercancía. Las órdenes de compra de Odoo solo cubren mercancía. Por eso:
   <li>Para compras de mercancía de ambos sistemas, usa la capa analítica.</li>
   <li>Para comparar con los reportes de "Compras" de Wansoft, usa solo
   <code>Cuenta = 'Costo operativo'</code>.</li>
+  <li><b>Odoo y Wansoft no cuadran entre sí para la misma sucursal y mes.</b>
+  Durante la captura en paralelo, las compras de Odoo salieron entre 7% y 19%
+  por encima del <code>Costo operativo</code> de Wansoft (septiembre de 2026:
+  Acoxpa +7.2%, Coyoacán +11.1%, Oceanía +18.5%). Es una diferencia entre los dos
+  sistemas de origen, no un error de carga, y su causa sigue en revisión. La capa
+  analítica no la duplica porque nunca mezcla ambos sistemas para la misma
+  sucursal y día; no compares Odoo contra Wansoft esperando que coincidan.</li>
   <li><b>Gastos que no son mercancía</b> (renta, servicios, software, nómina,
   fletes...) de las sucursales que ya operan en Odoo: hoy <b>no</b> se extraen de
   Odoo. En <code>getexpenses_factura</code> esas sucursales solo tienen sus facturas

@@ -324,6 +324,13 @@ Gastos directos, Sueldos y salarios, Fletes, ...), including services, software
 and payroll that are not goods. Odoo purchase orders only cover goods. So:
 - For goods purchases across both systems, use the analytics layer.
 - To compare with Wansoft's "Compras" reports, use only `Cuenta = 'Costo operativo'`.
+- **Odoo and Wansoft do not match each other for the same branch and month.**
+  During the parallel capture, Odoo purchases came out 7% to 19% above
+  Wansoft's `Costo operativo` (September 2026: Acoxpa +7.2%, Coyoacán +11.1%,
+  Oceanía +18.5%). It is a difference between the two source systems, not a
+  loading error, and its cause is still under review. The analytics layer does
+  not double it because it never mixes both systems for the same branch and
+  day; do not compare Odoo against Wansoft expecting them to match.
 - **Non-goods spend** (rent, services, software, payroll, freight...) of
   branches already operating on Odoo is **not** extracted from Odoo today. In
   `getexpenses_factura` those branches only have invoices up to their Odoo start
