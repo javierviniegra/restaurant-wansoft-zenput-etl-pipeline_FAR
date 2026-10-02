@@ -510,6 +510,17 @@ from the exception set once the owner confirms its Odoo database is
 repaired.** Every new branch needs its migration-policy row, or its costs stay
 on Wansoft (with a warning in the log).
 
+**Update 2026-10-02:** Isabel La Católica, San Jerónimo and Vía Vallejo were
+added to the exception set. They cannot confirm purchases in Odoo until their
+opening inventory balances are loaded, so Odoo had no cost for them and their
+2026-10-01 cost rows were missing (sales were there). Wansoft still computes
+their theoretical cost (merma and consumo come as 0). When the balances are
+loaded, remove them from the set and backfill from 2026-10-01:
+
+```powershell
+cd C:\Apps\Wansoft_ETL; $env:COSTS_LOOKBACK_DAYS = '<days since 2026-10-01>'; $env:COSTS_ONLY_BRANCHES = 'Isabel La Católica,San Jeronimo,Vía Vallejo'; powershell -NoProfile -ExecutionPolicy Bypass -File deploy\run_daily_cycle.ps1 -Only "semana PyQ,descarga Wansoft,costo total por fecha"; Remove-Item Env:COSTS_LOOKBACK_DAYS, Env:COSTS_ONLY_BRANCHES
+```
+
 Consequence to expect in Power BI until it is repointed: the migrated
 branches' costs in the warehouse now come from Odoo (September 1-27: within
 -3% to +5% of Wansoft's Costo Teórico for Acoxpa, Tepeyac, Oceanía and

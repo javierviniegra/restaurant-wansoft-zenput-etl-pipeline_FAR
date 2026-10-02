@@ -152,8 +152,20 @@ def is_company_wansoft_source_for_costs(company_name: str) -> bool:
 # as a TEMPORARY exception: Antenas was the Odoo prototype and its Odoo cost
 # data is broken by pilot tests while that database is repaired. Remove it
 # from this set once the owner confirms the repair.
+# UPDATE 2026-10-02 (owner): the October wave (Isabel La Católica, San
+# Jeronimo, Vía Vallejo) cannot confirm purchases in Odoo until their opening
+# inventory balances are loaded there, so Odoo has no cost for them and their
+# cost rows from 2026-10-01 were missing. Wansoft still computes their
+# theoretical cost from recipes (CostoDeProductosVendidos on 10-01: 49,853 /
+# 39,091 / 25,343, 26-29% of sales); merma and consumo already come as 0
+# because they stopped capturing them in Wansoft. When the balances are
+# loaded: remove them from this set and backfill from 2026-10-01 with
+# COSTS_ONLY_BRANCHES (runbook 3d), not relying on the nightly 10-day window.
 COSTS_WANSOFT_TEMPORARY_EXCEPTIONS = {
     "Antenas",
+    "Isabel La Católica",
+    "San Jeronimo",
+    "Vía Vallejo",
 }
 
 
