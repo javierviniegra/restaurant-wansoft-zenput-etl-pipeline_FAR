@@ -279,6 +279,7 @@ for subsidiary in wansoft_subsidiaries:
 if odoo_subsidiaries:
     from core.database.odoo import get_odoo_connection
     from extract.costs.odoo_cost_report import resolve_odoo_company_id, get_daily_cost
+    from extract.costs.cost_switch import wansoft_period_base
 
     odoo_uid, odoo_models, odoo_db, odoo_password = get_odoo_connection()
 
@@ -333,16 +334,33 @@ if odoo_subsidiaries:
             total_costo = float(row_match.iloc[0]["CostoTotal_wtd"])
             total_productos_costo = float(row_match.iloc[0]["CostoDeProductosVendidos_wtd"])
             costo_merma = float(row_match.iloc[0]["CostoDeMerma_wtd"])
+            # Switch in the middle of the week (owner, 2026-10-02, "D1"; found
+            # live: the 5 branches migrated on Thursday 2026-10-01 lost Monday-
+            # Wednesday of that week): add Wansoft's week-to-date up to the day
+            # before the Odoo start, so every day counts exactly once.
+            if odoo_start is not None:
+                base_total, base_productos, base_merma = wansoft_period_base(
+                    cursor, "costeomensual_semanapyq", subsidiary["id"], odoo_start, current_date)
+                total_costo += base_total
+                total_productos_costo += base_productos
+                costo_merma += base_merma
 
             cursor.execute("""
-                SELECT id, CostoTotal, CostoDeProductosVendidos FROM costeomensual_semanapyq
+                SELECT id, CostoTotal, CostoDeProductosVendidos,
+                       CostoDeConsumo IS NOT NULL OR CostoDeDesperdicio IS NOT NULL OR CostoDeRobo IS NOT NULL
+                       OR AjustePorSobrantes IS NOT NULL OR UtilidadMarginal IS NOT NULL
+                       OR CostoIdealDeProductosPendientesDeRebaja IS NOT NULL
+                       OR CostoDeCortesías IS NOT NULL OR CostoDeCancelaciones IS NOT NULL
+                FROM costeomensual_semanapyq
                 WHERE subsidiary_id = %s AND DATE(created_at) = %s
             """, (subsidiary["id"], fecha_created_at))
             existing_row = cursor.fetchone()
 
             if existing_row:
-                record_id, total_db, productos_db = existing_row
-                if (abs(total_costo - float(total_db)) > 0.01) or (abs(total_productos_costo - float(productos_db)) > 0.01):
+                record_id, total_db, productos_db, has_wansoft_only = existing_row
+                if (abs(total_costo - float(total_db)) > 0.01) or (abs(total_productos_costo - float(productos_db)) > 0.01) or has_wansoft_only:
+                    # Wansoft-only columns cleared (a row that was Wansoft before
+                    # a switch must not keep its old consumo/cortesías) -- 2026-10-02.
                     cursor.execute("""
                         UPDATE costeomensual_semanapyq
                         SET
@@ -350,6 +368,10 @@ if odoo_subsidiaries:
                             CostoTotal = %s,
                             CostoDeProductosVendidos = %s,
                             CostoDeMerma = %s,
+                            CostoDeConsumo = NULL, CostoDeDesperdicio = NULL, CostoDeRobo = NULL,
+                            AjustePorSobrantes = NULL, UtilidadMarginal = NULL,
+                            CostoIdealDeProductosPendientesDeRebaja = NULL,
+                            CostoDeCortesías = NULL, CostoDeCancelaciones = NULL,
                             mes_ano = %s
                         WHERE DATE(created_at) = %s AND subsidiary_id = %s
                     """, (subsidiary["name"], total_costo, total_productos_costo, costo_merma, mes_ano, fecha_created_at, subsidiary["id"]))

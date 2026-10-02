@@ -290,6 +290,7 @@ if odoo_subsidiaries:
     import pandas as pd
     from core.database.odoo import get_odoo_connection
     from extract.costs.odoo_cost_report import resolve_odoo_company_id, get_daily_cost
+    from extract.costs.cost_switch import wansoft_period_base
 
     odoo_uid, odoo_models, odoo_db, odoo_password = get_odoo_connection()
 
@@ -356,6 +357,15 @@ if odoo_subsidiaries:
             total_costo = float(row_match.iloc[0]["CostoTotal_mtd"])
             total_productos_costo = float(row_match.iloc[0]["CostoDeProductosVendidos_mtd"])
             costo_merma = float(row_match.iloc[0]["CostoDeMerma_mtd"])
+            # Switch in the middle of the month (owner, 2026-10-02, "D1"): add
+            # Wansoft's month-to-date up to the day before the Odoo start, so
+            # the month stays whole and every day counts exactly once.
+            if odoo_start is not None:
+                base_total, base_productos, base_merma = wansoft_period_base(
+                    cursor, "costeomensual", subsidiary["id"], odoo_start, current_date)
+                total_costo += base_total
+                total_productos_costo += base_productos
+                costo_merma += base_merma
 
             cursor.execute("""
                 SELECT SUM(cortesias_en_cuentas + cortesias_en_platillos) AS cortesias,
@@ -368,7 +378,10 @@ if odoo_subsidiaries:
             costo_cancelaciones = float(cash_closing_row[1]) if cash_closing_row and cash_closing_row[1] is not None else None
 
             cursor.execute("""
-                SELECT id, CostoTotal, CostoDeProductosVendidos, CostoDeCortesías, CostoDeCancelaciones
+                SELECT id, CostoTotal, CostoDeProductosVendidos, CostoDeCortesías, CostoDeCancelaciones,
+                       CostoDeConsumo IS NOT NULL OR CostoDeDesperdicio IS NOT NULL OR CostoDeRobo IS NOT NULL
+                       OR AjustePorSobrantes IS NOT NULL OR UtilidadMarginal IS NOT NULL
+                       OR CostoIdealDeProductosPendientesDeRebaja IS NOT NULL
                 FROM costeoMensual
                 WHERE subsidiary_id = %s AND DATE(created_at) = %s
             """, (subsidiary["id"], lafecha))
@@ -382,13 +395,17 @@ if odoo_subsidiaries:
                 return abs(new_val - float(old_val)) > 0.01
 
             if existing_row:
-                record_id, total_db, productos_db, cortesias_db, cancelaciones_db = existing_row
+                record_id, total_db, productos_db, cortesias_db, cancelaciones_db, has_wansoft_only = existing_row
                 if (
                     abs(total_costo - float(total_db)) > 0.01
                     or abs(total_productos_costo - float(productos_db)) > 0.01
                     or _differs(costo_cortesias, cortesias_db)
                     or _differs(costo_cancelaciones, cancelaciones_db)
+                    or has_wansoft_only
                 ):
+                    # The Wansoft-only columns are cleared: a row that was
+                    # Wansoft before a switch must not keep its old consumo
+                    # (Power BI subtracts it from CostoTotal) -- 2026-10-02.
                     cursor.execute("""
                         UPDATE costeoMensual
                         SET
@@ -398,6 +415,9 @@ if odoo_subsidiaries:
                             CostoDeMerma = %s,
                             CostoDeCortesías = %s,
                             CostoDeCancelaciones = %s,
+                            CostoDeConsumo = NULL, CostoDeDesperdicio = NULL, CostoDeRobo = NULL,
+                            AjustePorSobrantes = NULL, UtilidadMarginal = NULL,
+                            CostoIdealDeProductosPendientesDeRebaja = NULL,
                             mes_ano = %s
                         WHERE DATE(created_at) = %s AND subsidiary_id = %s
                     """, (subsidiary["name"], total_costo, total_productos_costo, costo_merma,

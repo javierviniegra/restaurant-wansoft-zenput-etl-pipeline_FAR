@@ -14,20 +14,30 @@ per-branch switch would recompute its pre-cutover days from Odoo, whose data
 before the start date is pilot noise or empty, overwriting good Wansoft
 snapshots. Start dates come from odoo_company_migration_policy, the same
 table the purchases layer uses.
+
+Branches in COSTS_AUTO_SWITCH_TO_ODOO (2026-10-02) take Odoo costs only from
+the switch date that extract/costs/cost_switch.py detected and recorded in
+costs_odoo_switch (never before their policy start date); until a switch is
+recorded they stay on Wansoft.
 """
 import os
 from datetime import date, datetime
 
 from core.config.companies import (
     COMPANY_SOURCE,
+    COSTS_AUTO_SWITCH_TO_ODOO,
     COSTS_WANSOFT_TEMPORARY_EXCEPTIONS,
     ODOO_COMPANY_SOURCE_KEY,
 )
 from core.database.mysql import get_db_connection
 
+# Start date of an auto-switch branch with no switch detected yet: no day is on Odoo.
+NOT_SWITCHED = date.max
+
 
 def load_costs_odoo_start_dates():
-    """{company_source_key: operational_start_date} for active migration policies."""
+    """{company_source_key: first day on Odoo costs}: the policy start date, or the detected switch date."""
+    from extract.costs.cost_switch import load_switch_dates
     conn = get_db_connection()
     try:
         cur = conn.cursor()
@@ -35,6 +45,7 @@ def load_costs_odoo_start_dates():
             "SELECT company_name, operational_start_date FROM odoo_company_migration_policy WHERE is_active = 1"
         )
         rows = cur.fetchall()
+        switches = load_switch_dates(conn)
     finally:
         conn.close()
     start_dates = {}
@@ -42,6 +53,13 @@ def load_costs_odoo_start_dates():
         key = ODOO_COMPANY_SOURCE_KEY.get(company_name)
         if key and start:
             start_dates[key] = start
+    for key in COSTS_AUTO_SWITCH_TO_ODOO:
+        switch = switches.get(key)
+        policy_start = start_dates.get(key)
+        if switch is None or policy_start is None:
+            start_dates[key] = NOT_SWITCHED
+        else:
+            start_dates[key] = max(switch, policy_start)
     return start_dates
 
 

@@ -152,26 +152,21 @@ def is_company_wansoft_source_for_costs(company_name: str) -> bool:
 # as a TEMPORARY exception: Antenas was the Odoo prototype and its Odoo cost
 # data is broken by pilot tests while that database is repaired. Remove it
 # from this set once the owner confirms the repair.
-# UPDATE 2026-10-02 (owner): the October wave (Isabel La Católica, San
-# Jeronimo, Vía Vallejo) cannot confirm purchases in Odoo until their opening
-# inventory balances are loaded there, so Odoo has no cost for them and their
-# cost rows from 2026-10-01 were missing. Wansoft still computes their
-# theoretical cost from recipes (CostoDeProductosVendidos on 10-01: 49,853 /
-# 39,091 / 25,343, 26-29% of sales); merma and consumo already come as 0
-# because they stopped capturing them in Wansoft. When the balances are
-# loaded: remove them from this set and backfill from 2026-10-01 with
-# COSTS_ONLY_BRANCHES (runbook 3d), not relying on the nightly 10-day window.
 COSTS_WANSOFT_TEMPORARY_EXCEPTIONS = {
     "Antenas",
-    "Isabel La Católica",
-    "San Jeronimo",
-    "Vía Vallejo",
 }
 
 # Branches whose costs switch from Wansoft to Odoo by themselves, each on the
-# first day Odoo really has cost data for it (extract/costs/cost_switch.py,
-# owner 2026-10-02). Not wired into the routing yet: until it is, the
-# temporary exceptions above keep them on Wansoft.
+# first day Odoo really has cost data for it (owner, 2026-10-02). The October
+# wave (Isabel La Católica, San Jeronimo, Vía Vallejo) cannot confirm
+# purchases in Odoo until their opening inventory balances are loaded, so Odoo
+# has no cost for them yet; Wansoft still computes their theoretical cost
+# (10-01: 49,853 / 39,091 / 25,343, 26-29% of sales; merma and consumo 0).
+# The nightly stage "Costos - cambio automático a Odoo"
+# (pipelines/jobs/costs_switch_job.py, rule in extract/costs/cost_switch.py)
+# records each switch date in costs_odoo_switch, backfills from it and
+# validates; until then extract/costs/cost_routing.py keeps them on Wansoft.
+# (For a few hours on 2026-10-02 they were plain temporary exceptions above.)
 COSTS_AUTO_SWITCH_TO_ODOO = {
     "Isabel La Católica",
     "San Jeronimo",

@@ -2,6 +2,8 @@
 
 This directory contains the primary automated scripts scheduled to run daily. Their main goal is to extract operational data, sales, inventory movements, and expenses from all Fonda Argentina branches using the Wansoft SOAP API.
 
+In production they run inside the nightly cycle `Wansoft_Pipeline_Diario` (01:30 on the tasks VM, `scripts/run_daily_cycle.py`, stage list in `pipelines/scheduler.py`), never as separate scheduled tasks.
+
 ## 🔐 Security & Installation
 This module strictly requires the centralized `.env` and `database.py` files located in the root of the project to run safely without exposing hardcoded passwords or paths.
 1. Ensure the `python-dotenv`, `mysql-connector-python`, and `zeep` packages are installed.
@@ -11,11 +13,35 @@ This module strictly requires the centralized `.env` and `database.py` files loc
 
 Here is a detailed breakdown of what each script does and what data it brings to the MySQL database:
 
-*   **`extractAllOrdersByDay.py`**: A utility script responsible solely for downloading the raw XML files representing the daily orders for each branch[cite: 2]. It saves them locally to avoid overloading the API during subsequent parsing operations.
-*   **`getAllOrdersByDay.py`**: The most critical and complex script in the suite[cite: 1]. It handles the "Candado" (Lock) logic: it compares the sum of sales in the database against the official "Z-Closing" total from Wansoft. If they match, it skips; if there is a discrepancy, it purges the day's records and rewrites the data. It populates four core tables: `_new_Venta`, `_new_DetalleVenta`, `_new_Modificador`, and `_new_Pago`[cite: 1].
-*   **`getCostReport_SemanaPyQ.py`**: Retrieves the weekly cost reports, including the cost of goods sold, margins, and operational costs[cite: 3]. Data is upserted into the `costeomensual_semanapyq` table, tracking historical variances[cite: 3].
-*   **`getExpenses.py`**: Connects to Wansoft to download all registered supplier invoices and expenses (`Facturas`)[cite: 4]. It captures tax details (IVA, IEPS), subtotals, and supplier RFCs, storing them in the `getexpenses_factura` table[cite: 4].
-*   **`getInputInventory.py`**: Tracks all inventory entries (purchases, store transfers)[cite: 5]. It captures unit costs, expiration dates, and quantities, updating the `getinputinventory_entrada` table[cite: 5].
-*   **`getOutgoingInventory.py`**: The counterpart to inputs; it tracks inventory outputs, mapping products to specific departments and warehouses[cite: 6]. It writes to the `getOutgoingInventory_Salida` table[cite: 6].
-*   **`getTablajeriaReport.py`**: A specialized script for meat processing (Tablajería)[cite: 7]. It tracks the yield of base products into generated products (e.g., breaking down a whole cut into steaks), capturing shrinkage (merma) and costs[cite: 7]. Results are stored in `gettablajeriareport`[cite: 7].
-*   **`getTotalCostByDate.py`**: A high-level aggregate script that fetches the total daily cost of sales (`CostoTotalVenta`) and stores it chronologically in `getTotalCostByDate` for quick executive dashboards[cite: 8].
+*   **`extractAllOrdersByDay.py`**: The Sales "Candado" (Lock): downloads the daily orders XML of each branch, compares the database total against Wansoft's official Z-Closing and rewrites a day only when they differ. It populates `getallordenesbyday_new_venta`, `_new_detalleventa`, `_new_modificador` and `_new_pago`. Exits non-zero when not a single XML could be obtained.
+*   **`getAllOrdersByDay.py`**: Older full-range Sales loader; not part of the nightly cycle.
+*   **`getCostReport_SemanaPyQ.py`**: Week-to-date cost (Monday through the day before `created_at`) into `costeomensual_semanapyq`. Wansoft or Odoo per branch and day, see "Cost routing" below.
+*   **`getExpenses.py`**: Downloads Wansoft supplier invoices (`Facturas`) with tax details (IVA, IEPS), subtotals and supplier RFCs into `getexpenses_factura`. Only branches still on Wansoft (`COMPANY_SOURCE`).
+*   **`getInputInventory.py`**: Inventory entries (purchases, transfers) with unit costs, expiration dates and quantities into `getinputinventory_entrada` (upsert by `IdEntrada` + branch). Only branches still on Wansoft.
+*   **`getOutgoingInventory.py`**: Inventory exits by department and warehouse into `getoutgoinginventory_salida` (upsert against the unique key `uq_subsidiary_fecha_idsalida`, added at the 2026-10-01 cutover). Only branches still on Wansoft.
+*   **`getTablajeriaReport.py`**: Butchery yields (base product into generated products, shrinkage, costs) into `gettablajeriareport`. Being phased out as branches move purchases/inventory to Odoo.
+*   **`getTotalCostByDate.py`**: Single-day cost of sales (`CostoTotalVenta`) into `gettotalcostbydate`. Wansoft or Odoo per branch and day, see below.
+
+## 💰 Cost routing: Wansoft or Odoo, per branch and per day
+
+The three cost scripts (`getCostReport_SemanaPyQ.py`, `getTotalCostByDate.py` and `../descargarCostoWansoft/descargarCostoWansoft.py`) decide the source of every (branch, day) with `extract/costs/cost_routing.py`:
+
+1. **Branches on Wansoft** (`COMPANY_SOURCE = "wansoft"` in `core/config/companies.py`): always Wansoft's cost report.
+2. **Branches on Odoo**: Odoo's cost of sales (`extract/costs/odoo_cost_report.py`) from their start date (`odoo_company_migration_policy.operational_start_date`), Wansoft before it. Production since the 2026-10-01 cutover: Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán from 2026-10-01; Puebla and CentroMyJ since they opened (June 2026).
+3. **Temporary exceptions** (`COSTS_WANSOFT_TEMPORARY_EXCEPTIONS`): stay on Wansoft regardless. Today only **Antenas** (its Odoo cost data is broken by pilot-era tests); remove it when the owner confirms the repair.
+4. **Automatic switch** (`COSTS_AUTO_SWITCH_TO_ODOO`, since 2026-10-02): **Isabel La Católica, San Jerónimo and Vía Vallejo** run on Odoo for purchases but cannot post cost of sales there until their opening inventory balances are loaded, so they stay on Wansoft until Odoo really has cost data for each one. The nightly stage **"Costos - cambio automático a Odoo"** (`pipelines/jobs/costs_switch_job.py`, rule in `extract/costs/cost_switch.py`) switches each branch by itself:
+    - rule: the first of **two consecutive days** on which Odoo's daily cost is > 0 and between **0.5x and 2x** Wansoft's cost stored for that day (a test entry or a stray adjustment cannot trigger it);
+    - the switch date is recorded in the table **`costs_odoo_switch`** (branch, date, evidence, backfilled/validated timestamps) and announced with an `[AVISO]` line in the night's log;
+    - the same night it recomputes that branch's three cost tables from the switch date (whatever the 10-day window), then validates them;
+    - days before the switch stay on Wansoft; it never switches back by itself. To undo a switch, delete the branch's row from `costs_odoo_switch`.
+    - Check what the rule decides today, read-only: `python -m extract.costs.cost_switch --prod`.
+
+**Month/week to date across a switch in the middle of a period** (owner, 2026-10-02): on Odoo days, `costeomensual` and `costeomensual_semanapyq` add Wansoft's accumulation of the same month/week up to the day before the switch (`wansoft_period_base`), so the period stays whole and every day counts exactly once. Before this, the five branches migrated on Thursday 2026-10-01 lost Monday-Wednesday of that week.
+
+**Columns on Odoo rows:** only `CostoTotal`, `CostoDeProductosVendidos` and `CostoDeMerma` come from Odoo (monthly cortesías/cancelaciones come from the cash closing). The Wansoft-only columns (`CostoDeConsumo`, `CostoDeDesperdicio`, `CostoDeRobo`, `AjustePorSobrantes`, `UtilidadMarginal`, `CostoIdealDeProductosPendientesDeRebaja`; weekly also cortesías/cancelaciones) are set to **NULL**, also when a row that was Wansoft is recomputed from Odoo, so a stale Wansoft consumo is never subtracted from an Odoo `CostoTotal`. On Odoo rows the accumulated `CostoTotal` already excludes consumo. SQL consumers use `COALESCE`.
+
+**Validation every night:** the same stage checks every branch costed from Odoo over the nightly window: no duplicate (branch, day) rows in the three tables, and on every Odoo day the month/week accumulation grows by exactly that day's cost (`gettotalcostbydate`). Any problem prints `[AVISO]` lines and fails the stage, so it appears in the cycle summary.
+
+**Windows and backfills:** the cost scripts re-check the last `COSTS_LOOKBACK_DAYS` (10 by default, Wansoft recalculates costs after the fact). For a one-off backfill of some branches use `COSTS_ONLY_BRANCHES` with a long `COSTS_LOOKBACK_DAYS` (`docs/production-cutover-runbook.md`, step 3d and Section 7b).
+
+**Date convention:** `costeomensual` and `gettotalcostbydate` rows are dated with the day they cover; `costeomensual_semanapyq` rows are dated **one day after** the last day they cover.

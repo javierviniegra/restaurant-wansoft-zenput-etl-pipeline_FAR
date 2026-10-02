@@ -18,6 +18,7 @@ from pipelines.jobs.inventory_pipeline_job import run_inventory_pipeline_job
 from pipelines.jobs.purchases_pipeline_job import run_purchases_pipeline_job
 from pipelines.jobs.analytics_purchase_pipeline_job import run_analytics_purchase_pipeline_job
 from pipelines.jobs.product_mapping_backlog_job import run_product_mapping_backlog_job
+from pipelines.jobs.costs_switch_job import run_costs_switch_job
 
 
 def schedule_job(job, delay_seconds):
@@ -85,6 +86,9 @@ DAILY_LEGACY_CHAIN_STEPS = [
     ("Compras - facturas/gastos", run_expenses_job),
     ("Costos - tablajería", run_tablajeria_report_job),
     ("Costos - costo total por fecha", run_total_cost_by_date_job),
+    # Detects the Wansoft-to-Odoo cost switch of COSTS_AUTO_SWITCH_TO_ODOO
+    # branches, backfills it and validates every Odoo-costed branch (2026-10-02).
+    ("Costos - cambio automático a Odoo", run_costs_switch_job),
     ("Zenput - forms", run_zenput_forms_job),
     ("Zenput - tasks", run_zenput_tasks_job),
 ]

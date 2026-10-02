@@ -510,16 +510,48 @@ from the exception set once the owner confirms its Odoo database is
 repaired.** Every new branch needs its migration-policy row, or its costs stay
 on Wansoft (with a warning in the log).
 
-**Update 2026-10-02:** Isabel La Católica, San Jerónimo and Vía Vallejo were
-added to the exception set. They cannot confirm purchases in Odoo until their
+**Update 2026-10-02 (October wave, automatic switch).** Isabel La Católica,
+San Jerónimo and Vía Vallejo cannot confirm purchases in Odoo until their
 opening inventory balances are loaded, so Odoo had no cost for them and their
-2026-10-01 cost rows were missing (sales were there). Wansoft still computes
-their theoretical cost (merma and consumo come as 0). When the balances are
-loaded, remove them from the set and backfill from 2026-10-01:
+2026-10-01 cost rows were missing (sales were there; fixed the same morning
+from Wansoft, which still computes their theoretical cost with merma and
+consumo at 0). They are in `COSTS_AUTO_SWITCH_TO_ODOO`: the nightly stage
+**"Costos - cambio automático a Odoo"** (after "costo total por fecha")
+switches each one to Odoo by itself, nobody edits code:
 
-```powershell
-cd C:\Apps\Wansoft_ETL; $env:COSTS_LOOKBACK_DAYS = '<days since 2026-10-01>'; $env:COSTS_ONLY_BRANCHES = 'Isabel La Católica,San Jeronimo,Vía Vallejo'; powershell -NoProfile -ExecutionPolicy Bypass -File deploy\run_daily_cycle.ps1 -Only "semana PyQ,descarga Wansoft,costo total por fecha"; Remove-Item Env:COSTS_LOOKBACK_DAYS, Env:COSTS_ONLY_BRANCHES
-```
+- rule (`extract/costs/cost_switch.py`): the first of two consecutive days
+  with Odoo daily cost > 0 and within 0.5x-2x of Wansoft's stored daily cost;
+- the date goes to the table `costs_odoo_switch` (with the evidence) and an
+  `[AVISO] <branch> cambió a costos de Odoo desde <date>` line goes to the
+  night's log; days before stay on Wansoft;
+- the same night a child run of the three cost stages recomputes that branch
+  from the switch date (the manual 3d backfill, done automatically), then
+  the stage validates it;
+- it never switches back; to undo, delete the branch's row from
+  `costs_odoo_switch` and let the next night (or a 3d run) recompute.
+
+Dry run of the rule, read-only, from the dev PC or the VM:
+`python -m extract.costs.cost_switch --prod` (dev PC) or
+`python -m extract.costs.cost_switch` (VM).
+
+**Month/week to date across a mid-period switch ("D1", owner 2026-10-02).**
+On Odoo days the monthly and weekly accumulations add Wansoft's accumulation
+of the same period up to the day before the switch, so a period reads
+Wansoft days + Odoo days with each day exactly once. Found live: the five
+branches migrated on Thursday 2026-10-01 had lost Monday-Wednesday of that
+week in `costeomensual_semanapyq` (Acoxpa about 52,900); the first night with
+this code rewrites it. When a row that was Wansoft is recomputed from Odoo,
+the Wansoft-only columns (consumo, desperdicio, robo, ...) are cleared to
+NULL so a stale consumo is never subtracted from an Odoo `CostoTotal`.
+
+**Nightly validation.** The same stage checks every Odoo-costed branch over
+the cost window (switched branches from their switch date): no duplicate
+(branch, day) rows in the three cost tables, and on every Odoo day the
+month/week accumulation grows by exactly that day's cost. Problems print
+`[AVISO]` lines and fail the stage (visible in the cycle summary); the data
+of the other stages is unaffected. Tested 2026-10-02 on dev with Oceanía
+(Odoo from a Tuesday, 2026-06-30): detection, record, backfill and
+validation OK, 0 problems from 06-30 to 10-01.
 
 Consequence to expect in Power BI until it is repointed: the migrated
 branches' costs in the warehouse now come from Odoo (September 1-27: within

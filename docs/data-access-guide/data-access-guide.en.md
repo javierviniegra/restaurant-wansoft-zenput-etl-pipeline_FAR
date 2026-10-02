@@ -124,7 +124,10 @@ Notes:
 - **Costs:** every branch operating on Odoo, migrated or new, takes its cost
   from Odoo **from its start date on**, and from Wansoft before that date.
   **Temporary exception: Antenas** keeps Wansoft costs while its Odoo database
-  is repaired (it was the prototype). See Section 5.2.
+  is repaired (it was the prototype). **Isabel La Católica, San Jeronimo and
+  Vía Vallejo** keep Wansoft costs until Odoo has their cost of sales (they
+  wait for their opening inventory balances); each one switches to Odoo by
+  itself on the first day Odoo has data. See Section 5.2.
 - Internal providers **El Bodegón de Fito** and **Las Empanadas de María Eva**
   (central kitchens) are excluded as buying companies from business views.
 - The same information, as data: `dim_company_analytical` and
@@ -231,7 +234,8 @@ Where each branch's cost comes from:
 | Branch type | Cost source today |
 |---|---|
 | Wansoft only | Wansoft cost report |
-| Migrated to Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán, Isabel La Católica, San Jeronimo, Vía Vallejo) | Wansoft through 2026-09-30; Odoo from 2026-10-01 |
+| Migrated to Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán) | Wansoft through 2026-09-30; Odoo from 2026-10-01 |
+| **October wave (Isabel La Católica, San Jeronimo, Vía Vallejo)** | Wansoft until Odoo has their cost of sales; from that day (different for each), Odoo. Until then their October Wansoft rows carry merma and consumo as 0, since these are no longer captured there |
 | New, born on Odoo (Puebla, CentroMyJ and any branch opened later) | Odoo since it opened. Odoo has no cost of sales for CentroMyJ before July 2026 nor for Puebla before 2026-07-27: those days are 0 |
 | **Antenas (temporary exception)** | Wansoft, while its Odoo database is repaired |
 
@@ -241,7 +245,11 @@ the same tables. It fills `CostoTotal`, `CostoDeProductosVendidos` and
 cash closing; the other columns stay empty (no Odoo equivalent). **In Odoo rows the columns with no equivalent are NULL**: use `COALESCE(column, 0)`
 when adding or subtracting, or the result is NULL (e.g. `CostoTotal - CostoDeConsumo`
 is NULL for Puebla). The switch is per day: days before the start date keep
-Wansoft's cost.
+Wansoft's cost. When the switch falls in the middle of a month or week, the
+accumulated tables (`costeomensual`, `costeomensual_semanapyq`) stay whole:
+they add Wansoft's part up to the day before the switch to Odoo's from that
+day, with no day counted twice. On Odoo rows `CostoTotal` no longer includes
+consumo.
 
 Keyed by `subsidiary_id` (Wansoft id). All three are **snapshots**:
 

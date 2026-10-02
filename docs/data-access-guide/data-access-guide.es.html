@@ -178,7 +178,10 @@ datos reales el 28 de septiembre de 2026 y se actualizó el 30 de septiembre.
   <li><b>Costos:</b> toda sucursal que opera en Odoo, migrada o nueva, toma su
   costo de Odoo <b>a partir de su fecha de arranque</b>, y de Wansoft antes de esa
   fecha. <b>Excepción temporal: Antenas</b> sigue con costo de Wansoft mientras se
-  repara su base de datos en Odoo (fue el prototipo). Ver sección 5.2.</li>
+  repara su base de datos en Odoo (fue el prototipo). <b>Isabel La Católica, San
+  Jeronimo y Vía Vallejo</b> siguen con costo de Wansoft hasta que Odoo tenga su
+  costo de venta (esperan sus saldos iniciales de inventario); cada una cambia
+  sola a Odoo el primer día en que Odoo ya tiene datos. Ver sección 5.2.</li>
   <li>Los proveedores internos <b>El Bodegón de Fito</b> y <b>Las Empanadas de
   María Eva</b> (cocinas centrales) se excluyen como empresa compradora en las
   vistas de negocio.</li>
@@ -292,7 +295,8 @@ montos son <b>valor de venta</b>. Úsalo para cuadrar los totales del día.</p>
 <table>
   <tr><th style="width: 38%;">Tipo de sucursal</th><th>Fuente del costo hoy</th></tr>
   <tr><td>Solo Wansoft</td><td>Reporte de costos de Wansoft</td></tr>
-  <tr><td>Migrada a Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán, Isabel La Católica, San Jeronimo, Vía Vallejo)</td><td>Wansoft hasta el 30 de septiembre de 2026; Odoo desde el 1 de octubre</td></tr>
+  <tr><td>Migrada a Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán)</td><td>Wansoft hasta el 30 de septiembre de 2026; Odoo desde el 1 de octubre</td></tr>
+  <tr><td><b>Ola de octubre (Isabel La Católica, San Jeronimo, Vía Vallejo)</b></td><td>Wansoft hasta que Odoo tenga su costo de venta; desde ese día (distinto para cada una), Odoo. Hasta entonces, en las filas de octubre de Wansoft la merma y el consumo vienen en 0 porque ya no se capturan ahí</td></tr>
   <tr><td>Nueva, nacida en Odoo (Puebla, CentroMyJ y las que abran después)</td><td>Odoo desde su apertura. Odoo no tiene costo de venta de CentroMyJ antes de julio de 2026 ni de Puebla antes del 27 de julio de 2026: esos días valen 0</td></tr>
   <tr><td><b>Antenas (excepción temporal)</b></td><td>Wansoft, mientras se repara su base de datos en Odoo</td></tr>
 </table>
@@ -305,7 +309,11 @@ de caja; el resto de las columnas queda vacío (no tiene equivalente en Odoo). <
 <code>COALESCE(columna, 0)</code> al restar o sumar, o el resultado sale NULL (por ejemplo,
 <code>CostoTotal - CostoDeConsumo</code> da NULL en Puebla). El
 cambio de fuente aplica por día: los días anteriores al arranque conservan el
-costo de Wansoft.</p>
+costo de Wansoft. Si el cambio cae a mitad de mes o de semana, los acumulados
+(<code>costeomensual</code>, <code>costeomensual_semanapyq</code>) siguen completos:
+suman lo de Wansoft hasta el día anterior al cambio más lo de Odoo desde ese día,
+sin contar ningún día dos veces. En las filas de Odoo, <code>CostoTotal</code> ya no
+incluye consumo.</p>
 
 <p>Identificados por <code>subsidiary_id</code> (ID de Wansoft). Las tres tablas son <b>fotos</b>:</p>
 <table>
