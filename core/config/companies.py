@@ -168,6 +168,16 @@ COSTS_WANSOFT_TEMPORARY_EXCEPTIONS = {
     "Vía Vallejo",
 }
 
+# Branches whose costs switch from Wansoft to Odoo by themselves, each on the
+# first day Odoo really has cost data for it (extract/costs/cost_switch.py,
+# owner 2026-10-02). Not wired into the routing yet: until it is, the
+# temporary exceptions above keep them on Wansoft.
+COSTS_AUTO_SWITCH_TO_ODOO = {
+    "Isabel La Católica",
+    "San Jeronimo",
+    "Vía Vallejo",
+}
+
 
 
 # =====================================================
