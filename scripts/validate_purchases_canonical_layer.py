@@ -114,7 +114,23 @@ def load_start_dates() -> Dict[str, pd.Timestamp]:
     return load_wansoft_operational_start_dates()
 
 
-def check_migrated_split(company_df: pd.DataFrame, start_date) -> List[str]:
+def load_odoo_source_line_counts() -> Dict[str, int]:
+    """
+    Confirmed Odoo purchase lines per company_source_key in the nightly Odoo
+    download (odoo_purchase_order_line_snapshot, already limited to each
+    company's start date): what the canonical layer should contain.
+    """
+    from core.config.companies import ODOO_COMPANY_SOURCE_KEY
+    df = read_sql("SELECT company_name, COUNT(*) AS n FROM odoo_purchase_order_line_snapshot GROUP BY company_name")
+    counts: Dict[str, int] = {}
+    for row in df.itertuples():
+        key = ODOO_COMPANY_SOURCE_KEY.get(row.company_name)
+        if key:
+            counts[key] = counts.get(key, 0) + int(row.n)
+    return counts
+
+
+def check_migrated_split(company_df: pd.DataFrame, start_date, odoo_source_lines=None, warnings=None) -> List[str]:
     """
     Problems with a migrated_from_wansoft branch's source split, date-aware
     (2026-09-29: the migrated branches' Odoo start moved to 2026-10-01, so
@@ -122,7 +138,14 @@ def check_migrated_split(company_df: pd.DataFrame, start_date) -> List[str]:
       - Wansoft history must exist and end before the start date;
       - no Wansoft row may be final_wansoft_enabled;
       - no Odoo row may predate the start date;
-      - Odoo rows are required once the start date is ODOO_ROWS_GRACE_DAYS old.
+      - Odoo rows are required once the start date is ODOO_ROWS_GRACE_DAYS old,
+        unless Odoo itself has no confirmed order for the branch yet
+        (odoo_source_lines == 0): then it is a business state, not a load
+        error, and goes to `warnings` (2026-10-05: Isabel La Católica and Vía
+        Vallejo cannot confirm purchases until their opening inventory
+        balances are loaded; this failed the purchases pipeline on 10-04/05).
+        A branch with confirmed Odoo orders that did not reach the canonical
+        layer still fails.
     """
     problems = []
     statuses = set(company_df["final_purchase_source_status"].dropna().unique())
@@ -146,7 +169,13 @@ def check_migrated_split(company_df: pd.DataFrame, start_date) -> List[str]:
     odoo_due = pd.Timestamp.now().normalize() >= start + pd.Timedelta(days=ODOO_ROWS_GRACE_DAYS)
     has_odoo_final = not odoo.empty and "final_odoo_enabled" in set(odoo["final_purchase_source_status"])
     if odoo_due and not has_odoo_final:
-        problems.append(f"no odoo/final_odoo_enabled rows {ODOO_ROWS_GRACE_DAYS}+ days after {start.date()}")
+        message = f"no odoo/final_odoo_enabled rows {ODOO_ROWS_GRACE_DAYS}+ days after {start.date()}"
+        if odoo_source_lines == 0 and warnings is not None:
+            warnings.append(message + " -- Odoo has no confirmed purchase order for it yet (expected while "
+                                      "it cannot confirm; not a load error)")
+        else:
+            problems.append(message + (f" although the Odoo download has {odoo_source_lines} confirmed lines"
+                                       if odoo_source_lines else ""))
     return problems
 
 
@@ -515,7 +544,9 @@ def validate_rollout_company_patterns(results: Dict[str, bool]) -> None:
     print_df(df)
 
     failed = []
+    warnings: List[str] = []
     start_dates = load_start_dates()
+    odoo_source_lines = load_odoo_source_line_counts()
 
     for expectation in ROLLOUT_COMPANY_EXPECTATIONS:
         company_key = expectation["company_source_key"]
@@ -535,7 +566,11 @@ def validate_rollout_company_patterns(results: Dict[str, bool]) -> None:
         systems = set(company_df["source_system"].dropna().unique())
 
         if rollout_type == "migrated_from_wansoft":
-            problems = check_migrated_split(company_df, start_dates.get(company_key))
+            company_warnings: List[str] = []
+            problems = check_migrated_split(company_df, start_dates.get(company_key),
+                                            odoo_source_lines=odoo_source_lines.get(company_key, 0),
+                                            warnings=company_warnings)
+            warnings.extend(f"{company_key}: {w}" for w in company_warnings)
 
             if problems:
                 failed.append(
@@ -573,6 +608,11 @@ def validate_rollout_company_patterns(results: Dict[str, bool]) -> None:
     if failed:
         print("\nFailed rollout checks:")
         for item in failed:
+            print(f"- {item}")
+
+    if warnings:
+        print("\n[AVISO] Rollout warnings (do not fail the pipeline):")
+        for item in warnings:
             print(f"- {item}")
 
 
