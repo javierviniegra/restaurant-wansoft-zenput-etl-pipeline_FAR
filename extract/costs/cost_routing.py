@@ -81,6 +81,64 @@ def load_costs_odoo_start_dates():
     return start_dates
 
 
+COSTS_SOURCE_TABLE_DDL = """
+    CREATE TABLE IF NOT EXISTS costs_source_by_company (
+        company_source_key VARCHAR(100) NOT NULL PRIMARY KEY,
+        wansoft_subsidiary_id INT NULL,
+        odoo_company_id INT NULL,
+        odoo_cost_start_date DATE NULL,
+        reason VARCHAR(30) NOT NULL,
+        updated_at DATETIME NOT NULL
+    )
+"""
+
+
+def costs_source_rows(start_dates, odoo_company_ids):
+    """
+    One row per branch with the rule costs_source() applies: the first day its
+    cost comes from Odoo (None = always Wansoft) and why:
+      wansoft             branch on Wansoft (COMPANY_SOURCE)
+      exception           COSTS_WANSOFT_TEMPORARY_EXCEPTIONS (Antenas)
+      auto_switch_pending COSTS_AUTO_SWITCH_TO_ODOO, Odoo has no cost data yet
+      switched            COSTS_AUTO_SWITCH_TO_ODOO, switch recorded in costs_odoo_switch
+      policy              odoo_company_migration_policy start date
+      no_policy           Odoo branch without a policy row (stays on Wansoft)
+    """
+    from core.config.companies import WANSOFT_SUBSIDIARY_SOURCE_KEY
+    sid_by_key = {k: int(s) for s, k in WANSOFT_SUBSIDIARY_SOURCE_KEY.items()}
+    rows = []
+    for key in sorted(set(COMPANY_SOURCE) | set(sid_by_key)):
+        start = start_dates.get(key)
+        if COMPANY_SOURCE.get(key, "wansoft") != "odoo":
+            start, reason = None, "wansoft"
+        elif key in COSTS_WANSOFT_TEMPORARY_EXCEPTIONS:
+            start, reason = None, "exception"
+        elif key in COSTS_AUTO_SWITCH_TO_ODOO:
+            reason = "auto_switch_pending" if start in (None, NOT_SWITCHED) else "switched"
+            start = None if reason == "auto_switch_pending" else start
+        elif start is None:
+            reason = "no_policy"
+        else:
+            reason = "policy"
+        rows.append((key, sid_by_key.get(key), odoo_company_ids.get(key), start, reason))
+    return rows
+
+
+def publish_costs_source_table(conn):
+    """Rewrites costs_source_by_company (read by Central de Reportes) from the current routing."""
+    cur = conn.cursor()
+    cur.execute(COSTS_SOURCE_TABLE_DDL)
+    cur.execute("SELECT company_name, odoo_company_id FROM odoo_company_migration_policy WHERE is_active = 1")
+    odoo_ids = {ODOO_COMPANY_SOURCE_KEY.get(n): i for n, i in cur.fetchall() if ODOO_COMPANY_SOURCE_KEY.get(n)}
+    rows = costs_source_rows(load_costs_odoo_start_dates(), odoo_ids)
+    cur.execute("DELETE FROM costs_source_by_company")
+    cur.executemany(
+        "INSERT INTO costs_source_by_company (company_source_key, wansoft_subsidiary_id, odoo_company_id, "
+        "odoo_cost_start_date, reason, updated_at) VALUES (%s, %s, %s, %s, %s, NOW())", rows)
+    conn.commit()
+    return rows
+
+
 def costs_source(company_key, day, start_dates):
     """'odoo' or 'wansoft' for this branch's cost on `day` (date or datetime)."""
     if isinstance(day, datetime):

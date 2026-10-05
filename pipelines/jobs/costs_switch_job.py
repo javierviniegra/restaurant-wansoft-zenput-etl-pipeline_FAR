@@ -10,7 +10,10 @@ Runs right after the three cost stages:
    the switch date on (same as the manual backfill in runbook 3d: a child run
    of the cost stages with COSTS_ONLY_BRANCHES and a long enough
    COSTS_LOOKBACK_DAYS), whatever the nightly window is.
-3. Validates every branch costed from Odoo over the nightly window (and
+3. Publishes the routing in costs_source_by_company (one row per branch: first
+   day on Odoo costs or NULL, and why), rewritten every night, so consumers
+   such as Central de Reportes read the rule instead of copying it.
+4. Validates every branch costed from Odoo over the nightly window (and
    switched branches from their switch date): no duplicate rows, and on
    every Odoo day the month/week accumulation grows by exactly that day's
    cost. Any problem fails the stage, so it shows in the cycle summary.
@@ -25,7 +28,9 @@ from core.config.companies import COSTS_AUTO_SWITCH_TO_ODOO, COMPANY_SOURCE
 from core.config.lookback import COSTS_LOOKBACK_DAYS
 from core.database.mysql import get_db_connection
 from core.database.odoo import get_odoo_connection
-from extract.costs.cost_routing import costs_source, load_costs_odoo_start_dates, NOT_SWITCHED
+from extract.costs.cost_routing import (
+    costs_source, load_costs_odoo_start_dates, NOT_SWITCHED, publish_costs_source_table,
+)
 from extract.costs.cost_switch import (
     check_cost_continuity, detect, ensure_switch_table, load_switch_dates, record_switch, wansoft_subsidiary_id,
 )
@@ -92,7 +97,11 @@ def run_costs_switch_job():
                 cur.execute("UPDATE costs_odoo_switch SET backfilled_at = NOW() WHERE company_source_key = %s", (key,))
             conn.commit()
 
-        # 3) Validation of every Odoo-costed branch
+        # 3) Publish the routing for consumers (Central de Reportes reads it instead of copying the rules)
+        for key, sid, oid, start, reason in publish_costs_source_table(conn):
+            print(f"[costs_source_by_company] {key}: {reason}" + (f" desde {start}" if start else ""))
+
+        # 4) Validation of every Odoo-costed branch
         starts = load_costs_odoo_start_dates()
         window_from = yesterday - timedelta(days=COSTS_LOOKBACK_DAYS)
         failures = []
