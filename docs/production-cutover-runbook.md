@@ -544,6 +544,22 @@ this code rewrites it. When a row that was Wansoft is recomputed from Odoo,
 the Wansoft-only columns (consumo, desperdicio, robo, ...) are cleared to
 NULL so a stale consumo is never subtracted from an Odoo `CostoTotal`.
 
+**Odoo cost completeness and window (2026-10-05).** Odoo's cost of a day comes
+from that day's customer invoices (Wansoft sales passed to Odoo). In
+September Odoo invoiced exactly 100% of Wansoft's net sales every day, but
+only after a lag: 40-70% one day later, 70-100% after 7 days, 92-100% after
+14, everything by the month-end closing (766 invoices created on 09-30). So
+the cost of recent days of Odoo branches is partial by construction (week of
+09-28, read on 10-05: Acoxpa 32-75% invoiced, Puebla 5-32%), while the cost
+per invoiced peso stays at 35-38%. To make the closing always reach the
+stored costs, the Odoo side of the three cost scripts re-reads the whole
+current month and, until the 10th, the whole previous month
+(`odoo_costs_window_start`); a few seconds per stage. Check before trusting a
+recent Odoo cost: Odoo invoiced amount vs Wansoft net sales of the same day.
+Reports that need a cost for recent days should show an estimate (cost per
+invoiced peso x Wansoft net sales), labelled as such, until the period is
+fully invoiced (owner, 2026-10-05; to be built in Central de Reportes).
+
 **Nightly validation.** The same stage checks every Odoo-costed branch over
 the cost window (switched branches from their switch date): no duplicate
 (branch, day) rows in the three cost tables, and on every Odoo day the

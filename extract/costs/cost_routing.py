@@ -21,7 +21,7 @@ costs_odoo_switch (never before their policy start date); until a switch is
 recorded they stay on Wansoft.
 """
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from core.config.companies import (
     COMPANY_SOURCE,
@@ -33,6 +33,24 @@ from core.database.mysql import get_db_connection
 
 # Start date of an auto-switch branch with no switch detected yet: no day is on Odoo.
 NOT_SWITCHED = date.max
+
+# Odoo's cost of a day comes from that day's customer invoices, and those keep
+# being created for up to ~2 weeks, the rest at the month-end closing
+# (measured 2026-10-05 on September: 40-70% invoiced one day later, 70-100%
+# after 7 days, 92-100% after 14, all of it by the close). So the Odoo side
+# re-reads the whole current month every night and, during the first
+# ODOO_COSTS_PREVIOUS_MONTH_DAYS days of a month, the whole previous month too,
+# so the closing always reaches the stored costs.
+ODOO_COSTS_PREVIOUS_MONTH_DAYS = 10
+
+
+def odoo_costs_window_start(window_start, today=None):
+    """First day the Odoo-sourced costs are recomputed tonight; never later than window_start."""
+    today = today or datetime.now()
+    first = datetime(today.year, today.month, 1)
+    if today.day <= ODOO_COSTS_PREVIOUS_MONTH_DAYS:
+        first = (first - timedelta(days=1)).replace(day=1)
+    return min(window_start, first)
 
 
 def load_costs_odoo_start_dates():

@@ -184,7 +184,13 @@ if odoo_subsidiaries:
     from core.database.odoo import get_odoo_connection
     from extract.costs.odoo_cost_report import resolve_odoo_company_id, get_daily_cost
 
+    from extract.costs.cost_routing import odoo_costs_window_start
+
     odoo_uid, odoo_models, odoo_db, odoo_password = get_odoo_connection()
+    # Odoo invoices of a day keep arriving until the month-end closing: the
+    # Odoo side re-reads the current month (and the previous one until the 10th).
+    odoo_start_range = odoo_costs_window_start(start_date_range)
+    print(f"Ventana Odoo: desde {odoo_start_range:%Y-%m-%d}")
 
     for subsidiary in odoo_subsidiaries:
         odoo_company_id = resolve_odoo_company_id(
@@ -196,7 +202,7 @@ if odoo_subsidiaries:
 
         df_cost = get_daily_cost(
             odoo_models, odoo_uid, odoo_db, odoo_password, odoo_company_id,
-            start_date_range.strftime("%Y-%m-%d"), end_date_range.strftime("%Y-%m-%d")
+            odoo_start_range.strftime("%Y-%m-%d"), end_date_range.strftime("%Y-%m-%d")
         )
 
         for _, row in df_cost.iterrows():

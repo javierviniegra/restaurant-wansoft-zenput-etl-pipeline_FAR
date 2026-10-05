@@ -280,8 +280,13 @@ if odoo_subsidiaries:
     from core.database.odoo import get_odoo_connection
     from extract.costs.odoo_cost_report import resolve_odoo_company_id, get_daily_cost
     from extract.costs.cost_switch import wansoft_period_base
+    from extract.costs.cost_routing import odoo_costs_window_start
 
     odoo_uid, odoo_models, odoo_db, odoo_password = get_odoo_connection()
+    # Odoo invoices of a day keep arriving until the month-end closing: the
+    # Odoo side re-reads the current month (and the previous one until the 10th).
+    odoo_start_range = odoo_costs_window_start(start_date_range)
+    print(f"Ventana Odoo: desde {odoo_start_range:%Y-%m-%d}")
 
     for subsidiary in odoo_subsidiaries:
         odoo_company_id = resolve_odoo_company_id(
@@ -293,7 +298,7 @@ if odoo_subsidiaries:
 
         # Traer un poco antes del rango para poder calcular semana-a-la-fecha
         # del primer día del rango sin perder los días previos de esa semana.
-        fetch_start = (start_date_range - timedelta(days=7)).strftime("%Y-%m-%d")
+        fetch_start = (odoo_start_range - timedelta(days=7)).strftime("%Y-%m-%d")
         fetch_end = end_date_range.strftime("%Y-%m-%d")
         df_daily = get_daily_cost(odoo_models, odoo_uid, odoo_db, odoo_password, odoo_company_id, fetch_start, fetch_end)
 
@@ -314,7 +319,7 @@ if odoo_subsidiaries:
         df_daily["CostoDeProductosVendidos_wtd"] = df_daily.groupby(["iso_year", "iso_week"])["CostoDeProductosVendidos"].cumsum()
         df_daily["CostoDeMerma_wtd"] = df_daily.groupby(["iso_year", "iso_week"])["CostoDeMerma"].cumsum()
 
-        current_date = start_date_range
+        current_date = odoo_start_range
         while current_date <= end_date_range:
             lafecha = current_date.strftime("%Y-%m-%d")
             # created_at mirrors the Wansoft side's fecha = current_date + 1
