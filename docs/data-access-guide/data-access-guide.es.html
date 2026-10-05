@@ -210,6 +210,7 @@ datos reales el 28 de septiembre de 2026 y se actualizó el 30 de septiembre.
   <tr><td>Resultados de checklists</td><td><code>zenput.submissions</code> + <code>zenput.submission_answers</code></td><td>—</td></tr>
   <tr><td>Tareas</td><td><code>zenput.zenput_tasks</code></td><td>—</td></tr>
   <tr><td>Qué fuente alimenta cada sucursal</td><td><code>analytics_company_domain_coverage</code></td><td>—</td></tr>
+  <tr><td>Desde qué día el costo de cada sucursal sale de Odoo</td><td><code>costs_source_by_company</code></td><td><code>odoo_cost_start_date</code> NULL = Wansoft</td></tr>
 </table>
 
 <div class="salto"></div>
@@ -314,6 +315,33 @@ costo de Wansoft. Si el cambio cae a mitad de mes o de semana, los acumulados
 suman lo de Wansoft hasta el día anterior al cambio más lo de Odoo desde ese día,
 sin contar ningún día dos veces. En las filas de Odoo, <code>CostoTotal</code> ya no
 incluye consumo.</p>
+<p><b>Qué fuente usa cada sucursal, como dato:</b> la tabla
+<code>costs_source_by_company</code> (se reescribe cada noche con la misma regla del
+pipeline) trae por sucursal <code>company_source_key</code>,
+<code>wansoft_subsidiary_id</code>, <code>odoo_company_id</code>,
+<code>odoo_cost_start_date</code> (primer día con costo de Odoo; NULL = todo de
+Wansoft) y <code>reason</code> (<code>wansoft</code>, <code>policy</code>,
+<code>exception</code>, <code>auto_switch_pending</code>, <code>switched</code>).
+Úsala en lugar de copiar las reglas de esta sección.</p>
+<p><b>Los costos de los días recientes todavía no están completos</b>, y cada fuente
+lo indica de forma distinta:</p>
+<ul>
+  <li><b>Wansoft:</b> su costo crece mientras procesa el descuento de inventario de lo
+  vendido. <code>CostoIdealDeProductosPendientesDeRebaja</code> (en
+  <code>costeomensual</code> y <code>costeomensual_semanapyq</code>) es el costo que
+  todavía no se descuenta; cuando vale 0, el periodo está completo. Todo septiembre
+  de 2026 ya está en 0; a inicios de octubre había entre 1% y 24% pendiente según la
+  sucursal, más en fin de semana.</li>
+  <li><b>Odoo:</b> su costo sale de las facturas de cliente de cada día (las ventas de
+  Wansoft pasadas a Odoo), que se crean con retraso: en septiembre de 2026 al día
+  siguiente estaba facturado entre 40% y 70% de la venta, a los 7 días entre 70% y
+  100%, y todo al cierre de mes. Para saber si un día está completo, compara lo
+  facturado en Odoo con la venta neta de Wansoft de ese día. El pipeline vuelve a
+  leer de Odoo el mes en curso (y el anterior hasta el día 10), así que al cierre de
+  mes las tablas quedan completas.</li>
+</ul>
+<p>Si necesitas un costo de días recientes, márcalo como estimado o espera a que el
+periodo esté completo.</p>
 
 <p>Identificados por <code>subsidiary_id</code> (ID de Wansoft). Las tres tablas son <b>fotos</b>:</p>
 <table>
@@ -466,6 +494,9 @@ no tienen sucursal en el punto de venta.</p>
   <code>operational_start_date</code>.</li>
   <li><code>analytics_company_domain_coverage</code>: qué fuente alimenta cada
   dominio por sucursal, con conteos y un <code>coverage_status</code>.</li>
+  <li><code>costs_source_by_company</code>: desde qué día el costo de cada sucursal
+  sale de Odoo (<code>odoo_cost_start_date</code>, NULL = Wansoft) y por qué
+  (<code>reason</code>); se reescribe cada noche (sección 5.2).</li>
   <li><code>dim_time</code>: calendario (<code>date_key</code> = AAAAMMDD), semanas,
   meses, semanas ISO.</li>
 </ul>

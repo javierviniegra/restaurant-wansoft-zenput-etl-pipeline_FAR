@@ -155,6 +155,7 @@ Notes:
 | Checklist results | `zenput.submissions` + `zenput.submission_answers` | |
 | Tasks | `zenput.zenput_tasks` | |
 | Which source feeds each branch | `analytics_company_domain_coverage` | |
+| From which day each branch's cost comes from Odoo | `costs_source_by_company` | `odoo_cost_start_date` NULL = Wansoft |
 
 ### 4.1 Available history
 
@@ -250,6 +251,31 @@ accumulated tables (`costeomensual`, `costeomensual_semanapyq`) stay whole:
 they add Wansoft's part up to the day before the switch to Odoo's from that
 day, with no day counted twice. On Odoo rows `CostoTotal` no longer includes
 consumo.
+
+**Which source each branch uses, as data:** the table `costs_source_by_company`
+(rewritten every night with the pipeline's own rule) has, per branch,
+`company_source_key`, `wansoft_subsidiary_id`, `odoo_company_id`,
+`odoo_cost_start_date` (first day on Odoo cost; NULL = always Wansoft) and
+`reason` (`wansoft`, `policy`, `exception`, `auto_switch_pending`,
+`switched`). Use it instead of copying the rules of this section.
+
+**Costs of recent days are not complete yet**, and each source shows it
+differently:
+- **Wansoft:** its cost grows while it processes the inventory deduction of
+  what was sold. `CostoIdealDeProductosPendientesDeRebaja` (in `costeomensual`
+  and `costeomensual_semanapyq`) is the cost not yet deducted; when it is 0 the
+  period is complete. All of September 2026 is already at 0; in early October
+  1% to 24% was pending depending on the branch, more on weekends.
+- **Odoo:** its cost comes from each day's customer invoices (the Wansoft sales
+  passed to Odoo), which are created with a lag: in September 2026, 40% to 70%
+  of a day's sales was invoiced the next day, 70% to 100% after 7 days, and
+  everything by the month-end closing. To know whether a day is complete,
+  compare Odoo's invoiced amount with Wansoft's net sales for that day. The
+  pipeline re-reads Odoo for the current month (and the previous one until the
+  10th), so after the closing the tables are complete.
+
+If you need a cost for recent days, mark it as an estimate or wait until the
+period is complete.
 
 Keyed by `subsidiary_id` (Wansoft id). All three are **snapshots**:
 
@@ -383,6 +409,9 @@ key; some Zenput locations have no POS branch.
   `operational_start_date`.
 - `analytics_company_domain_coverage`: which source feeds each domain per
   branch, with counts and a `coverage_status`.
+- `costs_source_by_company`: from which day each branch's cost comes from Odoo
+  (`odoo_cost_start_date`, NULL = Wansoft) and why (`reason`); rewritten every
+  night (Section 5.2).
 - `dim_time`: calendar (`date_key` = `YYYYMMDD`), weeks, months, ISO weeks.
 
 ---

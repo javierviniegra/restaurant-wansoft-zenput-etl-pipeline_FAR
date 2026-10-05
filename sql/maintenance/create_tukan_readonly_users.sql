@@ -72,6 +72,12 @@ GRANT SELECT ON `wansoft`.`dim_product`                                  TO 'tuk
 GRANT SELECT ON `wansoft`.`dim_vendor`                                   TO 'tukan_wansoft'@'%';
 GRANT SELECT ON `wansoft`.`dim_time`                                     TO 'tukan_wansoft'@'%';
 
+-- ---------------- PART C (2026-10-05, after the night of 10-05 to 10-06) ----------------
+-- Cost routing per branch, published nightly by the pipeline (guide 5.2 / 5.6).
+-- The table is created by the first night run with the code of 2026-10-05; on a
+-- server where tukan_wansoft already exists, run only this line (as root).
+GRANT SELECT ON `wansoft`.`costs_source_by_company`                      TO 'tukan_wansoft'@'%';
+
 -- ---------------- VERIFY ----------------
 SHOW GRANTS FOR 'tukan_wansoft'@'%';
 SHOW GRANTS FOR 'tukan_zenput'@'%';

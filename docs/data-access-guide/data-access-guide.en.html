@@ -451,6 +451,11 @@ on 2026-09-28 and updated on 2026-09-30. PDF version: <a href="data-access-guide
 <td><code>analytics_company_domain_coverage</code></td>
 <td>—</td>
 </tr>
+<tr>
+<td>From which day each branch's cost comes from Odoo</td>
+<td><code>costs_source_by_company</code></td>
+<td><code>odoo_cost_start_date</code> NULL = Wansoft</td>
+</tr>
 </tbody>
 </table>
 <div class="salto"></div>
@@ -690,6 +695,30 @@ accumulated tables (<code>costeomensual</code>, <code>costeomensual_semanapyq</c
 they add Wansoft's part up to the day before the switch to Odoo's from that
 day, with no day counted twice. On Odoo rows <code>CostoTotal</code> no longer includes
 consumo.</p>
+<p><strong>Which source each branch uses, as data:</strong> the table <code>costs_source_by_company</code>
+(rewritten every night with the pipeline's own rule) has, per branch,
+<code>company_source_key</code>, <code>wansoft_subsidiary_id</code>, <code>odoo_company_id</code>,
+<code>odoo_cost_start_date</code> (first day on Odoo cost; NULL = always Wansoft) and
+<code>reason</code> (<code>wansoft</code>, <code>policy</code>, <code>exception</code>, <code>auto_switch_pending</code>,
+<code>switched</code>). Use it instead of copying the rules of this section.</p>
+<p><strong>Costs of recent days are not complete yet</strong>, and each source shows it
+differently:</p>
+<ul>
+<li><strong>Wansoft:</strong> its cost grows while it processes the inventory deduction of
+  what was sold. <code>CostoIdealDeProductosPendientesDeRebaja</code> (in <code>costeomensual</code>
+  and <code>costeomensual_semanapyq</code>) is the cost not yet deducted; when it is 0 the
+  period is complete. All of September 2026 is already at 0; in early October
+  1% to 24% was pending depending on the branch, more on weekends.</li>
+<li><strong>Odoo:</strong> its cost comes from each day's customer invoices (the Wansoft sales
+  passed to Odoo), which are created with a lag: in September 2026, 40% to 70%
+  of a day's sales was invoiced the next day, 70% to 100% after 7 days, and
+  everything by the month-end closing. To know whether a day is complete,
+  compare Odoo's invoiced amount with Wansoft's net sales for that day. The
+  pipeline re-reads Odoo for the current month (and the previous one until the
+  10th), so after the closing the tables are complete.</li>
+</ul>
+<p>If you need a cost for recent days, mark it as an estimate or wait until the
+period is complete.</p>
 <p>Keyed by <code>subsidiary_id</code> (Wansoft id). All three are <strong>snapshots</strong>:</p>
 <table class="compacta">
 <thead>
@@ -894,6 +923,9 @@ key; some Zenput locations have no POS branch.</p>
   <code>operational_start_date</code>.</li>
 <li><code>analytics_company_domain_coverage</code>: which source feeds each domain per
   branch, with counts and a <code>coverage_status</code>.</li>
+<li><code>costs_source_by_company</code>: from which day each branch's cost comes from Odoo
+  (<code>odoo_cost_start_date</code>, NULL = Wansoft) and why (<code>reason</code>); rewritten every
+  night (Section 5.2).</li>
 <li><code>dim_time</code>: calendar (<code>date_key</code> = <code>YYYYMMDD</code>), weeks, months, ISO weeks.</li>
 </ul>
 

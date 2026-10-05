@@ -560,6 +560,23 @@ Reports that need a cost for recent days should show an estimate (cost per
 invoiced peso x Wansoft net sales), labelled as such, until the period is
 fully invoiced (owner, 2026-10-05; to be built in Central de Reportes).
 
+**Wansoft cost completeness (2026-10-05).** Wansoft's cost of recent days also
+grows after the fact, while it processes the inventory deductions of the
+sales. `CostoIdealDeProductosPendientesDeRebaja` (in `costeomensual` and
+`costeomensual_semanapyq`) is the cost still pending deduction: 0 for all of
+September by 10-05; month-to-date on 10-04, 1.2% (Vía Vallejo) to 24.3%
+(Viaducto) pending, highest on weekends. Wansoft raised several weekend days
+within hours (Vía Vallejo Sunday 38,892 -> 59,690). Consumers can show the
+cost as complete when the pending part is 0, or as an estimate with it added.
+
+**Published routing (2026-10-05).** The same stage rewrites
+`costs_source_by_company` every night from the routing function (one row per
+branch: `odoo_cost_start_date`, NULL = Wansoft, and `reason`). Central de
+Reportes reads it instead of copying the constants. Read-only consumers need a
+`GRANT SELECT` on it once it exists (part C of
+`sql/maintenance/create_tukan_readonly_users.sql` for tukanmx; the Central de
+Reportes user in its own repository).
+
 **Nightly validation.** The same stage checks every Odoo-costed branch over
 the cost window (switched branches from their switch date): no duplicate
 (branch, day) rows in the three cost tables, and on every Odoo day the
