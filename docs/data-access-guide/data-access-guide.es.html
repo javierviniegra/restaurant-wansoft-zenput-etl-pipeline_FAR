@@ -47,7 +47,7 @@
     <td style="border: none; width: 100px; padding: 0;"><img class="logo" src="{{ logo_path }}"></td>
     <td style="border: none; padding: 0;">
       <p class="titulo">Guía de acceso a datos</p>
-      <p class="subtitulo">Bases analíticas <code>wansoft</code> y <code>zenput</code> | Fonda Argentina | Versión 2026-09-28</p>
+      <p class="subtitulo">Bases analíticas <code>wansoft</code> y <code>zenput</code> | Fonda Argentina | Versión 2026-10-07</p>
     </td>
   </tr>
 </table>
@@ -57,7 +57,9 @@ Para equipos externos que construirán su propio ETL sobre estas bases (por
 ejemplo, una capa de preguntas y respuestas / chatbot). Indica <b>qué tabla
 usar para cada pregunta de negocio, qué campos importan, cómo se unen las
 tablas y qué trampas evitar</b>. Cada regla se verificó contra el esquema y los
-datos reales el 28 de septiembre de 2026 y se actualizó el 30 de septiembre.
+datos reales el 28 de septiembre de 2026; la guía está actualizada al <b>7 de
+octubre de 2026</b>, después de la primera semana en producción, y ese día se
+comprobó que existen en producción todas las tablas y columnas que nombra.
 </p>
 
 <p class="indice-titulo">Índice</p>
@@ -216,7 +218,7 @@ datos reales el 28 de septiembre de 2026 y se actualizó el 30 de septiembre.
 <div class="salto"></div>
 
 <h2>4.1 Histórico disponible</h2>
-<p>Fechas medidas en producción el 2026-09-28. Las tablas se siguen llenando a diario hasta el día anterior.</p>
+<p>Fechas de inicio medidas en producción el 2026-09-28; la puesta en producción del 1 de octubre no las cambió (solo quitó copias duplicadas de filas). Las tablas se siguen llenando a diario hasta el día anterior.</p>
 <table class="compacta">
   <tr><th width="17%">Dato</th><th width="36%">Tabla</th><th width="11%">Fuente</th><th width="10%">Desde</th><th width="26%">Notas</th></tr>
   <tr><td>Ventas: tickets, detalle, modificadores</td><td><code>getallordenesbyday_new_venta</code>, <code>_new_detalleventa</code>, <code>_new_modificador</code></td><td>Wansoft</td><td>2021-09-01</td><td>Del 14 al 31 de diciembre de 2021 casi no hay tickets (hueco del histórico de origen, aceptado)</td></tr>
@@ -321,7 +323,8 @@ pipeline) trae por sucursal <code>company_source_key</code>,
 <code>wansoft_subsidiary_id</code>, <code>odoo_company_id</code>,
 <code>odoo_cost_start_date</code> (primer día con costo de Odoo; NULL = todo de
 Wansoft) y <code>reason</code> (<code>wansoft</code>, <code>policy</code>,
-<code>exception</code>, <code>auto_switch_pending</code>, <code>switched</code>).
+<code>exception</code>, <code>auto_switch_pending</code>, <code>switched</code>,
+<code>no_policy</code>).
 Úsala en lugar de copiar las reglas de esta sección.</p>
 <p><b>Los costos de los días recientes todavía no están completos</b>, y cada fuente
 lo indica de forma distinta:</p>
@@ -397,7 +400,21 @@ JOIN (SELECT subsidiary_id, MAX(created_date) AS d
 <p><code>source_system</code> (<code>wansoft</code>/<code>odoo</code>) dice de dónde
 viene cada fila; <code>final_purchase_source_status</code> explica por qué se
 conservó (por ejemplo <code>wansoft_history_before_odoo</code>).</p>
-<p><b>Compras sin clasificar (desde el 7 de octubre de 2026):</b> una compra real
+<p><b>Cuándo aparece una compra</b> (importante al leer los días recientes):</p>
+<ul>
+  <li><b>Odoo:</b> una orden cuenta cuando se <b>confirma</b>; los borradores y las
+  solicitudes de cotización nunca cuentan. Entra en la carga de la noche
+  siguiente a su confirmación, <b>con su fecha de orden</b>: una orden fechada el
+  día 5 y confirmada el día 7 aparece en la tabla el día 8, pero en el día 5.
+  Por eso las compras de días recientes pueden seguir creciendo.</li>
+  <li><b>Wansoft:</b> una compra cuenta cuando se <b>captura la factura</b>,
+  normalmente al llegar la mercancía.</li>
+  <li>Para la misma mercancía los dos momentos pueden ser distintos. El caso
+  principal es <b>El Bodegón de Fito</b> (cocina central), que factura tarde: Odoo
+  cuenta sus órdenes al confirmarlas, Wansoft hasta que llega la factura.</li>
+</ul>
+<p><b>Compras sin clasificar (desde la carga de la noche del 7 al 8 de octubre de
+2026):</b> una compra real
 cuenta en las vistas de negocio aunque su proveedor o su producto todavía no estén
 clasificados en los catálogos. <code>catalog_status</code> dice en qué estado está:
 <code>catalogado</code>, <code>producto_por_clasificar</code> (el producto existe pero
@@ -450,8 +467,12 @@ mercancía. Las órdenes de compra de Odoo solo cubren mercancía. Por eso:
   Durante la captura en paralelo, las compras de Odoo salieron entre 7% y 19%
   por encima del <code>Costo operativo</code> de Wansoft (septiembre de 2026:
   Acoxpa +7.2%, Coyoacán +11.1%, Oceanía +18.5%). Es una diferencia entre los dos
-  sistemas de origen, no un error de carga, y su causa sigue en revisión. La capa
-  analítica no la duplica porque nunca mezcla ambos sistemas para la misma
+  sistemas de origen, no un error de carga, y se explica en su mayor parte por
+  el momento en que cada uno cuenta la compra (ver "Cuándo aparece una compra"):
+  revisada una semana de Acoxpa, la mayoría de las órdenes coincidían exacto con
+  su factura y casi toda la diferencia eran órdenes de El Bodegón de Fito todavía
+  sin facturar; el resto, diferencias pequeñas entre el monto de la orden y el de
+  la factura. La capa analítica no la duplica porque nunca mezcla ambos sistemas para la misma
   sucursal y día; no compares Odoo contra Wansoft esperando que coincidan.</li>
   <li><b>Gastos que no son mercancía</b> (renta, servicios, software, nómina,
   fletes...) de las sucursales que ya operan en Odoo: hoy <b>no</b> se extraen de
@@ -471,7 +492,7 @@ registra en otro lado), así que no uses ese campo para cuentas por pagar.
   migradas): <code>getinputinventory_entrada</code> (entradas;
   <code>TipoEntrada</code>: Factura, Transferencia, Entrada con canal,
   Producto procesado, Ajuste de inventario) y
-  <code>getoutgoinginventory_salida</code> (salidas, unos 37 millones de filas:
+  <code>getoutgoinginventory_salida</code> (salidas, decenas de millones de filas:
   filtra siempre por <code>Fecha</code> y <code>subsidiary_name</code>).
   Sucursal = ID de Wansoft en <code>subsidiary_name</code>. Cantidad
   <code>Cantidad</code>, costo <code>CostoUnitario</code>.</li>
@@ -524,10 +545,14 @@ no tienen sucursal en el punto de venta.</p>
 
 <h1>7. Frescura y horarios</h1>
 <ul>
-  <li>Pipeline diario a la <b>01:30</b> (hora de Ciudad de México); datos hasta el día anterior.</li>
-  <li>Revisiones continuas: ventas 10 días (cuadradas contra el cierre diario de
-  Wansoft), costos y tablajería 10 días, facturas/inventario/cierre de caja de
-  Wansoft 5 días, compras 35 días.</li>
+  <li>Pipeline diario a la <b>01:30</b> (hora de Ciudad de México), unos 40
+  minutos; datos hasta el día anterior. En producción desde el 1 de octubre de 2026.</li>
+  <li>Revisiones continuas: ventas 10 días (cuadradas contra todos los cortes de
+  caja del día en Wansoft; el último día se valida la noche siguiente), costos y
+  tablajería 10 días (el costo de Odoo: el mes en curso y el anterior hasta el
+  día 10), facturas/inventario/cierre de caja de Wansoft 5 días, compras de
+  Wansoft 35 días. Las compras de Odoo se recargan completas cada noche; una
+  orden aparece la noche siguiente a su confirmación (sección 5.3).</li>
   <li>Wansoft puede recalcular sus costos después; manda la foto más reciente.</li>
   <li>Respaldo semanal los jueves a las 18:00. Evita consultas pesadas entre la
   01:30 y las 03:00.</li>

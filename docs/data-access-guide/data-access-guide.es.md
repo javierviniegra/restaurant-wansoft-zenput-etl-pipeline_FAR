@@ -6,7 +6,9 @@ Para: equipos externos que construirán su propio ETL sobre estas bases (por
 ejemplo, una capa de preguntas y respuestas / chatbot). Indica **qué tabla usar
 para cada pregunta de negocio, qué campos importan, cómo se unen las tablas y
 qué trampas evitar**. Cada regla se verificó contra el esquema y los datos
-reales el 2026-09-28 y se actualizó el 2026-09-30. Versión en PDF: [data-access-guide.es.pdf](data-access-guide.es.pdf).
+reales el 2026-09-28; la guía está actualizada al **2026-10-07**, después de la
+primera semana en producción, y ese día se comprobó que existen en producción
+todas las tablas y columnas que nombra. Versión en PDF: [data-access-guide.es.pdf](data-access-guide.es.pdf).
 
 ## Índice
 
@@ -163,7 +165,7 @@ Notas:
 
 ### 4.1 Histórico disponible
 
-Fechas medidas en producción el 2026-09-28. Las tablas se siguen llenando a diario hasta el día anterior.
+Fechas de inicio medidas en producción el 2026-09-28; la puesta en producción del 1 de octubre no las cambió (solo quitó copias duplicadas de filas). Las tablas se siguen llenando a diario hasta el día anterior.
 
 | Dato | Tabla | Fuente | Desde | Notas |
 |---|---|---|---|---|
@@ -264,7 +266,7 @@ veces. En las filas de Odoo, `CostoTotal` ya no incluye consumo.
 `company_source_key`, `wansoft_subsidiary_id`, `odoo_company_id`,
 `odoo_cost_start_date` (primer día con costo de Odoo; NULL = todo de Wansoft)
 y `reason` (`wansoft`, `policy`, `exception`, `auto_switch_pending`,
-`switched`). Úsala en lugar de copiar las reglas de esta sección.
+`switched`, `no_policy`). Úsala en lugar de copiar las reglas de esta sección.
 
 **Los costos de los días recientes todavía no están completos**, y cada fuente
 lo indica de forma distinta:
@@ -335,7 +337,20 @@ JOIN (SELECT subsidiary_id, MAX(created_date) AS d
 `final_purchase_source_status` explica por qué se conservó (por ejemplo
 `wansoft_history_before_odoo`).
 
-**Compras sin clasificar (desde el 7 de octubre de 2026):** una compra real
+**Cuándo aparece una compra** (importante al leer los días recientes):
+- **Odoo:** una orden cuenta cuando se **confirma**; los borradores y las
+  solicitudes de cotización nunca cuentan. Entra en la carga de la noche
+  siguiente a su confirmación, **con su fecha de orden**: una orden fechada el
+  día 5 y confirmada el día 7 aparece en la tabla el día 8, pero en el día 5.
+  Por eso las compras de días recientes pueden seguir creciendo.
+- **Wansoft:** una compra cuenta cuando se **captura la factura**, normalmente
+  al llegar la mercancía.
+- Para la misma mercancía los dos momentos pueden ser distintos. El caso
+  principal es **El Bodegón de Fito** (cocina central), que factura tarde: Odoo
+  cuenta sus órdenes al confirmarlas, Wansoft hasta que llega la factura.
+
+**Compras sin clasificar (desde la carga de la noche del 7 al 8 de octubre de
+2026):** una compra real
 cuenta en las vistas de negocio aunque su proveedor o su producto todavía no
 estén clasificados en los catálogos. `catalog_status` dice en qué estado está:
 `catalogado`, `producto_por_clasificar` (el producto existe pero falta
@@ -382,9 +397,14 @@ cubren mercancía. Por eso:
   la captura en paralelo, las compras de Odoo salieron entre 7% y 19% por
   encima del `Costo operativo` de Wansoft (septiembre de 2026: Acoxpa +7.2%,
   Coyoacán +11.1%, Oceanía +18.5%). Es una diferencia entre los dos sistemas
-  de origen, no un error de carga, y su causa sigue en revisión. La capa
-  analítica no la duplica porque nunca mezcla ambos sistemas para la misma
-  sucursal y día; no compares Odoo contra Wansoft esperando que coincidan.
+  de origen, no un error de carga, y se explica en su mayor parte por el
+  momento en que cada uno cuenta la compra (ver "Cuándo aparece una compra"):
+  revisada una semana de Acoxpa, la mayoría de las órdenes coincidían exacto
+  con su factura y casi toda la diferencia eran órdenes de El Bodegón de Fito
+  todavía sin facturar; el resto, diferencias pequeñas entre el monto de la
+  orden y el de la factura. La capa analítica no la duplica porque nunca mezcla
+  ambos sistemas para la misma sucursal y día; no compares Odoo contra Wansoft
+  esperando que coincidan.
 - **Gastos que no son mercancía** (renta, servicios, software, nómina,
   fletes...) de las sucursales que ya operan en Odoo: hoy **no** se extraen de
   Odoo. En `getexpenses_factura` esas sucursales solo tienen sus facturas hasta
@@ -401,8 +421,8 @@ registra en otro lado), así que no uses ese campo para cuentas por pagar.
 - **Movimientos de Wansoft** (sucursales Wansoft e histórico de las migradas):
   `getinputinventory_entrada` (entradas; `TipoEntrada`: `Factura`,
   `Transferencia`, `Entrada con canal`, `Producto procesado`, `Ajuste de
-  inventario`) y `getoutgoinginventory_salida` (salidas, unos 37 millones de
-  filas: filtra siempre por `Fecha` y `subsidiary_name`). Sucursal = ID de
+  inventario`) y `getoutgoinginventory_salida` (salidas, decenas de millones
+  de filas: filtra siempre por `Fecha` y `subsidiary_name`). Sucursal = ID de
   Wansoft en `subsidiary_name`. Cantidad `Cantidad`, costo `CostoUnitario`.
 - **Existencias actuales, unificadas:** `analytics_inventory_current_product_location`
   (existencias de Odoo por producto y ubicación) y `analytics_inventory_balance`
@@ -453,11 +473,14 @@ de venta.
 
 ## 7. Frescura y horarios
 
-- Pipeline diario a la **01:30** (hora de Ciudad de México); datos hasta el día
-  anterior.
-- Revisiones continuas: ventas 10 días (cuadradas contra el cierre diario de
-  Wansoft), costos y tablajería 10 días, facturas/inventario/cierre de caja de
-  Wansoft 5 días, compras 35 días.
+- Pipeline diario a la **01:30** (hora de Ciudad de México), unos 40 minutos;
+  datos hasta el día anterior. En producción desde el 1 de octubre de 2026.
+- Revisiones continuas: ventas 10 días (cuadradas contra todos los cortes de
+  caja del día en Wansoft; el último día se valida la noche siguiente),
+  costos y tablajería 10 días (el costo de Odoo: el mes en curso y el anterior
+  hasta el día 10), facturas/inventario/cierre de caja de Wansoft 5 días,
+  compras de Wansoft 35 días. Las compras de Odoo se recargan completas cada
+  noche; una orden aparece la noche siguiente a su confirmación (sección 5.3).
 - Wansoft puede recalcular sus costos después; manda la foto más reciente.
 - Respaldo semanal los jueves a las 18:00. Evita consultas pesadas entre la
   01:30 y las 03:00.

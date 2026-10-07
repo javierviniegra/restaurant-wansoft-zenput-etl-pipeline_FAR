@@ -47,7 +47,7 @@
     <td style="border: none; width: 100px; padding: 0;"><img class="logo" src="{{ logo_path }}"></td>
     <td style="border: none; padding: 0;">
       <p class="titulo">Data Access Guide</p>
-      <p class="subtitulo">Analytical databases <code>wansoft</code> and <code>zenput</code> | Fonda Argentina | Version 2026-09-28</p>
+      <p class="subtitulo">Analytical databases <code>wansoft</code> and <code>zenput</code> | Fonda Argentina | Version 2026-10-07</p>
     </td>
   </tr>
 </table>
@@ -61,7 +61,9 @@
 example, a question-and-answer / chatbot layer). It tells you <strong>which table to
 use for each business question, which fields matter, how tables join, and the
 traps to avoid</strong>. Every rule here was checked against the live schema and data
-on 2026-09-28 and updated on 2026-09-30. PDF version: <a href="data-access-guide.en.pdf">data-access-guide.en.pdf</a>.</p>
+on 2026-09-28; the guide is current as of <strong>2026-10-07</strong>, after the first week
+in production, and every table and column it names was confirmed to exist in
+production that day. PDF version: <a href="data-access-guide.en.pdf">data-access-guide.en.pdf</a>.</p>
 <h1>1. What is where</h1>
 <p>Two MySQL (MariaDB 10.4) databases on the same server:</p>
 <table class="compacta">
@@ -460,7 +462,7 @@ on 2026-09-28 and updated on 2026-09-30. PDF version: <a href="data-access-guide
 </table>
 <div class="salto"></div>
 <h2>4.1 Available history</h2>
-<p>Dates measured in production on 2026-09-28. Tables keep filling daily through the previous day.</p>
+<p>Start dates measured in production on 2026-09-28; the go-live of October 1 did not change them (it only removed duplicate copies of rows). Tables keep filling daily through the previous day.</p>
 <table class="compacta">
 <thead>
 <tr>
@@ -700,7 +702,7 @@ consumo.</p>
 <code>company_source_key</code>, <code>wansoft_subsidiary_id</code>, <code>odoo_company_id</code>,
 <code>odoo_cost_start_date</code> (first day on Odoo cost; NULL = always Wansoft) and
 <code>reason</code> (<code>wansoft</code>, <code>policy</code>, <code>exception</code>, <code>auto_switch_pending</code>,
-<code>switched</code>). Use it instead of copying the rules of this section.</p>
+<code>switched</code>, <code>no_policy</code>). Use it instead of copying the rules of this section.</p>
 <p><strong>Costs of recent days are not complete yet</strong>, and each source shows it
 differently:</p>
 <ul>
@@ -804,7 +806,20 @@ branch:</p>
 <p><code>source_system</code> (<code>wansoft</code>/<code>odoo</code>) tells where each row came from;
 <code>final_purchase_source_status</code> explains why it was kept (for example
 <code>wansoft_history_before_odoo</code>).</p>
-<p><strong>Unclassified purchases (since 2026-10-07):</strong> a real purchase counts in the
+<p><strong>When a purchase appears</strong> (important when reading recent days):</p>
+<ul>
+<li><strong>Odoo:</strong> an order counts once it is <strong>confirmed</strong>; drafts and requests for
+  quotation never count. It enters with the load of the night after it is
+  confirmed, <strong>under its order date</strong>: an order dated day 5 and confirmed on
+  day 7 appears in the table on day 8, but on day 5. So purchases of recent
+  days can keep growing.</li>
+<li><strong>Wansoft:</strong> a purchase counts when its <strong>invoice is captured</strong>, usually when
+  the goods arrive.</li>
+<li>For the same goods the two moments can differ. The main case is <strong>El Bodegón
+  de Fito</strong> (central kitchen), which invoices late: Odoo counts its orders when
+  confirmed, Wansoft only when the invoice arrives.</li>
+</ul>
+<p><strong>Unclassified purchases (from the load of the night of 2026-10-07 to 10-08):</strong> a real purchase counts in the
 business views even if its vendor or product is not yet classified in the
 catalogs. <code>catalog_status</code> says which state it is in: <code>catalogado</code>,
 <code>producto_por_clasificar</code> (the product exists but its classification still has
@@ -864,7 +879,11 @@ and payroll that are not goods. Odoo purchase orders only cover goods. So:</p>
   During the parallel capture, Odoo purchases came out 7% to 19% above
   Wansoft's <code>Costo operativo</code> (September 2026: Acoxpa +7.2%, Coyoacán +11.1%,
   Oceanía +18.5%). It is a difference between the two source systems, not a
-  loading error, and its cause is still under review. The analytics layer does
+  loading error, and it is mostly explained by when each system counts a
+  purchase (see "When a purchase appears"): in one week of Acoxpa reviewed,
+  most orders matched their invoice exactly and almost all of the difference
+  was El Bodegón de Fito orders not yet invoiced; the rest, small differences
+  between the order amount and the invoice amount. The analytics layer does
   not double it because it never mixes both systems for the same branch and
   day; do not compare Odoo against Wansoft expecting them to match.</li>
 <li><strong>Non-goods spend</strong> (rent, services, software, payroll, freight...) of
@@ -881,7 +900,7 @@ for accounts payable.</p>
 <li><strong>Wansoft movements</strong> (Wansoft branches, and history of migrated ones):
   <code>getinputinventory_entrada</code> (entries; <code>TipoEntrada</code>: <code>Factura</code>, <code>Transferencia</code>,
   <code>Entrada con canal</code>, <code>Producto procesado</code>, <code>Ajuste de inventario</code>) and
-  <code>getoutgoinginventory_salida</code> (exits, ~37 million rows: always filter by
+  <code>getoutgoinginventory_salida</code> (exits, tens of millions of rows: always filter by
   <code>Fecha</code> and <code>subsidiary_name</code>). Branch = Wansoft id in <code>subsidiary_name</code>.
   Quantity <code>Cantidad</code>, cost <code>CostoUnitario</code>.</li>
 <li><strong>Current stock, unified:</strong> <code>analytics_inventory_current_product_location</code>
@@ -976,10 +995,14 @@ key; some Zenput locations have no POS branch.</p>
 
 <h1>7. Freshness and schedule</h1>
 <ul>
-<li>Daily pipeline at <strong>01:30</strong> (Mexico City time); data through the previous day.</li>
-<li>Rolling re-checks: sales 10 days (reconciled against Wansoft's own daily close),
-  costs and butchery 10 days, Wansoft invoices/inventory/cash closing 5 days,
-  purchases 35 days.</li>
+<li>Daily pipeline at <strong>01:30</strong> (Mexico City time), about 40 minutes; data
+  through the previous day. In production since 2026-10-01.</li>
+<li>Rolling re-checks: sales 10 days (reconciled against all of Wansoft's cash
+  closings of the day; the latest day is validated the next night), costs and
+  butchery 10 days (Odoo cost: the current month and, until the 10th, the
+  previous one), Wansoft invoices/inventory/cash closing 5 days, Wansoft
+  purchases 35 days. Odoo purchases are fully reloaded every night; an order
+  appears the night after it is confirmed (section 5.3).</li>
 <li>Costs in Wansoft can be recalculated by Wansoft after the fact; the latest
   snapshot wins.</li>
 <li>Weekly backup Thursdays 18:00. Avoid heavy queries at 01:30–03:00.</li>
