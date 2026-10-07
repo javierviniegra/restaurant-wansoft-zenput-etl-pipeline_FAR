@@ -250,19 +250,16 @@ def build_aggregate(conn: Any) -> None:
         grouped.business_price_total_total,
         grouped.excluded_price_subtotal_total,
         grouped.excluded_price_total_total,
+        -- Owner, 2026-10-07 ("option 1"): the row counts whenever its lines do;
+        -- products only waiting for classification no longer drop the row.
         CASE
-            WHEN grouped.business_line_count > 0
-             AND grouped.include_product_in_business_views = TRUE
-            THEN TRUE
+            WHEN grouped.business_line_count > 0 THEN TRUE
             ELSE FALSE
         END AS include_in_business_views,
         NULLIF(
             CONCAT_WS(
                 ' | ',
-                CASE WHEN grouped.business_line_count = 0 THEN 'no_business_lines' END,
-                CASE WHEN grouped.orphan_product_line_count > 0 THEN 'orphan_product' END,
-                CASE WHEN grouped.review_required_product_line_count > 0 THEN 'review_required_product' END,
-                CASE WHEN grouped.include_product_in_business_views = FALSE THEN 'product_excluded' END
+                CASE WHEN grouped.business_line_count = 0 THEN 'no_business_lines' END
             ),
             ''
         ) AS exclude_reason,

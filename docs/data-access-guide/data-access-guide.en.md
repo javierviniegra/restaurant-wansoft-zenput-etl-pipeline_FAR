@@ -328,6 +328,16 @@ branch:
 `final_purchase_source_status` explains why it was kept (for example
 `wansoft_history_before_odoo`).
 
+**Unclassified purchases (since 2026-10-07):** a real purchase counts in the
+business views even if its vendor or product is not yet classified in the
+catalogs. `catalog_status` says which state it is in: `catalogado`,
+`producto_por_clasificar` (the product exists but its classification still has
+to be confirmed), `producto_sin_catalogo`, `proveedor_sin_catalogo` or
+`proveedor_y_producto_sin_catalogo`. Use it to show those purchases apart in a
+breakdown by category; the totals already include them. Only deliberately
+excluded products and purchases made by the internal providers stay out
+(`include_in_business_views = 0`). The catalogs are rebuilt every night.
+
 | Table | Grain | Key fields |
 |---|---|---|
 | `analytics_purchase_order_lines` | purchase line | `company_source_key`, `order_date`, `vendor_name`, `product_name`, `wansoft_code`, `wansoft_department`, `product_qty`, `price_unit`, `price_subtotal` (before tax), `price_total` (with tax), `source_system` |

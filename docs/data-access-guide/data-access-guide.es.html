@@ -397,6 +397,16 @@ JOIN (SELECT subsidiary_id, MAX(created_date) AS d
 <p><code>source_system</code> (<code>wansoft</code>/<code>odoo</code>) dice de dónde
 viene cada fila; <code>final_purchase_source_status</code> explica por qué se
 conservó (por ejemplo <code>wansoft_history_before_odoo</code>).</p>
+<p><b>Compras sin clasificar (desde el 7 de octubre de 2026):</b> una compra real
+cuenta en las vistas de negocio aunque su proveedor o su producto todavía no estén
+clasificados en los catálogos. <code>catalog_status</code> dice en qué estado está:
+<code>catalogado</code>, <code>producto_por_clasificar</code> (el producto existe pero
+falta confirmar su clasificación), <code>producto_sin_catalogo</code>,
+<code>proveedor_sin_catalogo</code> o <code>proveedor_y_producto_sin_catalogo</code>.
+Úsalo para mostrar esas compras aparte en un desglose por categoría; los totales ya
+las incluyen. Solo quedan fuera (<code>include_in_business_views = 0</code>) los
+productos excluidos a propósito y las compras hechas por los proveedores internos.
+Los catálogos se reconstruyen cada noche.</p>
 
 <table class="compacta">
   <tr><th width="42%">Tabla</th><th width="16%">Grano</th><th width="42%">Campos clave</th></tr>

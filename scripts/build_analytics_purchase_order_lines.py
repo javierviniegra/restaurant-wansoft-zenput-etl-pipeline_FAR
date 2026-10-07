@@ -202,6 +202,7 @@ def create_table_if_missing(conn: Any) -> None:
         include_in_business_views BOOLEAN NOT NULL DEFAULT TRUE,
         exclude_reason VARCHAR(500) NULL,
         line_review_status VARCHAR(100) NULL,
+        catalog_status VARCHAR(50) NULL,
 
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -234,6 +235,8 @@ def create_table_if_missing(conn: Any) -> None:
     """
     cursor = conn.cursor()
     cursor.execute(ddl)
+    # Added 2026-10-07 (catalog status of each line, see build_analytics_row).
+    cursor.execute(f"ALTER TABLE {ANALYTICS_TABLE} ADD COLUMN IF NOT EXISTS catalog_status VARCHAR(50) NULL AFTER line_review_status")
     conn.commit()
     cursor.close()
 
@@ -321,6 +324,7 @@ def load_product_dimension(conn: Any) -> Dict[str, Dict[Any, Dict[str, Any]]]:
             mapping_status,
             is_mapped,
             is_review_required,
+            is_excluded,
             include_in_business_views,
             source_system,
             source_product_key,
@@ -412,6 +416,7 @@ def build_analytics_row(
     include_in_business_views = True
     exclude_reason: Optional[str] = None
     line_review_status = "ok"
+    vendor_missing = product_missing = product_pending = False
 
     company_source_key = source_row.get("company_source_key")
     company_row = company_dimension.get(company_source_key)
@@ -467,8 +472,12 @@ def build_analytics_row(
         # include_vendor_in_business_views are still tracked on the row for
         # reporting, just no longer used to force exclusion here.
     else:
-        include_in_business_views = False
-        exclude_reason = append_reason(exclude_reason, "orphan_vendor")
+        # Vendor not in dim_vendor (owner, 2026-10-07, "option 1"): a real
+        # purchase still counts in the business views; catalog_status says
+        # it is waiting for the catalog. Before, these lines were excluded
+        # (~5% of purchases every month, with dim_vendor/dim_product built
+        # by hand in August and never refreshed).
+        vendor_missing = True
         line_review_status = "review_required"
 
     product_row = lookup_product(source_row, product_dimension)
@@ -488,18 +497,36 @@ def build_analytics_row(
         is_product_review_required = bool(product_row.get("is_review_required"))
         include_product_in_business_views = bool(product_row.get("include_in_business_views"))
 
-        if is_product_review_required:
-            include_in_business_views = False
-            exclude_reason = append_reason(exclude_reason, "review_required_product")
-            line_review_status = "review_required"
-
-        if not include_product_in_business_views:
+        # Owner, 2026-10-07 ("option 1"): a product only waiting for its
+        # classification (review required) still counts, flagged
+        # "producto_por_clasificar". Only DELIBERATE exclusions stay out:
+        # dim_product.is_excluded (historical_only, excluded scope) or a
+        # product marked not for business views without being under review
+        # (e.g. inventory usable_for_etl = 0).
+        deliberately_excluded = bool(product_row.get("is_excluded")) or (
+            not include_product_in_business_views and not is_product_review_required
+        )
+        if deliberately_excluded:
             include_in_business_views = False
             exclude_reason = append_reason(exclude_reason, "product_excluded")
+        elif is_product_review_required:
+            product_pending = True
+            line_review_status = "review_required"
     else:
-        include_in_business_views = False
-        exclude_reason = append_reason(exclude_reason, "orphan_product")
+        # Product not in dim_product: counts, flagged "producto_sin_catalogo" (option 1).
+        product_missing = True
         line_review_status = "review_required"
+
+    if vendor_missing and product_missing:
+        catalog_status = "proveedor_y_producto_sin_catalogo"
+    elif vendor_missing:
+        catalog_status = "proveedor_sin_catalogo"
+    elif product_missing:
+        catalog_status = "producto_sin_catalogo"
+    elif product_pending:
+        catalog_status = "producto_por_clasificar"
+    else:
+        catalog_status = "catalogado"
 
     return {
         "canonical_purchase_order_line_id": source_row.get("id"),
@@ -556,6 +583,7 @@ def build_analytics_row(
         "include_in_business_views": bool_to_int(include_in_business_views),
         "exclude_reason": exclude_reason,
         "line_review_status": line_review_status,
+        "catalog_status": catalog_status,
     }
 
 
@@ -618,7 +646,8 @@ def insert_batch(conn: Any, rows: List[Dict[str, Any]]) -> None:
         canonical_loaded_at,
         include_in_business_views,
         exclude_reason,
-        line_review_status
+        line_review_status,
+        catalog_status
     )
     VALUES (
         %(canonical_purchase_order_line_id)s,
@@ -674,7 +703,8 @@ def insert_batch(conn: Any, rows: List[Dict[str, Any]]) -> None:
         %(canonical_loaded_at)s,
         %(include_in_business_views)s,
         %(exclude_reason)s,
-        %(line_review_status)s
+        %(line_review_status)s,
+        %(catalog_status)s
     )
     """
 
@@ -775,20 +805,21 @@ def build_analytics_purchase_order_lines(conn: Any) -> Dict[str, Any]:
             excluded_rows += 1
 
         reason = analytics_row.get("exclude_reason") or ""
+        catalog = analytics_row.get("catalog_status") or ""
 
         if "internal_vendor" in reason:
             internal_vendor_rows += 1
 
-        if "review_required_product" in reason:
+        if catalog == "producto_por_clasificar":
             review_required_product_rows += 1
 
         if "orphan_company" in reason:
             orphan_company_rows += 1
 
-        if "orphan_vendor" in reason:
+        if "proveedor" in catalog and "sin_catalogo" in catalog:
             orphan_vendor_rows += 1
 
-        if "orphan_product" in reason:
+        if "producto" in catalog and "sin_catalogo" in catalog:
             orphan_product_rows += 1
 
         if "invalid_order_date" in reason:

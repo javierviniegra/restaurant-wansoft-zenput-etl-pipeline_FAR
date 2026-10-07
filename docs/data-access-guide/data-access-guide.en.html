@@ -804,6 +804,15 @@ branch:</p>
 <p><code>source_system</code> (<code>wansoft</code>/<code>odoo</code>) tells where each row came from;
 <code>final_purchase_source_status</code> explains why it was kept (for example
 <code>wansoft_history_before_odoo</code>).</p>
+<p><strong>Unclassified purchases (since 2026-10-07):</strong> a real purchase counts in the
+business views even if its vendor or product is not yet classified in the
+catalogs. <code>catalog_status</code> says which state it is in: <code>catalogado</code>,
+<code>producto_por_clasificar</code> (the product exists but its classification still has
+to be confirmed), <code>producto_sin_catalogo</code>, <code>proveedor_sin_catalogo</code> or
+<code>proveedor_y_producto_sin_catalogo</code>. Use it to show those purchases apart in a
+breakdown by category; the totals already include them. Only deliberately
+excluded products and purchases made by the internal providers stay out
+(<code>include_in_business_views = 0</code>). The catalogs are rebuilt every night.</p>
 <table class="compacta">
 <thead>
 <tr>

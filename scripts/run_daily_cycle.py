@@ -17,6 +17,7 @@ from pipelines.jobs.purchases_pipeline_job import run_purchases_pipeline_job
 from pipelines.jobs.analytics_purchase_pipeline_job import run_analytics_purchase_pipeline_job
 from pipelines.jobs.odoo_cutover_validation_job import run_odoo_cutover_validation_job
 from pipelines.jobs.product_mapping_backlog_job import run_product_mapping_backlog_job
+from pipelines.jobs.purchase_catalog_review_job import is_due as catalog_review_due, run_purchase_catalog_review_job
 
 
 def build_stages(today=None):
@@ -29,6 +30,9 @@ def build_stages(today=None):
     ]
     if today.weekday() == 6:
         stages.append(("Product mapping backlog (weekly)", run_product_mapping_backlog_job))
+    if catalog_review_due(today.date() if hasattr(today, "date") else today):
+        # Every 5 days: purchases still unclassified in the catalogs (owner, 2026-10-07).
+        stages.append(("Compras por clasificar (cada 5 dias)", run_purchase_catalog_review_job))
     return stages
 
 

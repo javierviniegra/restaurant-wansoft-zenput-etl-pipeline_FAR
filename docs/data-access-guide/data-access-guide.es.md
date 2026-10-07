@@ -335,6 +335,17 @@ JOIN (SELECT subsidiary_id, MAX(created_date) AS d
 `final_purchase_source_status` explica por qué se conservó (por ejemplo
 `wansoft_history_before_odoo`).
 
+**Compras sin clasificar (desde el 7 de octubre de 2026):** una compra real
+cuenta en las vistas de negocio aunque su proveedor o su producto todavía no
+estén clasificados en los catálogos. `catalog_status` dice en qué estado está:
+`catalogado`, `producto_por_clasificar` (el producto existe pero falta
+confirmar su clasificación), `producto_sin_catalogo`, `proveedor_sin_catalogo`
+o `proveedor_y_producto_sin_catalogo`. Úsalo para mostrar esas compras aparte
+en un desglose por categoría; los totales ya las incluyen. Solo quedan fuera
+(`include_in_business_views = 0`) los productos excluidos a propósito y las
+compras hechas por los proveedores internos. Los catálogos se reconstruyen
+cada noche.
+
 | Tabla | Grano | Campos clave |
 |---|---|---|
 | `analytics_purchase_order_lines` | renglón de compra | `company_source_key`, `order_date`, `vendor_name`, `product_name`, `wansoft_code`, `wansoft_department`, `product_qty`, `price_unit`, `price_subtotal` (sin IVA), `price_total` (con IVA), `source_system` |

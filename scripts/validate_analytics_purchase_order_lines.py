@@ -249,17 +249,20 @@ def validate_product_fk(conn: Any) -> Dict[str, Any]:
 
 
 def validate_review_required_products_excluded(conn: Any) -> Dict[str, Any]:
+    # Rule changed 2026-10-07 (owner, "option 1"): products under review now
+    # COUNT in business views (catalog_status 'producto_por_clasificar'); what
+    # must stay out is only a deliberately excluded product.
     query = f"""
         SELECT COUNT(1) AS bad_rows
         FROM {TABLE_NAME}
-        WHERE is_product_review_required = TRUE
-          AND include_in_business_views = TRUE
+        WHERE include_in_business_views = TRUE
+          AND exclude_reason LIKE '%%product_excluded%%'
     """
     df = query_df(conn, query)
     total = int(df.iloc[0]["bad_rows"])
 
     return validation_result(
-        "review_required_products_excluded",
+        "deliberately_excluded_products_excluded",
         "PASS" if total == 0 else "FAIL",
         {
             "bad_rows": total,
@@ -268,17 +271,23 @@ def validate_review_required_products_excluded(conn: Any) -> Dict[str, Any]:
 
 
 def validate_internal_vendor_lines_excluded(conn: Any) -> Dict[str, Any]:
+    # Rule fixed 2026-10-07: since 2026-09-15 (docs/purchases-product-mapping-
+    # policy.md) a branch BUYING FROM the internal kitchens (El Bodegón, Las
+    # Empanadas as vendor) is a real purchase and counts; what must stay out
+    # is the internal provider as the BUYING company. The old check (internal
+    # vendor lines excluded) contradicted that rule.
     query = f"""
         SELECT COUNT(1) AS bad_rows
-        FROM {TABLE_NAME}
-        WHERE is_internal_vendor = TRUE
-          AND include_in_business_views = TRUE
+        FROM {TABLE_NAME} a
+        JOIN dim_company_analytical c ON c.company_source_key = a.company_source_key
+        WHERE c.is_internal_provider = TRUE
+          AND a.include_in_business_views = TRUE
     """
     df = query_df(conn, query)
     total = int(df.iloc[0]["bad_rows"])
 
     return validation_result(
-        "internal_vendor_lines_excluded",
+        "internal_provider_company_lines_excluded",
         "PASS" if total == 0 else "FAIL",
         {
             "bad_rows": total,
