@@ -13,7 +13,7 @@ This module strictly requires the centralized `.env` and `database.py` files loc
 
 Here is a detailed breakdown of what each script does and what data it brings to the MySQL database:
 
-*   **`extractAllOrdersByDay.py`**: The Sales "Candado" (Lock): downloads the daily orders XML of each branch, compares the database total against Wansoft's official Z-Closing and rewrites a day only when they differ. It populates `getallordenesbyday_new_venta`, `_new_detalleventa`, `_new_modificador` and `_new_pago`. Exits non-zero when not a single XML could be obtained.
+*   **`extractAllOrdersByDay.py`**: The Sales "Candado" (Lock): downloads the daily orders XML of each branch, compares the database total against **all** of Wansoft's official cash closings (Z) of the operating day and rewrites a day only when it matches none of the accepted totals (see "Sales Candado: several closings per day" below). It populates `getallordenesbyday_new_venta`, `_new_detalleventa`, `_new_modificador` and `_new_pago`. Exits non-zero when not a single XML could be obtained.
 *   **`getAllOrdersByDay.py`**: Older full-range Sales loader; not part of the nightly cycle.
 *   **`getCostReport_SemanaPyQ.py`**: Week-to-date cost (Monday through the day before `created_at`) into `costeomensual_semanapyq`. Wansoft or Odoo per branch and day, see "Cost routing" below.
 *   **`getExpenses.py`**: Downloads Wansoft supplier invoices (`Facturas`) with tax details (IVA, IEPS), subtotals and supplier RFCs into `getexpenses_factura`. Only branches still on Wansoft (`COMPANY_SOURCE`).
@@ -21,6 +21,30 @@ Here is a detailed breakdown of what each script does and what data it brings to
 *   **`getOutgoingInventory.py`**: Inventory exits by department and warehouse into `getoutgoinginventory_salida` (upsert against the unique key `uq_subsidiary_fecha_idsalida`, added at the 2026-10-01 cutover). Only branches still on Wansoft.
 *   **`getTablajeriaReport.py`**: Butchery yields (base product into generated products, shrinkage, costs) into `gettablajeriareport`. Being phased out as branches move purchases/inventory to Odoo.
 *   **`getTotalCostByDate.py`**: Single-day cost of sales (`CostoTotalVenta`) into `gettotalcostbydate`. Wansoft or Odoo per branch and day, see below.
+
+## 🔒 Sales Candado: several closings per day
+
+`GetGlobalCashClosing_Xml` can return more than one `<Corte>` for one operating day: shifts that add up, or a partial closing followed by the full closing of the day that already includes it. Until 2026-10-07 the Candado read only the first one, so a day that matched a partial closing was never re-downloaded (bug #41: on 2026-09-30 Isabel La Católica, San Jerónimo and Vía Vallejo closed at ~19:00 and again the next morning; $57,443 of sales were missing until the fix).
+
+Now `obtener_cortes_oficiales` returns the `<Ventas Total>` of every closing and `cuadra_con_cortes` accepts the day when the database total equals:
+- the **SUM** of the closings (several shifts), or
+- the **LARGEST** closing (a full close that includes an earlier partial one, e.g. Puebla 2026-09-29: a single-order 6,063 closing plus the real one).
+
+Anything else is re-downloaded from Wansoft and rewritten; if it still differs after the rewrite, the log shows `[ALERTA] Aún hay diferencia ... (contra el corte mayor)`.
+
+Per night and branch the Candado walks back `SALES_LOOKBACK_DAYS` (10). **The most recent day (yesterday) is only loaded, never validated**: its closing may not exist yet (closings made after midnight), so it is validated the next night. A day with no closing returned (`[SALTAR] No se pudo obtener CashClosing`) is skipped and retried the next night.
+
+The same rule is used by the read-only reconciliation, `python -m scripts.reconcile_sources --only ventas,cierres`.
+
+## ⏱️ Windows and timeouts
+
+| Script | Days re-read every night |
+|---|---|
+| `extractAllOrdersByDay.py` (sales) | `SALES_LOOKBACK_DAYS` (10) |
+| `getExpenses.py`, `getInputInventory.py`, `getOutgoingInventory.py`, cash closing | `WANSOFT_LOOKBACK_DAYS` (5 in production) |
+| `getCostReport_SemanaPyQ.py`, `getTotalCostByDate.py`, `descargarCostoWansoft.py`, `getTablajeriaReport.py` | `COSTS_LOOKBACK_DAYS` (10); the Odoo side of costs re-reads longer, see below |
+
+Every Wansoft SOAP call goes through `core/clients/wansoft_client.py` with timeouts (bug #40, 2026-10-07: the night of 10-07 hung for 4 hours on a call that was accepted but never answered): `WANSOFT_CONNECT_TIMEOUT_SECONDS` (60) and `WANSOFT_OPERATION_TIMEOUT_SECONDS` (600 per call). Odoo calls use `ODOO_TIMEOUT_SECONDS` (600) and the Zenput scripts 120 s. A timed-out call is an error for that branch and day only: the scripts catch errors per day and continue, and the window retries the day the next night. These per-day errors (`[❌]`, `[ERROR ...]`) do not fail the stage; they are visible only in the log.
 
 ## 💰 Cost routing: Wansoft or Odoo, per branch and per day
 
