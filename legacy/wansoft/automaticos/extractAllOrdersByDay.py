@@ -166,10 +166,17 @@ def eliminar_registros_dia(sucursal, fecha):
 # UTILIDADES DE XML / SOAP
 # ─────────────────────────────────────────────
 
-def obtener_total_oficial(id_sucursal, password, fecha):
+def obtener_cortes_oficiales(id_sucursal, password, fecha):
     """
-    Llama a GetGlobalCashClosing_Xml y extrae el Total de <Ventas>.
-    Retorna float o None si falla.
+    Llama a GetGlobalCashClosing_Xml y devuelve el Total de <Ventas> de CADA
+    <Corte> del día operativo (lista de floats), o None si falla / no hay cortes.
+
+    Wansoft puede devolver varios cortes para un día (2026-10-07): turnos que
+    se suman, o un corte parcial seguido del corte completo del día que ya lo
+    incluye (Isabel y Vía Vallejo el 2026-09-30: corte a las 19:00 y corte
+    completo la mañana siguiente; Puebla el 2026-09-29: corte suelto de una
+    orden y el cierre real). Antes solo se leía el primero, así que un día
+    incompleto que coincidía con el corte parcial nunca se volvía a bajar.
     """
     try:
         respuesta_raw = client.service.GetGlobalCashClosing_Xml(
@@ -180,17 +187,27 @@ def obtener_total_oficial(id_sucursal, password, fecha):
         xml_str = html.unescape(respuesta_raw)
         root = ET.fromstring(xml_str)
 
-        ventas_node = root.find('.//Ventas')
-        if ventas_node is None:
-            print(f"    [AVISO] No se encontró nodo <Ventas> en CashClosing")
+        totales = []
+        for corte in root.findall('.//Corte'):
+            ventas_node = corte.find('Ventas')
+            total_str = (ventas_node.get('Total', '') if ventas_node is not None else '').replace(',', '')
+            if total_str:
+                totales.append(float(total_str))
+        if not totales:
+            print(f"    [AVISO] No se encontró ningún corte con <Ventas> en CashClosing")
             return None
-
-        total_str = ventas_node.get('Total', '').replace(',', '')
-        return float(total_str) if total_str else None
+        return totales
 
     except Exception as e:
         print(f"    [ERROR CashClosing SOAP] {e}")
         return None
+
+
+def cuadra_con_cortes(total_bd, cortes):
+    """El día cuadra si la base es igual a la SUMA de los cortes (turnos) o al corte MAYOR (completo que incluye a otro)."""
+    if total_bd is None or not cortes:
+        return False
+    return abs(sum(cortes) - total_bd) < 0.01 or abs(max(cortes) - total_bd) < 0.01
 
 
 def xml_es_valido(ruta_archivo):
@@ -561,12 +578,13 @@ def verificar_y_sincronizar(fecha_referencia=None, dias_atras=5, es_modo_hoy=Fal
                     print(f"  [PASO 2] Ya hay datos en BD (${total_bd:,.2f}) — sin acción")
                 continue
 
-            # ── PASO 2: obtener Total Oficial (Cierre Z) ──────────────
-            total_oficial = obtener_total_oficial(id_sucursal, password, fecha)
-            if total_oficial is None:
+            # ── PASO 2: obtener los cortes oficiales (Cierre Z) ───────
+            cortes = obtener_cortes_oficiales(id_sucursal, password, fecha)
+            if cortes is None:
                 print(f"  [SALTAR] No se pudo obtener CashClosing para {sucursal} {fecha_str}")
                 continue
-            print(f"  [PASO 2] Total oficial (Cierre Z): ${total_oficial:,.2f}")
+            total_oficial = max(cortes)
+            print(f"  [PASO 2] Cortes oficiales (Cierre Z): " + ", ".join(f"${c:,.2f}" for c in cortes))
 
             # ── PASO 3: obtener Total en BD ───────────────────────────
             total_bd = obtener_total_bd(sucursal, fecha)
@@ -576,13 +594,12 @@ def verificar_y_sincronizar(fecha_referencia=None, dias_atras=5, es_modo_hoy=Fal
                 print(f"  [PASO 3] Sin datos en BD (NULL)")
 
             # ── PASO 4: comparar ──────────────────────────────────────
-            diferencia = abs(total_oficial - (total_bd or 0))
-
-            if total_bd is not None and diferencia < 0.01:
+            if cuadra_con_cortes(total_bd, cortes):
                 print(f"  [PASO 4] ✓ Totales coinciden — sin acción necesaria")
                 continue
 
-            print(f"  [PASO 4] ✗ Diferencia: ${diferencia:,.2f} — sincronizando...")
+            diferencia = abs(total_oficial - (total_bd or 0))
+            print(f"  [PASO 4] ✗ Diferencia contra el corte mayor: ${diferencia:,.2f} — sincronizando...")
 
             # ── Forzar re-descarga antes de corregir ──────────────────
             # El XML local (usado en PASO 1) puede ser una copia vieja;
@@ -601,11 +618,11 @@ def verificar_y_sincronizar(fecha_referencia=None, dias_atras=5, es_modo_hoy=Fal
             # ── Verificación post-escritura ───────────────────────────
             total_bd_nuevo = obtener_total_bd(sucursal, fecha)
             if total_bd_nuevo is not None:
-                dif_final = abs(total_oficial - total_bd_nuevo)
-                if dif_final < 0.01:
+                if cuadra_con_cortes(total_bd_nuevo, cortes):
                     print(f"  [OK] Sincronización exitosa — Total BD: ${total_bd_nuevo:,.2f}")
                 else:
-                    print(f"  [ALERTA] Aún hay diferencia de ${dif_final:,.2f} tras reescritura")
+                    dif_final = abs(total_oficial - total_bd_nuevo)
+                    print(f"  [ALERTA] Aún hay diferencia de ${dif_final:,.2f} (contra el corte mayor) tras reescritura")
             else:
                 print(f"  [ALERTA] No se pudo verificar el total post-escritura")
 
