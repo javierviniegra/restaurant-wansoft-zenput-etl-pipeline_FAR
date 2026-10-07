@@ -2,7 +2,7 @@
 
 Master continuity document. Generated/updated automatically at the close of major steps, on explicit request ("Generate project context report"), when the conversation gets very long, when consumed context exceeds ~70%, or when a new chat needs to be opened due to token limits. Always regenerated in full, never as an incremental patch.
 
-Last generated: 2026-10-01 (Thursday, afternoon), right after the production cutover finished. It covers 2026-09-29 to 2026-10-01 on top of the earlier sessions kept below. **THE CUTOVER IS DONE (all 10 steps OK, Section 17.10). Production now runs on the new pipeline: `Wansoft_Pipeline_Diario` at 01:30 against the live `wansoft`/`zenput`; the first production night is 2026-10-01 to 10-02. Next action: Friday 10-02, check that night (Section 13 "After go-live").** Read Section 13 first, then Section 0 (machines), 17.10 (what ran today) and 18. The command-level procedure, including the exact commands executed today, lives in `docs/production-cutover-runbook.md` (Section 6.1).
+Last generated: 2026-10-07 (Wednesday, afternoon), for a chat handoff. It covers the first production week (2026-10-01 to 10-07) on top of the earlier sessions kept below. **Production runs on the new pipeline since 2026-10-01 (`Wansoft_Pipeline_Diario`, 01:30, 16 stages, ~40 min). The first week found and fixed bugs #35-#41 and added: automatic Wansoft-to-Odoo cost switch, continuous period totals, a long Odoo cost window, the `costs_source_by_company` table, timeouts on every source call, a Candado that reads all cash closings, a full read-only reconciliation script, and (tonight's first run) the owner's "option 1" for unclassified purchases with nightly catalogs and a 5-day review. NEXT (owner, in this order): (1) bring all documentation and the data guides up to date; (2) review the night of 10-07 to 10-08 (option 1 in production, unclassified products, pending mappings); (3) the expenses domain; (4) Power BI.** Read **Section 13 "NOW / NEXT"** first, then Section 0 (machines), 7 (status by domain) and 18 (handoff). Command-level procedures: `docs/production-cutover-runbook.md` (6.1 cutover, 7b costs).
 
 ---
 
@@ -69,6 +69,8 @@ Databases (`wansoft` is the big one): `wansoft` 31 GB on disk (**migrated on 202
 - **CUTOVER DONE on 2026-10-01** (Section 17.10): legacy tasks disabled, pre-cutover backup and Hyper-V checkpoints, live `wansoft` migrated (parts 1-5), `.env` switched to the real databases, 125-day purchases reload, Puebla/CentroMyJ cost backfill, `Wansoft_Pipeline_Diario` at **01:30** against production, tukanmx users created.
 
 **Go-live:** done Thursday **2026-10-01**, together with the Odoo cutover of Isabel La Católica, San Jerónimo and Vía Vallejo. First production night: 2026-10-01 to 10-02.
+
+**First production week (2026-10-01 to 10-07), state now:** every night ran 16/16 except 10-04/10-05 (purchases rollout check, bug #38, fixed) and 10-07 (hung on a Wansoft call, bug #40, timeouts added, re-run by hand). A full reconciliation against the sources for 09-30..10-06 matches everywhere (sales, cash closings, Wansoft invoices and entries, Odoo purchases, costs, Zenput, business vs canonical) after fixing the Candado (bug #41, $57,443 of 09-30 sales recovered). Costs validated end to end on Acoxpa and CentroMyJ (warehouse = source to the peso; Odoo vs Wansoft raw material within 0.9%). Central de Reportes (separate repo, production since 2026-10-06) reads this warehouse, including `costs_source_by_company`.
 
 **Superseded next action (2026-09-29), kept for history:** read `C:\Apps\Wansoft_ETL\logs\daily_cycle_20260929.log` (expect `0 failed`, measure the steady-state duration), then compare `wansoft_prueba` with production for the same days.
 
@@ -239,12 +241,12 @@ Explicitly stated: validating these 4 branches (Acoxpa, Coyoacán, San Jerónimo
 # 7. Detailed Status by Domain
 
 ### Sales
-No open issues in pipeline logic. Matches Power BI exactly in every branch checked (Acoxpa, Coyoacán, San Jerónimo, Oceanía; Puebla earlier). **Fixed 2026-09-28 (bug #27):** on a new machine the Candado could not write any XML (missing `data\xml\getAllOrdersByDay`) and still reported the stage as OK; it now creates the folder and exits 1 when not a single XML could be obtained. **Open, carried forward:** whether Antenas, Tepeyac or CentroMyJ have the Aug 1-27 dev-only history gap found on Acoxpa/Puebla.
+**2026-10-07:** the Candado now validates each day against ALL of Wansoft's cash closings of the operating day (match = their sum or the largest), bug #41; 09-30 of the October wave recovered ($57,443). Reconciliation 09-30..10-06: 129/133 exact, the rest = latest day. No open issues in pipeline logic. Matches Power BI exactly in every branch checked (Acoxpa, Coyoacán, San Jerónimo, Oceanía; Puebla earlier). **Fixed 2026-09-28 (bug #27):** on a new machine the Candado could not write any XML (missing `data\xml\getAllOrdersByDay`) and still reported the stage as OK; it now creates the folder and exits 1 when not a single XML could be obtained. **Open, carried forward:** whether Antenas, Tepeyac or CentroMyJ have the Aug 1-27 dev-only history gap found on Acoxpa/Puebla.
 
 Sales table facts confirmed 2026-09-28 (now in the data access guide): join header to lines/payments/modifiers on `Sucursal` + `Movimento` = `Movimiento_Id` (full coverage); amounts and `Fecha` are `varchar`; `Estatus` is always 0; `TipoOrden` in `Restaurant` / `Para llevar` / `eCommerce`. The old tables `getallordenesbyday_venta`, `_detalleventa`, `_modificador` and the empty `getallordenesbyday_new_pagos` are unused backups; the owner confirmed nothing writes to them, and they are dropped at cutover (already dropped on dev and `wansoft_prueba`).
 
 ### Purchases
-Both August-round bugs and the unconfirmed-RFQ bug (#24) remain fixed. Compare Odoo-migrated branches against Wansoft's `Cuenta='Costo operativo'` only; the residual 7-19% Odoo-over-Wansoft gap stays an open item. **Confirmed 2026-09-28:** the canonical/analytics layer already merges Wansoft history (invoice-type entries, `getinputinventory_entrada` with `TipoEntrada='Factura'`) before each branch's Odoo start date with confirmed Odoo orders from that date (`final_purchase_source_status` = `final_wansoft_enabled` / `wansoft_history_before_odoo`); a live check on Acoxpa showed January-June from Wansoft and July onward from Odoo, no month repeated or missing. **Superseded 2026-09-29:** the 5 migrated branches now read Odoo only from 2026-10-01 (`cutover_04`), so their June-September purchases come from Wansoft; rehearsed on `wansoft_prueba` with a one-off 125-day Wansoft window. **Decided 2026-09-28:** after cutover the pipeline does not keep downloading Wansoft invoices/entries/exits for migrated branches (the legacy tasks did); the Odoo-vs-Wansoft validation is considered done.
+**2026-10-07 (owner's option 1, live from the night of 10-07 to 10-08):** unclassified purchases (vendor/product missing or pending classification) count in business views with `catalog_status`; `dim_vendor`/`dim_product` rebuilt nightly; 5-day review stage and `purchase_catalog_review_backlog`. Odoo vs Wansoft purchase gap explained on Acoxpa (orders vs invoices, El Bodegón invoices late). Reconciliation: Wansoft-branch invoices 356/356, entries 2,551/2,551, Odoo 0 real differences. Both August-round bugs and the unconfirmed-RFQ bug (#24) remain fixed. Compare Odoo-migrated branches against Wansoft's `Cuenta='Costo operativo'` only; the residual 7-19% Odoo-over-Wansoft gap stays an open item. **Confirmed 2026-09-28:** the canonical/analytics layer already merges Wansoft history (invoice-type entries, `getinputinventory_entrada` with `TipoEntrada='Factura'`) before each branch's Odoo start date with confirmed Odoo orders from that date (`final_purchase_source_status` = `final_wansoft_enabled` / `wansoft_history_before_odoo`); a live check on Acoxpa showed January-June from Wansoft and July onward from Odoo, no month repeated or missing. **Superseded 2026-09-29:** the 5 migrated branches now read Odoo only from 2026-10-01 (`cutover_04`), so their June-September purchases come from Wansoft; rehearsed on `wansoft_prueba` with a one-off 125-day Wansoft window. **Decided 2026-09-28:** after cutover the pipeline does not keep downloading Wansoft invoices/entries/exits for migrated branches (the legacy tasks did); the Odoo-vs-Wansoft validation is considered done.
 
 ### Inventory
 No change to the Odoo-side valuation gap (still open). Production's `getoutgoinginventory_salida` held 77,370 surplus rows in 61,125 groups, all exact copies left by three bulk reloads of the legacy loader (2025-04, 2026-02, 2026-07; none in 2026-08/09); the cutover migration removes them before adding the unique key the new loader depends on (Section 17.8).
@@ -259,7 +261,7 @@ Power BI's ranking excludes the per-branch delivery/app placeholder waiter; vali
 Lookbacks remain `.env`-driven (`SALES 10 / WANSOFT 5 / PURCHASES 35`; `COSTS_LOOKBACK_DAYS` 10 by code default, which is why the preflight shows one expected WARN). `scripts/check_env.py` fails (not warns) when the configured database is not reachable by the configured user. Findings to act on after go-live: `wansoftuser` has full privileges with grant option; phpMyAdmin on plain http on a public IP; the production server accepts connections from the internet without TLS; the tukanmx users accept any host (`'%'`) until tukanmx gives its IPs.
 
 ### Deployment / operations
-**In production since 2026-10-01.** Tasks VM: daily GitHub update (00:30), `Wansoft_Pipeline_Diario` (01:30, writes to the live `wansoft`/`zenput`), weekly backup (Thursday 18:00), preflight. The 12 `FondaCroned_*` are disabled (to delete after one or two good nights); `Wansoft_Restore_Ensayo` was unregistered. **Watch the analytics purchase stage's duration:** it took 43.5 min on the live database at midday (14.9 min in the rehearsal on `wansoft_prueba`); measure it at night before acting (candidate: production's never-checked `innodb_buffer_pool_size`).
+**First week (2026-10-07):** 16 nightly stages (+ Sunday mapping job, + "Compras por clasificar" every 5 days); every Wansoft/Odoo/Zenput call has a timeout (bug #40) and the cycle log is unbuffered; read-only checks `scripts/reconcile_sources.py` (sales, closings, purchases, costs, Zenput, business layer) and `scripts/check_odoo_vs_warehouse.py`; the costs stage publishes `costs_source_by_company` for Central de Reportes (in production since 2026-10-06 on SVR-HIKCENTER:8040). **In production since 2026-10-01.** Tasks VM: daily GitHub update (00:30), `Wansoft_Pipeline_Diario` (01:30, writes to the live `wansoft`/`zenput`), weekly backup (Thursday 18:00), preflight. The 12 `FondaCroned_*` are disabled (to delete after one or two good nights); `Wansoft_Restore_Ensayo` was unregistered. **Watch the analytics purchase stage's duration:** it took 43.5 min on the live database at midday (14.9 min in the rehearsal on `wansoft_prueba`); measure it at night before acting (candidate: production's never-checked `innodb_buffer_pool_size`).
 
 **Power BI after the cutover:** its Compras / Entradas pages read `getexpenses_factura` and `getinputinventory_entrada`, which no longer receive the 10 Odoo branches from 2026-10-01, so October shows empty for them until the pages are repointed to `analytics_purchase_order_lines` (`include_in_business_views = 1`). The owner asked for the repoint package (final query, branch crosswalk `company_source_key` vs Wansoft IDs, column mapping of the current page) for **Monday 2026-10-05**; it needs the `.pbix` or its queries. The by-`Cuenta` (non-goods) view stays on `getexpenses_factura`; its Odoo-branch gap is covered by `analytics_expense_invoices` (also Monday).
 
@@ -452,6 +454,23 @@ See prior reports for bugs #1-#17.
 ---
 
 # 13. Identified Legacy / Consolidated Backlog
+
+## NOW / NEXT (2026-10-07, end of the first production week)
+
+**Next chat, in this order (owner):**
+1. **Update ALL documentation and the data guides** to the current state, in English, in the same commit as needed (owner asked this first). Specifically:
+   - `README.md`: full cleanup (last big update 2026-09-28); describe the 16-stage nightly cycle (plus the Sunday mapping job and the 5-day catalog review), the read-only check scripts (`scripts/reconcile_sources.py`, `scripts/check_odoo_vs_warehouse.py`, `python -m extract.costs.cost_switch --prod`), timeouts (`WANSOFT_*_TIMEOUT_SECONDS`, `ODOO_TIMEOUT_SECONDS`), and the new tables (`costs_odoo_switch`, `costs_source_by_company`, `purchase_catalog_review_backlog`, column `catalog_status`).
+   - `legacy/wansoft/automaticos/README.md`: add the Candado's multi-closing rule (bug #41: match = SUM of the day's closings or the LARGEST) and the timeouts; the cost-routing section is current.
+   - `docs/production-cutover-runbook.md`: a post-cutover operations section (how to verify a night, how to re-run a missed night or a single stage, how to run the reconciliation, catalog review, cost switch); 7b is current.
+   - Data guides (`docs/data-access-guide/`, both languages + Spanish HTML by hand + `build_en_html.py` + `render_pdf.py`): already have cost routing, completeness of recent costs, `costs_source_by_company` and `catalog_status`; add the purchases timing rule (Odoo counts confirmed orders from the night after confirmation, Wansoft invoices on arrival; El Bodegón invoices late), refresh history/freshness facts, and check every table/column named still exists.
+   - Check other docs under `docs/` for stale statements (e.g. `purchases-company-migration-policy.md`, `purchases-product-mapping-policy.md` vs option 1).
+2. **Review the night of 10-07 to 10-08** (first run with option 1): `daily_cycle_20261008.log` 16/16 `0 failed`; analytics stage duration (dev 15.1 min; production ~14 before); in production: `SELECT catalog_status, COUNT(*), SUM(price_subtotal) FROM analytics_purchase_order_lines GROUP BY 1`, business purchases up ~5-6% vs before, `include_in_business_views = 0` only for deliberate exclusions and internal-provider companies; run `python -m scripts.reconcile_sources --only negocio`. Then **look at the products "por clasificar"** (owner): mostly routine Wansoft items left `pending_review` by the weekly mapping job (Empanada de Carne/Elote, Topo Chico, Mollejas...); idea to evaluate with numbers: bulk-approve the 99%-confidence code-base matches in `inventory_mapping_dictionary`. First automatic 5-day review: 2026-10-11 (then 10-16).
+3. **Expenses domain** (`analytics_expense_invoices`, design `docs/analytics-expense-invoices-design.md`).
+4. **Power BI** purchases/inventory repoint (Section 7).
+
+**Owner's open items:** run part C of `sql/maintenance/create_tukan_readonly_users.sql` (grant on `costs_source_by_company`) and hand credentials + PDFs to tukanmx; ask Metepec/Tollocan (63% pending), Viaducto (26%) and San Jerónimo (16%) why Wansoft inventory deductions are stuck since 10-01; ask whoever posts Puebla's customer invoices in Odoo (28-53% invoiced); Isabel and Vía Vallejo opening balances in Odoo (nothing confirmed yet; costs switch by themselves); Hyper-V: delete the `PRE_CORTE_2026-10-01` checkpoints (a week of good nights) then merge WansoftServer's April-2024 checkpoints; remove the 12 disabled `FondaCroned_*` tasks.
+
+**Watch:** first T+7 Odoo cutover checkpoints on 2026-10-08; the Candado validates the latest day the next night (e.g. Acoxpa 10-06 tickets $2,093 above its Z on 10-07).
 
 ## Go-live week (in order) — CUTOVER DONE (2026-10-01)
 
@@ -724,37 +743,38 @@ Also on cutover day: the data guide gained the Odoo-vs-Wansoft 7-19% warning (`8
 
 # 18. Next Steps — HANDOFF PROMPT
 
-**Paste this as the first message of the new chat (Friday 2026-10-02, first day after the cutover):**
+**Paste this as the first message of the new chat (Thursday 2026-10-08):**
 
 ```
 Continúo el proyecto Wansoft + Odoo + Zenput Data Warehouse & ETL Pipeline.
-EL CORTE A PRODUCCIÓN SE TERMINÓ el jueves 1 de octubre de 2026 (todos los
-pasos OK). Lee completo PROJECT_CONTEXT_REPORT.md en la raíz del repositorio
-antes de responder, empezando por la Sección 13 ("Go-live week" y "After
-go-live"), luego la 17.10 (lo que se corrió en el corte), la 0 (máquinas) y
-la 7. Los comandos exactos del corte están en
-docs/production-cutover-runbook.md, sección 6.1.
+Producción corre con el pipeline nuevo desde el 1 de octubre de 2026. Lee
+completo PROJECT_CONTEXT_REPORT.md en la raíz del repositorio antes de
+responder, empezando por la Sección 13 "NOW / NEXT", luego la 0 (máquinas),
+la 7 (estado por dominio) y la 11 (bugs #35 a #41 de la primera semana).
 
-Hoy toca revisar la primera noche en producción: el log
-C:\Apps\Wansoft_ETL\logs\daily_cycle_20261002.log en la VM de tareas (debe
-terminar en 0 failed; fíjate en lo que tardó la etapa de analytics de
-compras), el respaldo semanal de las 18:00 del jueves, y que las entradas de
-inventario de Wansoft del 30 de septiembre estén completas. Después, el
-script de revisión post-corte de solo lectura contra las fuentes (no contra
-Power BI). El lunes 5: analytics_expense_invoices y el paquete para mover
-las páginas de compras e inventario de Power BI a la capa unificada.
+Lo PRIMERO que quiero hoy: actualizar toda la documentación y las guías al
+estado actual (README completo, README de legacy, runbook con una sección de
+operación post-corte, guías de datos en español e inglés con HTML y PDF, y
+revisar los demás docs). La lista exacta está en la Sección 13, punto 1.
+Commits y documentos en inglés.
+
+Después: revisar la noche del 7 al 8 (primera con la opción 1: las compras
+sin clasificar cuentan en negocio, catálogos reconstruidos cada noche,
+revisión cada 5 días): log daily_cycle_20261008.log, distribución de
+catalog_status en producción, compras de negocio +5-6%, y ver juntos los
+productos "por clasificar" (mapeos pendientes de aprobar). Luego el dominio
+de gastos (analytics_expense_invoices) y, si da tiempo, Power BI.
 
 Reglas: la VM de tareas (Analisis_BI / DESKTOP-1HTRVT4, usuario analisisbi)
-NO tiene MySQL y su .env YA APUNTA A PRODUCCIÓN (wansoft / zenput): cualquier
-corrida manual escribe en las bases reales. La base está en WansoftServer
-(192.168.100.183); los comandos del anfitrión Hyper-V van en SVR-HIKCENTER;
-las tareas de ControlPresupuestos_AP no se tocan; las FondaCroned_* siguen
-deshabilitadas (se borran tras una o dos noches buenas); los checkpoints
-PRE_CORTE_2026-10-01 se borran a los 2-3 días. Me gusta ir paso a paso, un
-comando por bloque.
+NO tiene MySQL y su .env APUNTA A PRODUCCIÓN: cualquier corrida manual
+escribe en las bases reales. La base está en WansoftServer
+(192.168.100.183); el anfitrión Hyper-V es SVR-HIKCENTER; las tareas de
+ControlPresupuestos_AP y Central de Reportes no se tocan. Desde el PC de
+desarrollo se consulta producción solo en lectura. Me gusta ir paso a paso,
+un comando por bloque, y que todo quede documentado.
 ```
 
-**Suggested title for the new chat**: `FONDA (Wansoft): Paso 26: Primera noche en producción y revisión post-corte`
+**Suggested title for the new chat**: `FONDA (Wansoft): Paso 27: Documentación al día, compras por clasificar y gastos`
 
 ---
 
