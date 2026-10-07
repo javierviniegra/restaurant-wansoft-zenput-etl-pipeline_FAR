@@ -485,6 +485,9 @@ Done Mon-Wed: restore rehearsal, migration rehearsal on `wansoft_prueba` (parts 
 - Security: split `wansoftuser`; restrict phpMyAdmin; TLS or IP restriction for tukanmx.
 - README full cleanup; schema comparison dev vs production after cutover; automation ideas in runbook Section 7.
 
+- **Wed 10-07:** night of 10-06 OK (16/16, 40.2 min, `costs_source_by_company` published with 19 rows); night of 10-07 hung in Sales and was killed at 4 h (bug #40, timeouts added), re-run by hand 09:22-10:08: 16/16 OK, 46.1 min. Cost snapshot of 10-05 vs 10-07, Oct 1-4: Odoo-costed +24.9% (invoicing completing; CentroMyJ now 88-100% invoiced, Puebla still 28-53%), Wansoft-costed +19.1% (Isabel +90%, now 1.4% pending; Vía Vallejo 0.9%), September unchanged. **Stuck Wansoft pending deductions** (did not move since Monday): Metepec/Tollocan 63.3%, Viaducto 26.4%, San Jerónimo 16.2% month-to-date -- owner to ask those branches whether something is stuck in Wansoft inventory (deductions or recipes).
+- **Backlog (low):** the Sales Candado compares a day against Wansoft's Z by calendar date; when a branch makes two Z on one calendar day (Puebla 2026-09-29: a single-order 6,063 Z at 01:34 plus the real 42,588 day close at 00:00 of the 30th) it rewrites that day every night with the same correct data until it leaves its window. Fix: sum the Z closings of the operating day (closing before 14:00 belongs to the previous day), as Central de Reportes does.
+
 ## Older backlog
 - **Inventory valuation for pure-Odoo branches** (Puebla, CentroMyJ): no cost/value field on inventory movements; needed for a real COGS.
 - **Root-cause the residual 7-19% Compras gap** between Odoo and Wansoft's `Costo operativo` (Acoxpa, Coyoacán, Oceanía).
