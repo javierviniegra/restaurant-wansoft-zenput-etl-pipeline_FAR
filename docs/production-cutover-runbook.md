@@ -8,6 +8,9 @@ could be automated** later. The goal is that a future deployment (a new server,
 a disaster recovery, or a second environment) replays this document instead of
 rediscovering it.
 
+**Operating production day to day** (verify a night, re-run a night or a stage,
+reconcile against the sources, catalog review, cost switch): **Section 9**.
+
 Design background lives in `docs/production-orchestration-plan.md`; the
 day-by-day history lives in `PROJECT_CONTEXT_REPORT.md` (Section 17).
 
@@ -605,3 +608,210 @@ Coyoacán), while Power BI still reads Wansoft.
 - `tukan_wansoft` / `tukan_zenput` were created with host `'%'` (tukanmx had
   not given IP addresses): recreate them for their IPs when known, and add TLS
   or a firewall rule for 3306.
+
+---
+
+## 9. Post-cutover operations (since 2026-10-01)
+
+Day-to-day operation of production. Sections 9.1, 9.2 and 9.7 are read-only.
+**Everything in 9.3 to 9.6 runs on the tasks VM and writes to the live `wansoft` /
+`zenput`**: check the `.env` first (Section 0) and never start a manual run while
+the nightly task is running.
+
+```powershell
+cd C:\Apps\Wansoft_ETL
+$log = "C:\Apps\Wansoft_ETL\logs\daily_cycle_$(Get-Date -Format yyyyMMdd).log"
+```
+
+### 9.1 Verify a night (VM, read-only)
+
+**Task result:**
+
+```powershell
+Get-ScheduledTaskInfo -TaskName Wansoft_Pipeline_Diario | Select-Object LastRunTime, LastTaskResult, NextRunTime
+```
+
+| `LastTaskResult` | Meaning |
+|---|---|
+| `0` | every stage OK |
+| `1` | the cycle finished but at least one stage FAILED (the others ran; see the log) |
+| `267014` | killed by Task Scheduler at the 4-hour limit (the night of 2026-10-07, bug #40); nothing after the hung stage ran |
+| `267009` | still running |
+
+**Log summary:**
+
+```powershell
+Get-Content $log -Tail 25 -Encoding UTF8
+```
+
+Good: one `OK` line per stage and `##### CYCLE DONE in N min, 0 failed`. Stages:
+**16** on a normal night, **+1** on Sundays ("Product mapping backlog (weekly)"),
+**+1** every 5 days ("Compras por clasificar (cada 5 dias)": 2026-10-11, 10-16,
+10-21...). Reference times for the first week: 38.9-47.6 min in total, Analytics
+purchase about 14 min.
+
+**Warnings worth reading:**
+
+```powershell
+Select-String -Path $log -Pattern '\[AVISO\]|\[ALERTA\]|FAILED|\[ERROR|\[❌\]' -Encoding UTF8 | Select-Object -First 60
+```
+
+| Line | Expected? | Action |
+|---|---|---|
+| `[AVISO] <branch> cambió a costos de Odoo desde <date>` | yes, once per October-wave branch | check `costs_odoo_switch` (9.7): `validation_result` must be OK |
+| `[AVISO]` from the purchases rollout check: a branch with no confirmed Odoo lines | yes, while a branch has nothing confirmed (bug #38) | none; it FAILS only if Odoo has confirmed lines that did not reach the canonical layer |
+| `[AVISO]` from "Compras por clasificar": unclassified > 2% of the month or pending > 15 days | yes, until the pending mappings are approved | catalog work (9.6), not a load error |
+| `[SALTAR] No se pudo obtener CashClosing` | yes for days whose closing does not exist yet | none; retried the next night |
+| `[ALERTA] Aún hay diferencia ... (contra el corte mayor)` | not for the same branch and day two nights in a row | run 9.2 `ventas,cierres` for that day and compare with Wansoft |
+| `[ERROR ...]` / `[❌]` on one branch and day (e.g. a timeout) | occasionally | none if it does not repeat; the window retries it. The same branch several nights in a row: investigate |
+| A stage `FAILED` | no | read the traceback above its `END` line, fix, re-run the stage (9.4) |
+
+**Weekly backup (Thursday 18:00):** `Get-Content C:\Backups\mysql\backup.log -Tail 5`
+must end with `Backup finished`.
+
+### 9.2 Check the data against the sources (dev PC or VM, read-only)
+
+These scripts only SELECT and read the sources, and always connect to the
+production warehouse (`WANSOFT_DB_*`), from either machine.
+
+```powershell
+python -m scripts.reconcile_sources
+python -m scripts.reconcile_sources --from 2026-10-01 --to 2026-10-06 --only ventas,cierres
+python -m scripts.check_odoo_vs_warehouse --from 2026-10-01 --to 2026-10-06
+python -m extract.costs.cost_switch --prod
+```
+
+(`reconcile_sources` without dates covers the last 7 days and every section:
+`ventas`, `cierres`, `compras`, `costos`, `zenput`, `negocio`. `cost_switch` needs
+`--prod` on the dev PC, not on the VM.)
+
+How to read them:
+- `ventas`: the most recent day is not validated yet (the Candado validates it the
+  next night); any older day that does not match is real.
+- `costos`: differences inside the cost window are usually the source recalculating
+  after the night's load (listed apart; the next night fixes them). Recent days of
+  Odoo-costed branches are partial until invoicing completes (Section 7b).
+- `check_odoo_vs_warehouse`: `AFTER_DOWNLOAD` = created or changed in Odoo after the
+  night's download (the next night picks it up); `MISSING` / `EXTRA` are real.
+- Exit code 1 means a real difference somewhere; the summary at the end says where.
+
+Reference (2026-10-07, 09-30..10-06): sales 129/133 (the rest = latest day), cash
+closings 132/132, Wansoft invoices 356/356, inventory entries 2,551/2,551, Zenput
+21/21 checklists, business vs canonical 34/34, Odoo 0 real differences.
+
+### 9.3 Re-run a missed or failed night (VM, writes to production)
+
+1. Make sure the task is not running: `Get-ScheduledTask -TaskName Wansoft_Pipeline_Diario`
+   must show `Ready`, not `Running`.
+2. Check the `.env` (Section 0).
+3. Run the whole cycle with the same logging as the nightly task (or
+   `Start-ScheduledTask -TaskName Wansoft_Pipeline_Diario`):
+
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File deploy\run_daily_cycle.ps1
+   ```
+
+Re-running is safe: every stage reloads its window (rewrite or upsert by key), as on
+2026-10-07 (09:22-10:08, 16/16 OK, 46.1 min). Notes:
+- The log is named after the day of the run, so a morning re-run appends to the
+  same `daily_cycle_<today>.log` as the failed night, after its lines.
+- The conditional stages follow the date of the re-run, not of the missed night: a
+  missed Sunday mapping job or catalog review is run on its own (9.6).
+- If production was down for longer than a window, widen it for that one run (9.5).
+
+### 9.4 Re-run a single stage (VM, writes to production)
+
+`-Only` takes comma-separated fragments, case-insensitive, matched as substrings of
+the stage names; `python -m scripts.run_daily_cycle --list` prints today's names.
+
+| Goal | `-Only` |
+|---|---|
+| Sales (Candado) | `"Ventas"` |
+| Wansoft inventory entries and exits | `"Inventario - "` |
+| The three cost tables (not closing, butchery or switch) | `"semana PyQ,descarga Wansoft,costo total por fecha"` |
+| Cost switch + `costs_source_by_company` + cost validation | `"cambio autom"` (no accents in fragments: Windows PowerShell 5.1 can mangle them on the way to Python) |
+| Cash closing | `"cierre global"` |
+| Wansoft invoices | `"facturas/gastos"` |
+| Zenput | `"Zenput"` |
+| Odoo purchases + analytics (always together: analytics reads the canonical layer) | `"Purchases pipeline,Analytics purchase"` |
+| Odoo inventory | `"Inventory pipeline"` |
+| Cutover checkpoints | `"cutover"` |
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy\run_daily_cycle.ps1 -Only "Ventas"
+```
+
+Avoid broad fragments: `"Costos"` also runs the closing, butchery and the switch;
+`"Compras"` also matches "Compras por clasificar" on its days.
+
+### 9.5 Widen a window for one run (VM, writes to production)
+
+Set the variable for the current PowerShell session only, run, and remove it:
+
+```powershell
+$env:SALES_LOOKBACK_DAYS = '20'; powershell -NoProfile -ExecutionPolicy Bypass -File deploy\run_daily_cycle.ps1 -Only "Ventas"; Remove-Item Env:SALES_LOOKBACK_DAYS
+```
+
+| Variable | Normal | Stages |
+|---|---|---|
+| `SALES_LOOKBACK_DAYS` | 10 | Ventas |
+| `WANSOFT_LOOKBACK_DAYS` | 5 | Wansoft inventory, invoices, cash closing |
+| `COSTS_LOOKBACK_DAYS` | 10 | the cost tables and butchery (the Odoo side reads the current month + the previous one until the 10th) |
+| `PURCHASES_LOOKBACK_DAYS` | 35 | Wansoft side of the purchases canonical layer |
+| `COSTS_ONLY_BRANCHES` | unset | limits the cost stages to some branches (`'Puebla,CentroMyJ'`) |
+
+Worked examples: Step 3c (125-day purchases) and Step 3d (cost backfill of two
+branches).
+
+### 9.6 Catalog review and the weekly mapping job
+
+**Unclassified purchases (owner's option 1, live from the night of 2026-10-07 to
+10-08).** Purchase lines whose vendor or product is missing from `dim_vendor` /
+`dim_product`, or only pending classification, count in the business views and are
+flagged in `analytics_purchase_order_lines.catalog_status`. Distribution (read-only):
+
+```sql
+SELECT catalog_status, COUNT(*) AS lines, SUM(price_subtotal) AS subtotal
+FROM analytics_purchase_order_lines
+WHERE include_in_business_views = 1
+GROUP BY catalog_status;
+```
+
+Every 5 days the stage "Compras por clasificar" rewrites
+`purchase_catalog_review_backlog` (one row per pending vendor/product and branch:
+`line_count`, `amount_subtotal`, first/last order date, `days_pending`) and writes
+`reports\purchase_catalog_review\compras_por_clasificar_YYYYMMDD.csv` on the VM.
+Most of it is routine Wansoft products left `pending_review` by the weekly mapping
+job; approving a mapping (`docs/purchases-product-mapping-policy.md`) is a manual,
+owner-approved step, and the next night's rebuild classifies the lines.
+
+```sql
+SELECT catalog_status, company_source_key, product_name, vendor_name, amount_subtotal, days_pending
+FROM purchase_catalog_review_backlog
+ORDER BY amount_subtotal DESC
+LIMIT 50;
+```
+
+Off-schedule runs (VM, write to production):
+
+```powershell
+.venv\Scripts\python.exe -c "from pipelines.jobs.purchase_catalog_review_job import run_purchase_catalog_review_job as r; r()"
+.venv\Scripts\python.exe -c "from pipelines.jobs.product_mapping_backlog_job import run_product_mapping_backlog_job as r; r()"
+```
+
+### 9.7 Cost switch and routing (read-only)
+
+Status of the automatic switch (Section 7b):
+
+```sql
+SELECT * FROM costs_odoo_switch;
+SELECT company_source_key, odoo_cost_start_date, reason, updated_at
+FROM costs_source_by_company
+ORDER BY company_source_key;
+```
+
+`reason`: `wansoft`, `policy` (Odoo from its start date), `exception` (Antenas),
+`auto_switch_pending` (October wave, not yet switched), `switched`, `no_policy`.
+To undo a switch, delete the branch's row from `costs_odoo_switch` (a production
+write, owner's decision); the next night recomputes the window from Wansoft, and a
+Step 3d run covers days beyond it.
