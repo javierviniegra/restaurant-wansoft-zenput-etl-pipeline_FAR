@@ -310,7 +310,7 @@ def sincronizar_tareas():
             current_params = params.copy()
             current_params['start'] = start_offset  # Usamos 'start' para el offset
 
-            response = requests.get(base_url, headers=ZENPUT_HEADERS, params=current_params)
+            response = requests.get(base_url, headers=ZENPUT_HEADERS, params=current_params, timeout=120)
             # Imprimimos menos para reducir ruido en logs largos
             if start_offset % (10 * page_limit) == 0:  # Imprime cada 10 páginas
                 print(f"  - Descargando con start={start_offset}, Código: {response.status_code}")

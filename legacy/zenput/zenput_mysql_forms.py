@@ -288,7 +288,7 @@ def main():
 
     url_templates = ZENPUT_API_ENDPOINTS.get('list_form_templates')
     try:
-        response = requests.get(url_templates, headers=ZENPUT_HEADERS)
+        response = requests.get(url_templates, headers=ZENPUT_HEADERS, timeout=120)
         response.raise_for_status()
         form_templates = response.json().get('results', [])
         print(f"👍 Se encontraron {len(form_templates)} plantillas de formularios.")
@@ -318,7 +318,7 @@ def main():
         while next_page_url:
             try:
                 print(f"  - Descargando desde: {next_page_url}")
-                response = requests.get(next_page_url, headers=ZENPUT_HEADERS)
+                response = requests.get(next_page_url, headers=ZENPUT_HEADERS, timeout=120)
                 response.raise_for_status()
                 data = response.json()
 

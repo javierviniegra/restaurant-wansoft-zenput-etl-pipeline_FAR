@@ -16,6 +16,8 @@ $log = Join-Path $logDir ('daily_cycle_{0}.log' -f (Get-Date -Format 'yyyyMMdd')
 
 Set-Location $ProjectDir
 $env:PYTHONIOENCODING = 'utf-8'
+# Unbuffered output: a stage that hangs still shows its last line in the log (2026-10-07).
+$env:PYTHONUNBUFFERED = '1'
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
 
 $cycleArgs = @('-m', 'scripts.run_daily_cycle')

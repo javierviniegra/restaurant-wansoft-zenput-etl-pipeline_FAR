@@ -3,11 +3,21 @@ import os
 
 from lxml import etree
 from zeep import Client, Settings
+from zeep.transports import Transport
 
 from core.config.env_loader import load_environment
 
 
 REMOTE_WANSOFT_WSDL_URL = "https://www.wansoft.net/wansoft.web/API/IntegrationService.asmx?wsdl"
+
+# Without these a call that Wansoft accepts but never answers waits forever:
+# on 2026-10-07 the nightly cycle hung in the first stage until Task Scheduler
+# killed it after 4 hours, and nothing was loaded that night. The scripts catch
+# errors per branch/day, so a timed-out call only skips that day (the window
+# retries it the next night). Large daily order XMLs download in well under
+# the operation timeout.
+WANSOFT_CONNECT_TIMEOUT_SECONDS = int(os.getenv("WANSOFT_CONNECT_TIMEOUT_SECONDS", "60"))
+WANSOFT_OPERATION_TIMEOUT_SECONDS = int(os.getenv("WANSOFT_OPERATION_TIMEOUT_SECONDS", "600"))
 
 
 def get_project_root() -> Path:
@@ -126,7 +136,13 @@ def get_wansoft_client() -> Client:
         xml_huge_tree=True
     )
 
+    transport = Transport(
+        timeout=WANSOFT_CONNECT_TIMEOUT_SECONDS,
+        operation_timeout=WANSOFT_OPERATION_TIMEOUT_SECONDS,
+    )
+
     return Client(
         wsdl=wsdl,
-        settings=settings
+        settings=settings,
+        transport=transport,
     )
