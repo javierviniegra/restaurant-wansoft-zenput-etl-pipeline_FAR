@@ -336,6 +336,36 @@ def ensure_row(
     return row
 
 
+def is_locked_by_dictionary(row: ProductRow) -> bool:
+    """
+    True for a row that comes from an APPROVED inventory_mapping_dictionary
+    entry. A person approved that Wansoft code for that Odoo product, so a
+    later source must not replace the Wansoft side (bug #43, 2026-10-08):
+    Odoo purchase lines and the Odoo inventory snapshot carry the Wansoft
+    code typed in Odoo's own catalog, which is wrong for some products
+    (Odoo's "Elote en Grano" carried Herradura Blanco's code, "Ajo Limpio"
+    Coliflor's...). Overwriting it left 60 of 249 approved mappings with
+    another product's code, and their Wansoft purchases ($6.69 M) without
+    a catalog row.
+    """
+    return row.mapping_status == "approved" and str(row.source_product_key or "").startswith("dict:")
+
+
+def fill_wansoft_side(row: ProductRow, item: Dict[str, Any]) -> None:
+    """Wansoft code/name/department from a later source: replace them, unless the row is locked by an approved dictionary mapping, then only fill what is empty."""
+    code = clean_text(item.get("wansoft_code"))
+    name = clean_text(item.get("wansoft_product_name"))
+    department = clean_text(item.get("wansoft_department"))
+    if is_locked_by_dictionary(row):
+        row.wansoft_code = row.wansoft_code or code
+        row.wansoft_product_name = row.wansoft_product_name or name
+        row.wansoft_department = row.wansoft_department or department
+    else:
+        row.wansoft_code = code or row.wansoft_code
+        row.wansoft_product_name = name or row.wansoft_product_name
+        row.wansoft_department = department or row.wansoft_department
+
+
 def apply_scope_flags(row: ProductRow, scope_value: Optional[Any]) -> None:
     scope = clean_text(scope_value)
 
@@ -580,9 +610,7 @@ def collect_from_canonical_purchase_lines(
                 row.is_review_required = True
 
         row.source_table = append_unique(row.source_table, table_name)
-        row.wansoft_code = clean_text(item.get("wansoft_code")) or row.wansoft_code
-        row.wansoft_product_name = clean_text(item.get("wansoft_product_name")) or row.wansoft_product_name
-        row.wansoft_department = clean_text(item.get("wansoft_department")) or row.wansoft_department
+        fill_wansoft_side(row, item)
         row.mapping_source = clean_text(item.get("product_mapping_source")) or row.mapping_source
 
         if clean_text(item.get("product_mapping_status")):
@@ -664,9 +692,7 @@ def collect_from_odoo_inventory_snapshot(
         row.odoo_product_id = str(odoo_product_id) if odoo_product_id is not None else row.odoo_product_id
         row.odoo_product_name = clean_text(item.get("odoo_product_name")) or row.odoo_product_name
         row.odoo_default_code = clean_text(item.get("product_code")) or row.odoo_default_code
-        row.wansoft_code = clean_text(item.get("wansoft_code")) or row.wansoft_code
-        row.wansoft_product_name = clean_text(item.get("wansoft_product_name")) or row.wansoft_product_name
-        row.wansoft_department = clean_text(item.get("wansoft_department")) or row.wansoft_department
+        fill_wansoft_side(row, item)
         row.mapping_source = clean_text(item.get("lookup_method")) or row.mapping_source
         row.mapping_confidence = str(item.get("similarity_score")) if item.get("similarity_score") is not None else row.mapping_confidence
 
@@ -735,6 +761,13 @@ def collect_from_purchase_inventory_backlog(
             odoo_index[str(product_id)] = row
 
         row.source_table = append_unique(row.source_table, table_name)
+
+        if is_locked_by_dictionary(row):
+            # An approved mapping is not downgraded by a backlog entry that
+            # predates it (the backlog is rebuilt by the next purchases run).
+            add_note(row, "Listed in odoo_purchase_inventory_mapping_backlog; kept approved (dictionary)")
+            continue
+
         row.product_identity_status = "pending_review"
         row.mapping_status = "open_backlog"
         row.is_mapped = False

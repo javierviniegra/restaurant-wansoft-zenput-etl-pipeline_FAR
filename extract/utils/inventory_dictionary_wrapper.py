@@ -47,7 +47,11 @@ def apply_inventory_dictionary(
 
         results.append(match)
 
-    df_lookup = pd.DataFrame(results)
+    # Keep the caller's index: df is usually a filtered subset (index 3, 7,
+    # 12...), and assigning a 0..n-1 frame aligns by label, so every row got
+    # ANOTHER row's lookup result (bug #43, 2026-10-08: 95% of the Odoo
+    # inventory rows carried another product's Wansoft code).
+    df_lookup = pd.DataFrame(results, index=df.index)
 
     df["mapping_found"] = df_lookup["found"]
     df["lookup_method"] = df_lookup["lookup_method"]
