@@ -15,25 +15,33 @@ Purpose:
 
 Design:
     - Checkpoints: 7 days and 30 days after operational_start_date.
-    - Each (company, domain, checkpoint) combination is checked exactly
-      once, ever (tracked in odoo_cutover_validation_log via a UNIQUE key).
+    - Each (company, domain, checkpoint, operational_start_date) is checked
+      exactly once, ever (tracked in odoo_cutover_validation_log via a UNIQUE
+      key). The start date is part of the identity since 2026-10-08 (bug #42):
+      the five branches migrated from Wansoft were checked in August against
+      their June/July start dates, and when the cutover moved their start to
+      2026-10-01 the old rows blocked the checkpoints of the real start.
       This is a settling checkpoint, not a daily reconciliation loop --
       the daily "did today's numbers land correctly" job for Sales already
       exists separately (legacy/wansoft/automaticos/extractAllOrdersByDay.py).
     - A company only qualifies once it is both COMPANY_SOURCE == "odoo"
       (the authoritative source switch) AND has an is_active = 1 row in
       odoo_company_migration_policy (the authoritative "rollout actually
-      turned on" flag -- e.g. Puebla is COMPANY_SOURCE == "odoo" but
-      is_active = 0, so it is correctly skipped until activated).
+      turned on" flag).
     - Purchases comparison: canonical_purchase_order_snapshot vs a live
-      purchase.order query (state not in cancel/draft, per the canceled-
-      orders bug fixed during the gate).
+      purchase.order query of CONFIRMED orders (state purchase/done), the
+      same rule as the purchases ETL since bug #24. Until 2026-10-08 it used
+      state not in cancel/draft, which counted sent RFQs: the October wave's
+      first T+7 checkpoints failed by exactly their RFQ totals (bug #42).
     - Inventory comparison: analytics_inventory_balance vs a live
       stock.quant query, both scoped to the branch's odoo_company_id.
     - On a Purchases FAIL, triggers run_purchases_pipeline as a subprocess
       (a full, idempotent, already-validated canonical rebuild) and logs
       the outcome. It does not re-validate after correction in the same
       run -- the next scheduled checkpoint (or a manual re-run) confirms.
+    - Any FAIL makes main() return 1, and the nightly stage "Odoo cutover
+      validation" then shows FAILED in the cycle summary (owner, 2026-10-08).
+      Checkpoints only fall due at T+7 and T+30, so this is not daily noise.
     - On an Inventory FAIL, does NOT auto-correct -- see
       AUTO_CORRECTABLE_DOMAINS below for why. It logs
       correction_status = 'manual_review_required' instead.
@@ -42,8 +50,7 @@ Run:
     python -m scripts.validate_odoo_cutover
 
 Scheduling:
-    Wired into pipelines/scheduler.py at 15:00 daily (off-peak, does not
-    overlap the frequent daily jobs), via
+    Last stage of the nightly cycle (scripts/run_daily_cycle.py, 01:30), via
     pipelines/jobs/odoo_cutover_validation_job.py.
 """
 
@@ -116,10 +123,24 @@ def ensure_log_table(conn: Any) -> None:
             correction_triggered TINYINT(1) NOT NULL DEFAULT 0,
             correction_status VARCHAR(20),
             notes VARCHAR(500),
-            UNIQUE KEY uq_cutover_check (company_source_key, domain, checkpoint_days)
+            UNIQUE KEY uq_cutover_check_start (company_source_key, domain, checkpoint_days, operational_start_date)
         )
         """
     )
+    # Tables created before bug #42 have the old key without the start date.
+    cur.execute(
+        """
+        SELECT COUNT(*) FROM information_schema.statistics
+        WHERE table_schema = DATABASE() AND table_name = %s AND index_name = 'uq_cutover_check'
+        """,
+        (LOG_TABLE,),
+    )
+    if cur.fetchone()[0]:
+        cur.execute(
+            f"ALTER TABLE {LOG_TABLE} DROP INDEX uq_cutover_check, "
+            "ADD UNIQUE KEY uq_cutover_check_start (company_source_key, domain, checkpoint_days, operational_start_date)"
+        )
+        print(f"[MIGRACION] {LOG_TABLE}: llave única ahora incluye operational_start_date (bug #42)")
     conn.commit()
     cur.close()
 
@@ -156,14 +177,15 @@ def get_active_odoo_companies() -> List[CompanyCutover]:
     return companies
 
 
-def already_checked(conn: Any, company_source_key: str, domain: str, checkpoint_days: int) -> bool:
+def already_checked(conn: Any, company: CompanyCutover, domain: str, checkpoint_days: int) -> bool:
     cur = conn.cursor()
     cur.execute(
         f"""
         SELECT 1 FROM {LOG_TABLE}
         WHERE company_source_key = %s AND domain = %s AND checkpoint_days = %s
+          AND operational_start_date = %s
         """,
-        (company_source_key, domain, checkpoint_days),
+        (company.company_source_key, domain, checkpoint_days, company.operational_start_date),
     )
     found = cur.fetchone() is not None
     cur.close()
@@ -195,7 +217,7 @@ def check_purchases(company: CompanyCutover) -> Dict[str, Any]:
         ["company_id", "=", company.odoo_company_id],
         ["date_order", ">=", company.operational_start_date.strftime("%Y-%m-%d")],
         ["date_order", "<", today.strftime("%Y-%m-%d")],
-        ["state", "not in", ["cancel", "draft"]],
+        ["state", "in", ["purchase", "done"]],  # confirmed only, as the ETL (bugs #24, #42)
     ]
     order_ids = models.execute_kw(db, uid, password, "purchase.order", "search", [domain_filter])
     odoo_total = Decimal("0")
@@ -344,7 +366,7 @@ def log_result(
 def run_checkpoint(company: CompanyCutover, domain: str, checkpoint_days: int) -> None:
     log_conn = get_db_connection()
     try:
-        if already_checked(log_conn, company.company_source_key, domain, checkpoint_days):
+        if already_checked(log_conn, company, domain, checkpoint_days):
             return
 
         days_since_cutover = (date.today() - company.operational_start_date).days
