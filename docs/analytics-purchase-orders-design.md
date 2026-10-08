@@ -1,5 +1,12 @@
 # analytics_purchase_orders Design and Closeout
 
+> **Current state (2026-10-07).** Orders are still derived from
+> `analytics_purchase_order_lines`, but under the owner's "option 1" (2026-10-07, live from the night of 10-07 to 10-08) lines with an
+> unclassified vendor or product are business lines (see the note at the top
+> of `analytics-purchase-order-lines-design.md`), so far fewer orders end with
+> `no_business_lines`. The table is rebuilt every night in the stage
+> "Analytics purchase pipeline".
+
 ## Purpose
 
 This document defines and closes the implementation of `analytics_purchase_orders`, the order-level analytical purchase fact table of the unified MySQL analytical layer.

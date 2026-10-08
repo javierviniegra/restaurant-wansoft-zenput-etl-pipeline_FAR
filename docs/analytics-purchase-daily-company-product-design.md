@@ -1,5 +1,11 @@
 # analytics_purchase_daily_company_product Design and Closeout
 
+> **Current state (2026-10-07).** The business totals follow the line-level
+> `include_in_business_views` of `analytics_purchase_order_lines`, which under
+> the owner's "option 1" (2026-10-07, live from the night of 10-07 to 10-08) includes lines with an unclassified vendor or product; the daily
+> table's row inclusion was aligned the same day. Rebuilt every night in the
+> stage "Analytics purchase pipeline".
+
 ## Purpose
 
 This document defines and closes the implementation of `analytics_purchase_daily_company_product`, the first purchase aggregate fact table of the unified MySQL analytical layer.

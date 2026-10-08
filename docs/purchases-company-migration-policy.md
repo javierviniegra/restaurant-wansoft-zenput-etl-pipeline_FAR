@@ -1,5 +1,32 @@
 # Purchases Company Migration Policy
 
+> **Current state (2026-10-07, in production since 2026-10-01).** The rules in
+> this document still hold; the dated sections below (August rollouts, Puebla
+> "future rollout") are kept as history. What changed since they were written:
+>
+> - **10 branches buy on Odoo** (`COMPANY_SOURCE = "odoo"`): Acoxpa, Antenas,
+>   Tepeyac, Oceanía, La Esquina Coyoacán, Isabel La Católica, San Jerónimo,
+>   Vía Vallejo (all with `operational_start_date = 2026-10-01`), Puebla
+>   (2026-06-10) and CentroMyJ (2026-06-01). The other 9 stay on Wansoft.
+> - The five migrated branches (Acoxpa, Antenas, Tepeyac, Oceanía, Coyoacán)
+>   had their start moved from June/July to **2026-10-01** at the cutover
+>   (`sql/migrations/cutover_04_migrated_branches_start_oct1.sql`): they kept
+>   capturing in Wansoft in parallel, so their June-September purchases come
+>   from Wansoft. The October wave (Isabel, San Jerónimo, Vía Vallejo) was
+>   flipped the same day (`cutover_05_october_wave_relabel_wansoft_history.sql`).
+> - Every rollout expectation in `scripts/validate_purchases_canonical_layer.py`
+>   is active. The migrated-branch check is date-aware; a branch with no
+>   confirmed Odoo line yet is an `[AVISO]`, not a failure (bug #38).
+> - **Never run the "Canonical Reload After Rollout Policy Changes" procedure
+>   below in production** (nor `scripts/reload_purchase_canonical_wansoft_side.py`):
+>   it deletes the whole Wansoft side and the ETL only reloads its window, so the
+>   history since 2021 would be lost. Relabel in place instead (as `cutover_05`
+>   does) and reload with a widened `PURCHASES_LOOKBACK_DAYS` (runbook Step 3c).
+> - Unclassified vendors/products no longer drop purchases from the business
+>   views (owner's option 1, 2026-10-07): see
+>   `docs/purchases-product-mapping-policy.md` and
+>   `analytics_purchase_order_lines.catalog_status`.
+
 ## Purpose
 
 This document defines the company-level source governance policy for the Purchases domain during the Wansoft to Odoo transition.
@@ -83,26 +110,27 @@ The source selection hierarchy is:
 Example:
 
 ```python
+# Current values (2026-10-01 onward)
 COMPANY_SOURCE = {
-    "Acoxpa": "wansoft",
+    "Acoxpa": "odoo",
     "Aeropuerto": "wansoft",
-    "Isabel La Católica": "wansoft",
+    "Isabel La Católica": "odoo",
     "Antenas": "odoo",
     "Taquería parroquia": "wansoft",
-    "Vía Vallejo": "wansoft",
+    "Vía Vallejo": "odoo",
     "Viaducto": "wansoft",
     "Taquería Viaducto": "wansoft",
-    "San Jeronimo": "wansoft",
-    "Tepeyac": "wansoft",
+    "San Jeronimo": "odoo",
+    "Tepeyac": "odoo",
     "Playa del Carmen": "wansoft",
-    "Oceanía": "wansoft",
+    "Oceanía": "odoo",
     "Cancun": "wansoft",
     "Napoles": "wansoft",
     "Metepec": "wansoft",
     "Versalles": "wansoft",
-    "La Esquina Coyoacán": "wansoft",
-    "CentroMyJ": "wansoft",
-    "Puebla": "wansoft",
+    "La Esquina Coyoacán": "odoo",
+    "CentroMyJ": "odoo",
+    "Puebla": "odoo",
 }
 ```
 
@@ -157,25 +185,29 @@ These values should not override company-specific governance.
 
 ## Current Source Status
 
-Current validated company source behaviour (updated 2026-08-26):
+Current company source behaviour (updated 2026-10-07):
 
 ```text
-Antenas, La Esquina Coyoacán, CentroMyJ, Acoxpa, Tepeyac, Oceanía:
+Acoxpa, Antenas, Tepeyac, Oceanía, La Esquina Coyoacán,
+Isabel La Católica, San Jeronimo, Vía Vallejo  (migrated_from_wansoft):
+    Purchases -> Wansoft before 2026-10-01, Odoo from 2026-10-01
+    Inventory -> Odoo from 2026-10-01
+    Sales     -> Wansoft
+
+Puebla (from 2026-06-10), CentroMyJ (from 2026-06-01)  (new_odoo_branch):
     Purchases -> Odoo
     Inventory -> Odoo
-    Sales -> Wansoft
+    Sales     -> Wansoft
 
-Puebla:
-    Purchases -> Odoo (COMPANY_SOURCE), but rollout not yet activated
-    in ROLLOUT_COMPANY_EXPECTATIONS / odoo_company_migration_policy
-    (is_active = 0). Documented as future work, see "Puebla Future
-    Rollout" below.
-
-All other configured companies:
+Aeropuerto, Taquería parroquia, Viaducto, Taquería Viaducto, Playa del Carmen,
+Cancun, Napoles, Metepec, Versalles:
     Purchases -> Wansoft
     Inventory -> Wansoft
-    Sales -> Wansoft
+    Sales     -> Wansoft
 ```
+
+Costs follow their own per-day routing (`extract/costs/cost_routing.py`,
+see `legacy/wansoft/automaticos/README.md`).
 
 ---
 
@@ -334,6 +366,10 @@ final_purchase_source_status = final_wansoft_enabled
 
 ## Acoxpa / Tepeyac / Oceanía Rollout (2026-08-26)
 
+> **Superseded at the cutover:** their `operational_start_date` is now
+> **2026-10-01** (`cutover_04`), so June-September purchases come from Wansoft.
+> The dates and counts below are the August state, kept as history.
+
 These three branches follow the same `migrated_from_wansoft` pattern as Antenas and La Esquina Coyoacán.
 
 Expected configuration (already present in `odoo_company_migration_policy` before this rollout, only `COMPANY_SOURCE` and `ROLLOUT_COMPANY_EXPECTATIONS` were missing):
@@ -424,6 +460,10 @@ Not expected:
 ---
 
 ## Puebla Future Rollout
+
+> **Done (history).** Puebla is active as a `new_odoo_branch` since its opening
+> (Odoo from 2026-06-10); its rollout expectation is `active = True`. The text
+> below is the August plan.
 
 Puebla is currently documented as a future Odoo rollout.
 
@@ -546,6 +586,9 @@ Use this sequence when activating a branch rollout:
 8. Run Odoo receipt ETL.
 9. Run Odoo canonical ETL.
 10. Reload Wansoft canonical rows if the branch has Wansoft history.
+    In production: relabel in place and reload with a widened
+    PURCHASES_LOOKBACK_DAYS; never the full delete below (see the note at
+    the top of this document).
 11. Run canonical validation.
 12. Run full purchases pipeline.
 ```
@@ -553,6 +596,10 @@ Use this sequence when activating a branch rollout:
 ---
 
 ## Canonical Reload After Rollout Policy Changes
+
+> **Dev only. Never in production:** the ETL reloads only its window
+> (`PURCHASES_LOOKBACK_DAYS`), so this delete would lose the Wansoft purchase
+> history since 2021. See the note at the top of this document.
 
 If source governance changed for a branch with Wansoft history, reload Wansoft canonical rows.
 

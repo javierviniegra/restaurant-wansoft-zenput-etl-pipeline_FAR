@@ -903,6 +903,12 @@ Odoo canonical rows remain untouched.
 
 For rollout testing or source-governance corrections, use source-specific cleanup.
 
+> **Warning (2026-10-07): dev only, never in production.** The Wansoft
+> canonical ETL reloads only its window (`PURCHASES_LOOKBACK_DAYS`, 35 days), so
+> deleting the Wansoft side loses the purchase history since 2021. In production,
+> relabel rows in place (as `sql/migrations/cutover_05_october_wave_relabel_wansoft_history.sql`
+> does) and reload with a widened window (runbook Step 3c).
+
 Do not use `DROP TABLE` for normal rollout testing.
 
 Use:
@@ -1027,6 +1033,12 @@ source_system = wansoft
 canonical rows.
 
 Recommended controlled reload:
+
+> **Warning (2026-10-07): dev only, never in production.** The Wansoft
+> canonical ETL reloads only its window (`PURCHASES_LOOKBACK_DAYS`, 35 days), so
+> deleting the Wansoft side loses the purchase history since 2021. In production,
+> relabel rows in place (as `sql/migrations/cutover_05_october_wave_relabel_wansoft_history.sql`
+> does) and reload with a widened window (runbook Step 3c).
 
 ```sql
 DELETE FROM canonical_purchase_order_snapshot

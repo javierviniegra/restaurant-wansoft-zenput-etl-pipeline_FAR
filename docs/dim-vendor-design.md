@@ -1,5 +1,13 @@
 # dim_vendor Design and Closeout
 
+> **Current state (2026-10-07).** `dim_vendor` was built by hand on
+> 2026-08-05/06 and never refreshed, so every vendor that appeared later was
+> an "orphan". Since 2026-10-07 it is **rebuilt every night** from the
+> canonical layer, as the first step of the stage "Analytics purchase pipeline"
+> (`pipelines/jobs/analytics_purchase_pipeline_job.py`). Internal-provider
+> vendors are no longer excluded from business views (2026-09-15): a branch's
+> purchases *from* El Bodegón de Fito or Las Empanadas de María Eva count.
+
 ## Purpose
 
 This document defines and closes the initial implementation of `dim_vendor`, the shared analytical vendor dimension for the Wansoft + Odoo + Zenput Data Warehouse and ETL Pipeline project.

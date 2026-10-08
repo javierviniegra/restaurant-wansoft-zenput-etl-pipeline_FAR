@@ -1,5 +1,11 @@
 # Project Status and TODO
 
+> **Historical planning document (status as of August 2026).** The design
+> reasoning still applies, but every "current status", "pending" or "next step"
+> statement here is superseded. Current state: `README.md`; operations:
+> `docs/production-cutover-runbook.md` (Section 9); history and backlog:
+> `PROJECT_CONTEXT_REPORT.md`.
+
 ## Purpose
 
 This document explains the current status of the Wansoft + Odoo + Zenput Data Warehouse and ETL Pipeline project.

@@ -1,5 +1,20 @@
 # Purchases Product Mapping Policy
 
+> **Current state (2026-10-07).** The mapping rules below still hold: only an
+> approved row in `inventory_mapping_dictionary` maps a product, nothing is
+> matched by similar name, and approval stays a manual, owner-approved step.
+> What changed is what an *unmapped* product does downstream. Under
+> the owner's "option 1" (2026-10-07, live from the night of 10-07 to 10-08), a purchase line whose product is pending review or missing from
+> `dim_product` (or whose vendor is missing from `dim_vendor`) **still counts
+> in the business views**, flagged in `analytics_purchase_order_lines.catalog_status`
+> (`producto_por_clasificar`, `producto_sin_catalogo`, `proveedor_sin_catalogo`,
+> `proveedor_y_producto_sin_catalogo`; `catalogado` otherwise). Only deliberate
+> exclusions (`dim_product.is_excluded`, or not-for-business without review)
+> and purchases made by the internal providers stay out. The weekly mapping job
+> (Sundays) leaves new products `pending_review`; every 5 days the stage
+> "Compras por clasificar" lists what is pending in
+> `purchase_catalog_review_backlog` (runbook Section 9.6).
+
 ## Purpose
 
 This document defines the product mapping policy for the Purchases domain during the Wansoft and Odoo transition.

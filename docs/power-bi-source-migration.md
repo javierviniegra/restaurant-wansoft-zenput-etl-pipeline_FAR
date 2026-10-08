@@ -1,5 +1,34 @@
 # Power BI Source Migration — Raw Tables to Unified Analytics Tables
 
+> **Current state (2026-10-07). This document is from 2026-09-08 and will be
+> rewritten with the Power BI repoint package.** Until then, these corrections
+> override the text below:
+>
+> - **The "Known gap" is closed.** The three `analytics_purchase_*` tables are
+>   rebuilt every night (stage "Analytics purchase pipeline", 01:30 cycle,
+>   together with `dim_vendor` / `dim_product`), so they are a valid source.
+> - **Repointing purchases is now urgent, not "wait".** Since the 2026-10-01
+>   cutover the 10 Odoo branches no longer get new rows in `getexpenses_factura`
+>   or `getinputinventory_entrada`, so Power BI's Compras / Entradas pages show
+>   October empty for them until they read the analytics tables.
+> - **Filter only `include_in_business_views = 1`. Do NOT also filter
+>   `include_product_in_business_views = 1`:** under the owner's option 1
+>   (2026-10-07) purchases with an unclassified vendor or product count in the
+>   business totals, flagged by `catalog_status`; the product flag would drop
+>   them (~5% of purchases a month). Internal-provider *vendors* are not
+>   excluded either (2026-09-15): only purchases made *by* the internal
+>   providers are.
+> - Compare Odoo branches against Wansoft's `Cuenta = 'Costo operativo'` only,
+>   and expect recent days of Odoo branches to grow (an order counts from the
+>   night after it is confirmed, under its order date).
+> - **Costs:** still read from the same raw tables, but since the cutover the
+>   Odoo branches' rows (Acoxpa, Tepeyac, Oceanía, Coyoacán from 2026-10-01;
+>   Puebla and CentroMyJ since opening) are computed from Odoo; Wansoft-only
+>   columns are NULL there. `costs_source_by_company` says which source each
+>   branch uses.
+> - The schedule times below (13:30, 1pm) are the pre-production scheduler;
+>   everything now runs in the single nightly cycle at 01:30.
+
 ## Purpose
 
 This document maps each raw/legacy table currently used in Power BI to its

@@ -79,8 +79,8 @@ All routing lives in [`core/config/companies.py`](core/config/companies.py) and 
 | Isabel La Católica | 4958 | Odoo from 2026-10-01 | Wansoft until the automatic switch |
 | San Jerónimo | 5319 | Odoo from 2026-10-01 | Wansoft until the automatic switch |
 | Vía Vallejo | 5318 | Odoo from 2026-10-01 | Wansoft until the automatic switch |
-| Puebla | 12806 | Odoo from its opening (history from June 2026) | Odoo from its opening |
-| CentroMyJ | 12802 | Odoo from its opening (history from June 2026) | Odoo from its opening |
+| Puebla | 12806 | Odoo from 2026-06-10 (born on Odoo) | Odoo from its opening (Odoo has cost of sales from 2026-07-27) |
+| CentroMyJ | 12802 | Odoo from 2026-06-01 (born on Odoo) | Odoo from its opening (Odoo has cost of sales from July 2026) |
 | Aeropuerto, Taquería Parroquia, Viaducto, Taquería Viaducto, Playa del Carmen, Cancún, Nápoles, Metepec (Tollocan), Versalles | 4959, 5321, 4961, 4962, 6174, 6175, 4433, 4752, 5396 | Wansoft | Wansoft |
 
 - **Migrated branches** (Acoxpa, Antenas, Tepeyac, Oceanía, Coyoacán) read Odoo only from

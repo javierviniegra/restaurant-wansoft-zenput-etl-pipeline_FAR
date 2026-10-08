@@ -1,5 +1,13 @@
 # dim_product Design and Closeout
 
+> **Current state (2026-10-07).** `dim_product` was built by hand on
+> 2026-08-05/06 and never refreshed. Since 2026-10-07 it is **rebuilt every
+> night** (mapping dictionary, canonical layer and Odoo inventory) as the
+> second step of the stage "Analytics purchase pipeline"; new products enter
+> as pending review. Under the owner's "option 1" (2026-10-07, live from the night of 10-07 to 10-08) a product under review no longer removes
+> its purchases from the business views: only `is_excluded` products (and
+> not-for-business products that are not under review) do.
+
 ## Purpose
 
 This document defines and closes the initial implementation of `dim_product`, the shared analytical product dimension for the Wansoft + Odoo + Zenput Data Warehouse and ETL Pipeline project.

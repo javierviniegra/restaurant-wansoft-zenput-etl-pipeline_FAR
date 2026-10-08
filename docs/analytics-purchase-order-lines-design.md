@@ -1,5 +1,25 @@
 # analytics_purchase_orders Design
 
+> **Note (2026-10-07).** Despite its file name, this file has always held an
+> early design of `analytics_purchase_orders` (order level); there is no
+> separate design document for `analytics_purchase_order_lines`. The current
+> line-level rules, from `scripts/build_analytics_purchase_order_lines.py`
+> under the owner's "option 1" (2026-10-07, live from the night of 10-07 to 10-08):
+>
+> - a line counts in the business views (`include_in_business_views = 1`)
+>   unless its product is deliberately excluded (`dim_product.is_excluded`, or
+>   not for business views without being under review) or its buying company
+>   is an internal provider;
+> - vendors or products missing from the catalogs, or products pending
+>   classification, **count**, flagged by the column `catalog_status`
+>   (`catalogado`, `producto_por_clasificar`, `producto_sin_catalogo`,
+>   `proveedor_sin_catalogo`, `proveedor_y_producto_sin_catalogo`) and with
+>   `line_review_status = review_required`;
+> - purchases *from* an internal provider by a branch count (2026-09-15).
+>
+> The `review_required_product` / `orphan_product` / `vendor_excluded`
+> exclusions described below are therefore no longer applied to lines.
+
 ## Purpose
 
 This document defines the design of `analytics_purchase_orders`, the order-level analytical fact table for Purchases in the unified MySQL analytical layer.

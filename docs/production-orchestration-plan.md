@@ -1,5 +1,11 @@
 # Production Orchestration Plan
 
+> **Historical planning document (status as of August 2026).** The design
+> reasoning still applies, but every "current status", "pending" or "next step"
+> statement here is superseded. Current state: `README.md`; operations:
+> `docs/production-cutover-runbook.md` (Section 9); history and backlog:
+> `PROJECT_CONTEXT_REPORT.md`.
+
 ## Purpose
 
 This document defines the production-style orchestration plan for the Wansoft + Odoo + Zenput Data Warehouse and ETL Pipeline project.
@@ -1846,6 +1852,13 @@ or:
 DELETE FROM canonical_purchase_order_snapshot
 WHERE source_system = 'wansoft';
 ```
+
+> **Warning (2026-10-07): dev only, never in production.** The Wansoft
+> canonical ETL reloads only its window (`PURCHASES_LOOKBACK_DAYS`, 35 days), so
+> deleting the Wansoft side loses the purchase history since 2021. In production,
+> relabel rows in place (as `sql/migrations/cutover_05_october_wave_relabel_wansoft_history.sql`
+> does) and reload with a widened window (runbook Step 3c).
+
 
 This avoids removing validated rows from the other source.
 
