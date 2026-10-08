@@ -406,6 +406,24 @@ def lookup_product(
     return None
 
 
+def is_classified_in_wansoft(source_row: Dict[str, Any]) -> bool:
+    """
+    A Wansoft purchase line with its Wansoft code and department is already
+    classified on the Wansoft side (owner, 2026-10-08, "B"). Its product can
+    still be "review required" in dim_product only because the weekly mapping
+    job proposed a link to the equivalent Odoo product that nobody approved
+    yet; that link does not change what was bought, so the line is
+    "catalogado". Before this, ~$9 M of routine Wansoft purchases every 90
+    days (Empanada de Carne, Topo Chico, Mollejas...) showed as
+    "producto_por_clasificar".
+    """
+    return (
+        source_row.get("source_system") == "wansoft"
+        and bool(str(source_row.get("wansoft_code") or "").strip())
+        and bool(str(source_row.get("wansoft_department") or "").strip())
+    )
+
+
 def build_analytics_row(
     source_row: Dict[str, Any],
     company_dimension: Dict[str, Dict[str, Any]],
@@ -509,7 +527,7 @@ def build_analytics_row(
         if deliberately_excluded:
             include_in_business_views = False
             exclude_reason = append_reason(exclude_reason, "product_excluded")
-        elif is_product_review_required:
+        elif is_product_review_required and not is_classified_in_wansoft(source_row):
             product_pending = True
             line_review_status = "review_required"
     else:
