@@ -434,9 +434,19 @@ production that day. PDF version: <a href="data-access-guide.en.pdf">data-access
 <td>Wansoft branches</td>
 </tr>
 <tr>
-<td>Current stock</td>
-<td><code>analytics_inventory_current_product_location</code>, <code>analytics_inventory_balance</code></td>
-<td><code>include_in_business_views = 1</code></td>
+<td>Current stock, all 19 branches</td>
+<td><code>analytics_inventory_balance</code> (and <code>analytics_inventory_current_product_location</code> for Odoo by location)</td>
+<td><code>include_in_business_views = 1</code>; today's snapshot only</td>
+</tr>
+<tr>
+<td>Stock on a past date, Wansoft branches</td>
+<td><code>getinputinventory_entrada</code> − <code>getoutgoinginventory_salida</code> up to that date</td>
+<td>see 5.4</td>
+</tr>
+<tr>
+<td>Stock on a past date, Odoo branches</td>
+<td><code>odoo_inventory_quant_daily</code></td>
+<td>from 2026-10-08 (see 5.4)</td>
 </tr>
 <tr>
 <td>Checklist results</td>
@@ -542,7 +552,7 @@ production that day. PDF version: <a href="data-access-guide.en.pdf">data-access
 <td><code>getoutgoinginventory_salida</code></td>
 <td>Wansoft</td>
 <td>2020-11-30</td>
-<td>About 1.15 million rows have an empty date (<code>0000-00-00</code>); exclude them</td>
+<td>About 1.1 million rows have an empty <code>Fecha</code> (<code>0000-00-00</code>): adjustments and waste whose business date is in <code>FechaReal</code>. <strong>Do not exclude them</strong>: use <code>COALESCE(NULLIF(Fecha, '0000-00-00'), FechaReal)</code> (5.4)</td>
 </tr>
 <tr>
 <td><strong>Unified purchases</strong></td>
@@ -557,6 +567,13 @@ production that day. PDF version: <a href="data-access-guide.en.pdf">data-access
 <td><strong>Wansoft + Odoo</strong></td>
 <td>Current snapshot</td>
 <td>No history by design; the Wansoft balance is recomputed nightly from every movement since 2020-11-30</td>
+</tr>
+<tr>
+<td>Odoo stock day by day</td>
+<td><code>odoo_inventory_quant_daily</code></td>
+<td>Odoo</td>
+<td>2026-10-08</td>
+<td>One raw capture per night (product × location); no Odoo stock history before that date</td>
 </tr>
 <tr>
 <td>Checklists</td>
@@ -827,7 +844,11 @@ to be confirmed), <code>producto_sin_catalogo</code>, <code>proveedor_sin_catalo
 <code>proveedor_y_producto_sin_catalogo</code>. Use it to show those purchases apart in a
 breakdown by category; the totals already include them. Only deliberately
 excluded products and purchases made by the internal providers stay out
-(<code>include_in_business_views = 0</code>). The catalogs are rebuilt every night.</p>
+(<code>include_in_business_views = 0</code>). The catalogs are rebuilt every night.
+Since October 8, a Wansoft purchase carrying its Wansoft code and department
+is <code>catalogado</code> even when its link to the equivalent Odoo product is still
+pending approval: <code>producto_por_clasificar</code> is left for products that really
+lack a classification.</p>
 <table class="compacta">
 <thead>
 <tr>
@@ -897,18 +918,51 @@ marked paid in Wansoft (payment is recorded elsewhere), so do not use that field
 for accounts payable.</p>
 <h2>5.4 Inventory</h2>
 <ul>
-<li><strong>Wansoft movements</strong> (Wansoft branches, and history of migrated ones):
-  <code>getinputinventory_entrada</code> (entries; <code>TipoEntrada</code>: <code>Factura</code>, <code>Transferencia</code>,
-  <code>Entrada con canal</code>, <code>Producto procesado</code>, <code>Ajuste de inventario</code>) and
-  <code>getoutgoinginventory_salida</code> (exits, tens of millions of rows: always filter by
-  <code>Fecha</code> and <code>subsidiary_name</code>). Branch = Wansoft id in <code>subsidiary_name</code>.
-  Quantity <code>Cantidad</code>, cost <code>CostoUnitario</code>.</li>
-<li><strong>Current stock, unified:</strong> <code>analytics_inventory_current_product_location</code>
-  (Odoo stock by product and location) and <code>analytics_inventory_balance</code>
-  (Wansoft balance = entries − exits by product). Filter
-  <code>include_in_business_views = 1</code>.</li>
-<li>There is <strong>no inventory valuation</strong> (money) for Odoo branches yet, only
-  quantities.</li>
+<li><strong>Today's stock, all 19 branches:</strong> <code>analytics_inventory_balance</code>, one row
+  per branch × Wansoft product code; <code>source_system</code> says where it comes
+  from: <code>wansoft</code> (the 9 Wansoft branches: entries − exits since the first
+  movement) or <code>odoo</code> (the 10 Odoo branches: Odoo's stock).
+  <code>analytics_inventory_current_product_location</code> gives the Odoo side by
+  location (warehouse, kitchen). Filter <code>include_in_business_views = 1</code>.
+  <strong>It is today's snapshot: rewritten every night, no history kept.</strong></li>
+<li><strong>Wansoft movements:</strong> <code>getinputinventory_entrada</code> (entries; <code>TipoEntrada</code>:
+  <code>Factura</code>, <code>Transferencia</code>, <code>Entrada con canal</code>, <code>Producto procesado</code>,
+  <code>Ajuste de inventario</code>) and <code>getoutgoinginventory_salida</code> (exits, tens of
+  millions of rows: always filter by date and <code>subsidiary_name</code>). Branch =
+  Wansoft id in <code>subsidiary_name</code>; product = <code>CodigoProducto</code>; quantity
+  <code>Cantidad</code>, cost <code>CostoUnitario</code>. Wansoft branches only; the 8 branches
+  migrated to Odoo end on 2026-09-30 (they keep capturing in Wansoft in
+  parallel, but those movements are no longer loaded).</li>
+<li><strong>Stock on a past date, Wansoft branches:</strong> entries − exits up to that date,
+  with the same rules as today's balance (no transfers, no purchase orders,
+  no capture errors or rejected invoices). Exits with an empty <code>Fecha</code> are
+  adjustments and waste dated in <code>FechaReal</code>: do not exclude them.</li>
+</ul>
+<pre class="bloque-codigo">-- Stock of Coca Cola Mini (1000-105-203-005) at Viaducto (4961) at the close of 2026-09-30
+SELECT
+  (SELECT COALESCE(SUM(Cantidad), 0) FROM getinputinventory_entrada
+    WHERE subsidiary_name = '4961' AND CodigoProducto = '1000-105-203-005'
+      AND TipoEntrada NOT IN ('Orden de compra a proveedor', 'Transferencia')
+      AND DATE(FechaEntrada) &lt;= '2026-09-30')
+  -
+  (SELECT COALESCE(SUM(Cantidad), 0) FROM getoutgoinginventory_salida
+    WHERE subsidiary_name = '4961' AND CodigoProducto = '1000-105-203-005'
+      AND TipoSalida NOT IN ('Error de captura', 'Factura de egresos rechazada', 'Transferencia')
+      AND COALESCE(NULLIF(Fecha, '0000-00-00'), FechaReal) &lt;= '2026-09-30') AS stock;
+-- 2,939. With '2026-10-07' it gives 3,170, equal to analytics_inventory_balance that night.
+</pre>
+<ul>
+<li><strong>Odoo stock day by day:</strong> <code>odoo_inventory_quant_daily</code>, from stock date
+  2026-10-08. One row per <code>stock_date</code>, location and Odoo product
+  (<code>odoo_product_id</code>, <code>product_name</code>, <code>location_name</code>, <code>location_usage</code>
+  <code>internal</code> or <code>transit</code>, <code>quantity</code>, <code>company_source_key</code>), without
+  mappings. To read it in Wansoft codes, join <code>odoo_product_id</code> to the
+  approved rows of <code>inventory_mapping_dictionary</code>. <strong>There is no Odoo stock
+  history before 2026-10-08.</strong></li>
+<li>There are <strong>no</strong> Odoo movements (consumption, waste, transfers) <strong>and no
+  inventory valuation</strong> in money for the Odoo branches yet. Detailed
+  coverage per branch: <code>docs/inventory-coverage-by-branch.md</code> in the
+  repository.</li>
 </ul>
 <h2>5.5 Zenput (<code>zenput</code> database)</h2>
 <table class="compacta">

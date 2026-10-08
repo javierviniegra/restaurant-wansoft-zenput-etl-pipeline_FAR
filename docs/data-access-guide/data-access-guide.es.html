@@ -208,7 +208,9 @@ comprobó que existen en producción todas las tablas y columnas que nombra.
   <tr><td>Compras (mercancía) de cualquier sucursal y periodo</td><td><code>analytics_purchase_order_lines</code>, <code>analytics_purchase_orders</code>, <code>analytics_purchase_daily_company_product</code></td><td><code>include_in_business_views = 1</code></td></tr>
   <tr><td>Gasto por cuenta contable (Costo operativo, Gastos directos...)</td><td><code>getexpenses_factura</code></td><td>solo Wansoft (ver 5.3)</td></tr>
   <tr><td>Detalle de entradas y salidas de inventario (Wansoft)</td><td><code>getinputinventory_entrada</code>, <code>getoutgoinginventory_salida</code></td><td>sucursales Wansoft</td></tr>
-  <tr><td>Existencias actuales</td><td><code>analytics_inventory_current_product_location</code>, <code>analytics_inventory_balance</code></td><td><code>include_in_business_views = 1</code></td></tr>
+  <tr><td>Existencias actuales, las 19 sucursales</td><td><code>analytics_inventory_balance</code> (y <code>analytics_inventory_current_product_location</code> para Odoo por ubicación)</td><td><code>include_in_business_views = 1</code>; solo la foto de hoy</td></tr>
+  <tr><td>Existencias a una fecha pasada, sucursales Wansoft</td><td><code>getinputinventory_entrada</code> − <code>getoutgoinginventory_salida</code> hasta esa fecha</td><td>ver 5.4</td></tr>
+  <tr><td>Existencias a una fecha pasada, sucursales Odoo</td><td><code>odoo_inventory_quant_daily</code></td><td>desde el 2026-10-08 (ver 5.4)</td></tr>
   <tr><td>Resultados de checklists</td><td><code>zenput.submissions</code> + <code>zenput.submission_answers</code></td><td>—</td></tr>
   <tr><td>Tareas</td><td><code>zenput.zenput_tasks</code></td><td>—</td></tr>
   <tr><td>Qué fuente alimenta cada sucursal</td><td><code>analytics_company_domain_coverage</code></td><td>—</td></tr>
@@ -230,9 +232,10 @@ comprobó que existen en producción todas las tablas y columnas que nombra.
   <tr><td>Tablajería</td><td><code>gettablajeriareport</code></td><td>Wansoft</td><td>2022-01-01</td><td>Va de salida (sección 5.2)</td></tr>
   <tr><td>Facturas de proveedor por cuenta contable</td><td><code>getexpenses_factura</code></td><td>Wansoft</td><td>2019-02-18</td><td>El histórico más antiguo; solo mientras la sucursal captura en Wansoft</td></tr>
   <tr><td>Entradas de inventario</td><td><code>getinputinventory_entrada</code></td><td>Wansoft</td><td>2021-09-01</td><td>—</td></tr>
-  <tr><td>Salidas de inventario</td><td><code>getoutgoinginventory_salida</code></td><td>Wansoft</td><td>2020-11-30</td><td>Unas 1.15 millones de filas traen fecha vacía (<code>0000-00-00</code>); exclúyelas</td></tr>
+  <tr><td>Salidas de inventario</td><td><code>getoutgoinginventory_salida</code></td><td>Wansoft</td><td>2020-11-30</td><td>Unas 1.1 millones de filas traen <code>Fecha</code> vacía (<code>0000-00-00</code>): son ajustes y mermas con su fecha de negocio en <code>FechaReal</code>. <b>No las excluyas</b>: usa <code>COALESCE(NULLIF(Fecha, '0000-00-00'), FechaReal)</code> (5.4)</td></tr>
   <tr><td><b>Compras unificadas</b></td><td><code>analytics_purchase_order_lines</code>, <code>analytics_purchase_orders</code>, <code>analytics_purchase_daily_company_product</code></td><td><b>Wansoft + Odoo</b></td><td><b>2021-09-01</b></td><td>Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde entonces (1 de octubre de 2026 para las migradas; Puebla y CentroMyJ desde su apertura en junio). Verificado año por año: mismos renglones y pesos que las facturas de Wansoft en producción</td></tr>
   <tr><td><b>Existencias unificadas</b></td><td><code>analytics_inventory_current_product_location</code>, <code>analytics_inventory_balance</code></td><td><b>Wansoft + Odoo</b></td><td>Foto actual</td><td>Sin histórico por diseño; el saldo de Wansoft se recalcula cada noche con todos los movimientos desde 2020-11-30</td></tr>
+  <tr><td>Existencias de Odoo día por día</td><td><code>odoo_inventory_quant_daily</code></td><td>Odoo</td><td>2026-10-08</td><td>Una foto cruda por noche (producto × ubicación); no hay historia de Odoo antes de esa fecha</td></tr>
   <tr><td>Checklists</td><td><code>zenput.submissions</code>, <code>zenput.submission_answers</code></td><td>Zenput</td><td>2025-06-11</td><td>—</td></tr>
   <tr><td>Tareas</td><td><code>zenput.zenput_tasks</code></td><td>Zenput</td><td>2025-06-03</td><td>—</td></tr>
   <tr><td>Calendario</td><td><code>dim_time</code></td><td>—</td><td>2020-01-01</td><td>Hasta 2035-12-31</td></tr>
@@ -423,7 +426,11 @@ falta confirmar su clasificación), <code>producto_sin_catalogo</code>,
 Úsalo para mostrar esas compras aparte en un desglose por categoría; los totales ya
 las incluyen. Solo quedan fuera (<code>include_in_business_views = 0</code>) los
 productos excluidos a propósito y las compras hechas por los proveedores internos.
-Los catálogos se reconstruyen cada noche.</p>
+Los catálogos se reconstruyen cada noche. Desde el 8 de octubre, una compra
+de Wansoft que trae su código y departamento de Wansoft es
+<code>catalogado</code> aunque su vínculo con el producto equivalente de Odoo
+siga pendiente de aprobar: <code>producto_por_clasificar</code> queda solo
+para productos que de verdad no tienen clasificación.</p>
 
 <table class="compacta">
   <tr><th width="42%">Tabla</th><th width="16%">Grano</th><th width="42%">Campos clave</th></tr>
@@ -488,21 +495,56 @@ registra en otro lado), así que no uses ese campo para cuentas por pagar.
 
 <h2>5.4 Inventario</h2>
 <ul>
-  <li><b>Movimientos de Wansoft</b> (sucursales Wansoft e histórico de las
-  migradas): <code>getinputinventory_entrada</code> (entradas;
-  <code>TipoEntrada</code>: Factura, Transferencia, Entrada con canal,
-  Producto procesado, Ajuste de inventario) y
-  <code>getoutgoinginventory_salida</code> (salidas, decenas de millones de filas:
-  filtra siempre por <code>Fecha</code> y <code>subsidiary_name</code>).
-  Sucursal = ID de Wansoft en <code>subsidiary_name</code>. Cantidad
-  <code>Cantidad</code>, costo <code>CostoUnitario</code>.</li>
-  <li><b>Existencias actuales, unificadas:</b>
-  <code>analytics_inventory_current_product_location</code> (existencias de Odoo
-  por producto y ubicación) y <code>analytics_inventory_balance</code> (saldo de
-  Wansoft = entradas − salidas por producto). Filtra
-  <code>include_in_business_views = 1</code>.</li>
-  <li>Todavía <b>no hay valuación de inventario</b> (en dinero) para las
-  sucursales en Odoo, solo cantidades.</li>
+  <li><b>Existencias de hoy, las 19 sucursales:</b>
+  <code>analytics_inventory_balance</code>, una fila por sucursal × código de
+  producto Wansoft; <code>source_system</code> dice de dónde sale:
+  <code>wansoft</code> (las 9 sucursales Wansoft: entradas − salidas desde el
+  primer movimiento) u <code>odoo</code> (las 10 de Odoo: existencias de Odoo).
+  <code>analytics_inventory_current_product_location</code> da lo de Odoo por
+  ubicación (almacén, cocina). Filtra <code>include_in_business_views = 1</code>.
+  <b>Es la foto de hoy: se reescribe cada noche y no guarda historia.</b></li>
+  <li><b>Movimientos de Wansoft:</b> <code>getinputinventory_entrada</code>
+  (entradas; <code>TipoEntrada</code>: Factura, Transferencia, Entrada con
+  canal, Producto procesado, Ajuste de inventario) y
+  <code>getoutgoinginventory_salida</code> (salidas, decenas de millones de
+  filas: filtra siempre por fecha y <code>subsidiary_name</code>). Sucursal =
+  ID de Wansoft en <code>subsidiary_name</code>; producto =
+  <code>CodigoProducto</code>; cantidad <code>Cantidad</code>, costo
+  <code>CostoUnitario</code>. Solo traen sucursales Wansoft; las 8 migradas a
+  Odoo llegan hasta el 2026-09-30 (siguen capturando en Wansoft en paralelo,
+  pero esos movimientos ya no se cargan).</li>
+  <li><b>Existencias a una fecha pasada, sucursales Wansoft:</b> entradas −
+  salidas hasta esa fecha, con las mismas reglas que el saldo de hoy (sin
+  transferencias, sin órdenes de compra, sin errores de captura ni facturas
+  rechazadas). Las salidas con <code>Fecha</code> vacía son ajustes y mermas
+  con su fecha en <code>FechaReal</code>: no las excluyas.</li>
+</ul>
+<pre class="bloque-codigo">-- Existencias de Coca Cola Mini (1000-105-203-005) en Viaducto (4961) al cierre del 2026-09-30
+SELECT
+  (SELECT COALESCE(SUM(Cantidad), 0) FROM getinputinventory_entrada
+    WHERE subsidiary_name = '4961' AND CodigoProducto = '1000-105-203-005'
+      AND TipoEntrada NOT IN ('Orden de compra a proveedor', 'Transferencia')
+      AND DATE(FechaEntrada) &lt;= '2026-09-30')
+  -
+  (SELECT COALESCE(SUM(Cantidad), 0) FROM getoutgoinginventory_salida
+    WHERE subsidiary_name = '4961' AND CodigoProducto = '1000-105-203-005'
+      AND TipoSalida NOT IN ('Error de captura', 'Factura de egresos rechazada', 'Transferencia')
+      AND COALESCE(NULLIF(Fecha, '0000-00-00'), FechaReal) &lt;= '2026-09-30') AS existencias;
+-- 2,939. Con '2026-10-07' da 3,170, igual que analytics_inventory_balance esa noche.</pre>
+<ul>
+  <li><b>Existencias de Odoo día por día:</b> <code>odoo_inventory_quant_daily</code>,
+  desde la fecha de existencias 2026-10-08. Una fila por <code>stock_date</code>,
+  ubicación y producto de Odoo (<code>odoo_product_id</code>,
+  <code>product_name</code>, <code>location_name</code>,
+  <code>location_usage</code> internal o transit, <code>quantity</code>,
+  <code>company_source_key</code>), sin mapeos. Para verlo en códigos Wansoft,
+  une <code>odoo_product_id</code> con los mapeos aprobados de
+  <code>inventory_mapping_dictionary</code>. <b>No hay historia de existencias
+  de Odoo antes del 2026-10-08.</b></li>
+  <li>Todavía <b>no hay</b> movimientos de Odoo (consumos, mermas,
+  transferencias) <b>ni valuación de inventario</b> en dinero para las
+  sucursales de Odoo. Cobertura detallada por sucursal:
+  <code>docs/inventory-coverage-by-branch.md</code> del repositorio.</li>
 </ul>
 
 <h2>5.5 Zenput (base zenput)</h2>

@@ -645,7 +645,7 @@ Get-Content $log -Tail 25 -Encoding UTF8
 ```
 
 Good: one `OK` line per stage and `##### CYCLE DONE in N min, 0 failed`. Stages:
-**16** on a normal night, **+1** on Sundays ("Product mapping backlog (weekly)"),
+**17** on a normal night (16 before 2026-10-09), **+1** on Sundays ("Product mapping backlog (weekly)"),
 **+1** every 5 days ("Compras por clasificar (cada 5 dias)": 2026-10-11, 10-16,
 10-21...). Reference times for the first week: 38.9-47.6 min in total, Analytics
 purchase about 14 min.
@@ -664,6 +664,7 @@ Select-String -Path $log -Pattern '\[AVISO\]|\[ALERTA\]|FAILED|\[ERROR|\[❌\]' 
 | `[SALTAR] No se pudo obtener CashClosing` | yes for days whose closing does not exist yet | none; retried the next night |
 | `[ALERTA] Aún hay diferencia ... (contra el corte mayor)` | not for the same branch and day two nights in a row | run 9.2 `ventas,cierres` for that day and compare with Wansoft |
 | `[ERROR ...]` / `[❌]` on one branch and day (e.g. a timeout) | occasionally | none if it does not repeat; the window retries it. The same branch several nights in a row: investigate |
+| "Odoo cutover validation" `FAILED` with `FAIL:` in its summary | no (since bug #42, 2026-10-08) | a T+7/T+30 checkpoint disagrees with live Odoo: compare `odoo_cutover_validation_log` (`dev_value` vs `odoo_value`) with `check_odoo_vs_warehouse` for that branch |
 | A stage `FAILED` | no | read the traceback above its `END` line, fix, re-run the stage (9.4) |
 
 **Weekly backup (Thursday 18:00):** `Get-Content C:\Backups\mysql\backup.log -Tail 5`
@@ -735,6 +736,7 @@ the stage names; `python -m scripts.run_daily_cycle --list` prints today's names
 | Zenput | `"Zenput"` |
 | Odoo purchases + analytics (always together: analytics reads the canonical layer) | `"Purchases pipeline,Analytics purchase"` |
 | Odoo inventory | `"Inventory pipeline"` |
+| Odoo stock of the day (`odoo_inventory_quant_daily`) | `"foto diaria"` |
 | Cutover checkpoints | `"cutover"` |
 
 ```powershell
@@ -790,6 +792,21 @@ SELECT catalog_status, company_source_key, product_name, vendor_name, amount_sub
 FROM purchase_catalog_review_backlog
 ORDER BY amount_subtotal DESC
 LIMIT 50;
+```
+
+**Wansoft lines are not "por clasificar" because of a pending Odoo link** (owner,
+2026-10-08): a Wansoft purchase with its Wansoft code and department is `catalogado`.
+What remains as `producto_por_clasificar` / `producto_sin_catalogo` really lacks a catalog.
+
+**Bulk approval of safe mappings** (owner, 2026-10-08, applied the same day: 224 rows).
+`scripts/approve_exact_code_base_mappings.py` approves the weekly job's `exact_code_base`
+proposals with identical names and no conflict, and lists what it skips and why (spirits
+already approved against another Odoo product, raw vs clean meat cuts: those are the
+owner's call). On the VM, dry run first, then apply with the count it printed:
+
+```powershell
+.venv\Scripts\python.exe -m scripts.approve_exact_code_base_mappings | Select-String -Pattern '^Database|^Skipped|^Qualify|^Dry run'
+.venv\Scripts\python.exe -m scripts.approve_exact_code_base_mappings --apply --expect 224
 ```
 
 Off-schedule runs (VM, write to production):

@@ -78,6 +78,12 @@ GRANT SELECT ON `wansoft`.`dim_time`                                     TO 'tuk
 -- server where tukan_wansoft already exists, run only this line (as root).
 GRANT SELECT ON `wansoft`.`costs_source_by_company`                      TO 'tukan_wansoft'@'%';
 
+-- ---------------- PART D (2026-10-08, after the night of 10-08 to 10-09) ----------------
+-- Odoo stock day by day, written nightly since stock date 2026-10-08 (guide 5.4,
+-- docs/inventory-coverage-by-branch.md). The table is created by the first night
+-- run with the code of 2026-10-08; run only this line (as root).
+GRANT SELECT ON `wansoft`.`odoo_inventory_quant_daily`                   TO 'tukan_wansoft'@'%';
+
 -- ---------------- VERIFY ----------------
 SHOW GRANTS FOR 'tukan_wansoft'@'%';
 SHOW GRANTS FOR 'tukan_zenput'@'%';

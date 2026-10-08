@@ -9,7 +9,7 @@ which system a branch uses, when it migrated, or which source produced each row.
 Odoo is read-only for this project: nothing here writes to Odoo.
 
 > **Current state (2026-10-07):** in production since **2026-10-01**. The nightly task
-> `Wansoft_Pipeline_Diario` runs at **01:30** on the tasks VM, **16 stages, about 40 minutes**,
+> `Wansoft_Pipeline_Diario` runs at **01:30** on the tasks VM, **17 stages, about 40-50 minutes**,
 > writing to the live `wansoft` and `zenput` databases. The legacy `FondaCroned_*` tasks are
 > disabled. Full history, decisions and the open backlog are in
 > [`PROJECT_CONTEXT_REPORT.md`](PROJECT_CONTEXT_REPORT.md) (start with Section 13 "NOW / NEXT").
@@ -123,10 +123,11 @@ in order, **continues after a failed stage**, and exits 1 if any stage failed. T
 | 10 | Costos - cambio automático a Odoo | automatic cost switch, publishes `costs_source_by_company`, validates duplicates and continuity of every Odoo-costed branch |
 | 11 | Zenput - forms | checklists and answers |
 | 12 | Zenput - tasks | tasks |
-| 13 | Inventory pipeline | Odoo inventory snapshots, scope, validation |
-| 14 | Purchases pipeline | Odoo snapshots (confirmed orders, receipts), canonical layer merging Wansoft history and Odoo, rollout validation |
-| 15 | Analytics purchase pipeline | rebuilds `dim_vendor` / `dim_product`, then the `analytics_purchase_*` tables and their validators |
-| 16 | Odoo cutover validation | T+7 / T+30 checkpoints of every branch's Odoo start |
+| 13 | Inventory pipeline | Odoo inventory snapshot (mapped to Wansoft codes), scope, `analytics_inventory_balance`, validation |
+| 14 | Inventario Odoo - foto diaria | raw Odoo stock of the day (internal and transit locations, every company) into `odoo_inventory_quant_daily`: the Odoo branches' day-by-day stock history (since 2026-10-08) |
+| 15 | Purchases pipeline | Odoo snapshots (confirmed orders, receipts), canonical layer merging Wansoft history and Odoo, rollout validation |
+| 16 | Analytics purchase pipeline | rebuilds `dim_vendor` / `dim_product`, then the `analytics_purchase_*` tables and their validators |
+| 17 | Odoo cutover validation | T+7 / T+30 checkpoints of every branch's Odoo start (confirmed orders only; a FAIL fails the stage) |
 
 Conditional stages, appended at the end:
 - **Sundays:** "Product mapping backlog (weekly)" (product mapping dictionary).
@@ -185,13 +186,15 @@ data access guide ([`docs/data-access-guide/`](docs/data-access-guide/)).
 | Purchases (business-ready) | `analytics_purchase_order_lines`, `analytics_purchase_orders`, `analytics_purchase_daily_company_product`; read with `include_in_business_views = 1` |
 | Purchases (governance) | `purchase_catalog_review_backlog`, `dim_vendor`, `dim_product`, `inventory_mapping_dictionary`, `odoo_company_migration_policy` |
 | Purchases (Wansoft raw) | `getexpenses_factura` (also non-goods spend by `Cuenta`), `getinputinventory_entrada` |
-| Inventory | `getoutgoinginventory_salida`, `analytics_inventory_*`, Odoo snapshots |
+| Inventory | `analytics_inventory_balance` (today's stock, all 19 branches), `odoo_inventory_quant_daily` (Odoo stock per day since 2026-10-08), `getinputinventory_entrada` / `getoutgoinginventory_salida` (Wansoft movements), `analytics_inventory_current_product_location`. Coverage per branch: [`docs/inventory-coverage-by-branch.md`](docs/inventory-coverage-by-branch.md) |
 | Pipeline control | `odoo_cutover_validation_log` |
 | Zenput (database `zenput`) | `form_templates`, `submissions`, `submission_answers`, `zenput_tasks` |
 
 `analytics_purchase_order_lines.catalog_status` tells how well a line is classified:
 `catalogado`, `producto_por_clasificar`, `producto_sin_catalogo`, `proveedor_sin_catalogo`,
-`proveedor_y_producto_sin_catalogo`. All of them count in the business views (see 6).
+`proveedor_y_producto_sin_catalogo`. All of them count in the business views (see 6). A
+Wansoft line with its Wansoft code and department is `catalogado` even when its proposed link
+to an Odoo product is still pending (owner, 2026-10-08).
 
 Intermediate layers (`canonical_purchase_*`, `odoo_purchase_*`, `stg_*`, `inventory_*`
 workbench tables, `vw_inventory_*`) are not for consumers.
@@ -213,7 +216,15 @@ workbench tables, `vw_inventory_*`) are not for consumers.
   **count** in business views, flagged by `catalog_status`. Only deliberate exclusions
   (`dim_product.is_excluded`, not-for-business products) and internal-provider buying
   companies stay out. `dim_vendor` / `dim_product` are rebuilt every night; products still
-  need a person to approve their mapping (reviewed every 5 days, stage above).
+  need a person to approve their mapping (reviewed every 5 days, stage above). An approved
+  mapping in `inventory_mapping_dictionary` is never overwritten by later sources when
+  `dim_product` is rebuilt (bug #43); safe proposals can be bulk-approved with
+  `scripts/approve_exact_code_base_mappings.py` (dry run by default; runbook 9.6).
+- **Inventory:** `analytics_inventory_balance` is today's stock only. Past stock of a Wansoft
+  branch = entries − exits up to the date (exits with an empty `Fecha` are dated by
+  `FechaReal`); Odoo branches have day-by-day stock only from 2026-10-08
+  (`odoo_inventory_quant_daily`), and no movements or valuation yet. Details and the gap per
+  branch: `docs/inventory-coverage-by-branch.md`.
 - **Costs:** Odoo costs fill `CostoTotal`, `CostoDeProductosVendidos` and `CostoDeMerma`;
   Wansoft-only columns are NULL on Odoo rows. Courtesies and cancellations come from the cash
   closing (sale value) for every branch. Month/week-to-date stay whole across a mid-period
@@ -302,6 +313,7 @@ logs/, reports/  generated, gitignored
 | `docs/purchases-*.md`, `docs/inventory-*.md`, `docs/zenput-*.md` | domain runbooks and policies |
 | `docs/analytics-*-design.md`, `docs/dim-*-design.md` | design of each analytics table and dimension |
 | `docs/pipeline-logging-and-run-interpretation.md`, `docs/branch-rollout-playbook.md` | reading pipeline logs; onboarding a branch to Odoo |
+| [`docs/inventory-coverage-by-branch.md`](docs/inventory-coverage-by-branch.md) | inventory per branch: which table for which question, stock on a past date, gaps |
 | [`docs/history/readme-archive-2026-10-07.md`](docs/history/readme-archive-2026-10-07.md) | the previous README with the full build history |
 
 `docs/project-status-and-todo.md`, `docs/production-orchestration-plan.md` and

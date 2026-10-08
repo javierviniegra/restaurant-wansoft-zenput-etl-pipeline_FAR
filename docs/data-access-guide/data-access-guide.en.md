@@ -153,7 +153,9 @@ Notes:
 | Purchases (goods) for any branch, any period | `analytics_purchase_order_lines` / `analytics_purchase_orders` / `analytics_purchase_daily_company_product` | `include_in_business_views = 1` |
 | Spend by accounting account (Costo operativo, Gastos directos, ...) | `getexpenses_factura` | Wansoft only (see 5.3) |
 | Inventory entries/exits detail (Wansoft) | `getinputinventory_entrada`, `getoutgoinginventory_salida` | Wansoft branches |
-| Current stock | `analytics_inventory_current_product_location`, `analytics_inventory_balance` | `include_in_business_views = 1` |
+| Current stock, all 19 branches | `analytics_inventory_balance` (and `analytics_inventory_current_product_location` for Odoo by location) | `include_in_business_views = 1`; today's snapshot only |
+| Stock on a past date, Wansoft branches | `getinputinventory_entrada` − `getoutgoinginventory_salida` up to that date | see 5.4 |
+| Stock on a past date, Odoo branches | `odoo_inventory_quant_daily` | from 2026-10-08 (see 5.4) |
 | Checklist results | `zenput.submissions` + `zenput.submission_answers` | |
 | Tasks | `zenput.zenput_tasks` | |
 | Which source feeds each branch | `analytics_company_domain_coverage` | |
@@ -174,9 +176,10 @@ Start dates measured in production on 2026-09-28; the go-live of October 1 did n
 | Butchery yields | `gettablajeriareport` | Wansoft | 2022-01-01 | Being phased out (Section 5.2) |
 | Supplier invoices by accounting account | `getexpenses_factura` | Wansoft | 2019-02-18 | The oldest history; only while a branch enters purchases in Wansoft |
 | Inventory entries | `getinputinventory_entrada` | Wansoft | 2021-09-01 |  |
-| Inventory exits | `getoutgoinginventory_salida` | Wansoft | 2020-11-30 | About 1.15 million rows have an empty date (`0000-00-00`); exclude them |
+| Inventory exits | `getoutgoinginventory_salida` | Wansoft | 2020-11-30 | About 1.1 million rows have an empty `Fecha` (`0000-00-00`): adjustments and waste whose business date is in `FechaReal`. **Do not exclude them**: use `COALESCE(NULLIF(Fecha, '0000-00-00'), FechaReal)` (5.4) |
 | **Unified purchases** | `analytics_purchase_order_lines`, `analytics_purchase_orders`, `analytics_purchase_daily_company_product` | **Wansoft + Odoo** | **2021-09-01** | Wansoft until each branch's Odoo start date, Odoo from then on (2026-10-01 for the migrated branches; Puebla and CentroMyJ since they opened in June). Checked year by year: same rows and amounts as production's Wansoft invoices |
 | **Unified stock** | `analytics_inventory_current_product_location`, `analytics_inventory_balance` | **Wansoft + Odoo** | Current snapshot | No history by design; the Wansoft balance is recomputed nightly from every movement since 2020-11-30 |
+| Odoo stock day by day | `odoo_inventory_quant_daily` | Odoo | 2026-10-08 | One raw capture per night (product × location); no Odoo stock history before that date |
 | Checklists | `zenput.submissions`, `zenput.submission_answers` | Zenput | 2025-06-11 |  |
 | Tasks | `zenput.zenput_tasks` | Zenput | 2025-06-03 |  |
 | Calendar | `dim_time` | — | 2020-01-01 | Until 2035-12-31 |
@@ -351,6 +354,10 @@ to be confirmed), `producto_sin_catalogo`, `proveedor_sin_catalogo` or
 breakdown by category; the totals already include them. Only deliberately
 excluded products and purchases made by the internal providers stay out
 (`include_in_business_views = 0`). The catalogs are rebuilt every night.
+Since October 8, a Wansoft purchase carrying its Wansoft code and department
+is `catalogado` even when its link to the equivalent Odoo product is still
+pending approval: `producto_por_clasificar` is left for products that really
+lack a classification.
 
 | Table | Grain | Key fields |
 |---|---|---|
@@ -405,18 +412,52 @@ for accounts payable.
 
 ### 5.4 Inventory
 
-- **Wansoft movements** (Wansoft branches, and history of migrated ones):
-  `getinputinventory_entrada` (entries; `TipoEntrada`: `Factura`, `Transferencia`,
-  `Entrada con canal`, `Producto procesado`, `Ajuste de inventario`) and
-  `getoutgoinginventory_salida` (exits, tens of millions of rows: always filter by
-  `Fecha` and `subsidiary_name`). Branch = Wansoft id in `subsidiary_name`.
-  Quantity `Cantidad`, cost `CostoUnitario`.
-- **Current stock, unified:** `analytics_inventory_current_product_location`
-  (Odoo stock by product and location) and `analytics_inventory_balance`
-  (Wansoft balance = entries − exits by product). Filter
-  `include_in_business_views = 1`.
-- There is **no inventory valuation** (money) for Odoo branches yet, only
-  quantities.
+- **Today's stock, all 19 branches:** `analytics_inventory_balance`, one row
+  per branch × Wansoft product code; `source_system` says where it comes
+  from: `wansoft` (the 9 Wansoft branches: entries − exits since the first
+  movement) or `odoo` (the 10 Odoo branches: Odoo's stock).
+  `analytics_inventory_current_product_location` gives the Odoo side by
+  location (warehouse, kitchen). Filter `include_in_business_views = 1`.
+  **It is today's snapshot: rewritten every night, no history kept.**
+- **Wansoft movements:** `getinputinventory_entrada` (entries; `TipoEntrada`:
+  `Factura`, `Transferencia`, `Entrada con canal`, `Producto procesado`,
+  `Ajuste de inventario`) and `getoutgoinginventory_salida` (exits, tens of
+  millions of rows: always filter by date and `subsidiary_name`). Branch =
+  Wansoft id in `subsidiary_name`; product = `CodigoProducto`; quantity
+  `Cantidad`, cost `CostoUnitario`. Wansoft branches only; the 8 branches
+  migrated to Odoo end on 2026-09-30 (they keep capturing in Wansoft in
+  parallel, but those movements are no longer loaded).
+- **Stock on a past date, Wansoft branches:** entries − exits up to that date,
+  with the same rules as today's balance (no transfers, no purchase orders,
+  no capture errors or rejected invoices). Exits with an empty `Fecha` are
+  adjustments and waste dated in `FechaReal`: do not exclude them.
+
+```sql
+-- Stock of Coca Cola Mini (1000-105-203-005) at Viaducto (4961) at the close of 2026-09-30
+SELECT
+  (SELECT COALESCE(SUM(Cantidad), 0) FROM getinputinventory_entrada
+    WHERE subsidiary_name = '4961' AND CodigoProducto = '1000-105-203-005'
+      AND TipoEntrada NOT IN ('Orden de compra a proveedor', 'Transferencia')
+      AND DATE(FechaEntrada) <= '2026-09-30')
+  -
+  (SELECT COALESCE(SUM(Cantidad), 0) FROM getoutgoinginventory_salida
+    WHERE subsidiary_name = '4961' AND CodigoProducto = '1000-105-203-005'
+      AND TipoSalida NOT IN ('Error de captura', 'Factura de egresos rechazada', 'Transferencia')
+      AND COALESCE(NULLIF(Fecha, '0000-00-00'), FechaReal) <= '2026-09-30') AS stock;
+-- 2,939. With '2026-10-07' it gives 3,170, equal to analytics_inventory_balance that night.
+```
+
+- **Odoo stock day by day:** `odoo_inventory_quant_daily`, from stock date
+  2026-10-08. One row per `stock_date`, location and Odoo product
+  (`odoo_product_id`, `product_name`, `location_name`, `location_usage`
+  `internal` or `transit`, `quantity`, `company_source_key`), without
+  mappings. To read it in Wansoft codes, join `odoo_product_id` to the
+  approved rows of `inventory_mapping_dictionary`. **There is no Odoo stock
+  history before 2026-10-08.**
+- There are **no** Odoo movements (consumption, waste, transfers) **and no
+  inventory valuation** in money for the Odoo branches yet. Detailed
+  coverage per branch: `docs/inventory-coverage-by-branch.md` in the
+  repository.
 
 ### 5.5 Zenput (`zenput` database)
 
