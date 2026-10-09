@@ -18,9 +18,14 @@ bulk approval when ALL of these hold:
     one is current), the Odoo product is not approved for another Wansoft code
     (meat cuts: raw vs clean), and the code is not proposed for two different
     Odoo products.
-Copies of the same (code, Odoo product) pair that differ only by the encoding
-of the name are all approved: they point to the same product, so nothing
-becomes ambiguous, and dim_product indexes whichever comes last.
+  - the Odoo product is not proposed for two different Wansoft codes (raw
+    1000- vs clean/"Orden" 2000- cuts: the owner decides).
+At most ONE row is approved per Odoo product (bug #44, 2026-10-09): the
+purchases ETL merges the dictionary on the Odoo product id, so two approved
+rows of one product duplicated its purchase lines and the load failed. Of
+the copies of a pair that differ only by the '??' encoding damage, the one
+with the clean name is approved and the others stay pending. (The first run,
+on 2026-10-08, approved every copy; the 2026-10-09 repair reverted them.)
 
 Approval feeds the canonical purchase enrichment and the inventory mapping on
 the next night. It never changes what counts in the business purchase views.
@@ -51,10 +56,16 @@ def classify(rows):
         if r["odoo_product_id"] is not None:
             approved_odoo_code[r["odoo_product_id"]].add(r["wansoft_code"])
 
+    approved_odoo = {r["odoo_product_id"] for r in approved if r["odoo_product_id"] is not None}
     pending = [r for r in rows if r["mapping_status"] == "pending_review" and r["mapping_source"] == SOURCE]
     odoo_by_code = defaultdict(set)
+    code_by_odoo = defaultdict(set)
     for r in pending:
         odoo_by_code[r["wansoft_code"]].add(r["odoo_product_id"])
+        code_by_odoo[r["odoo_product_id"]].add(r["wansoft_code"])
+    # Clean name first, then oldest: the first copy of each Odoo product wins.
+    pending.sort(key=lambda r: ("??" in (r["wansoft_product_name"] or ""), r["id"]))
+    chosen_odoo = set()
 
     qualify, skipped = [], []
     for r in pending:
@@ -68,7 +79,14 @@ def classify(rows):
             reason = "Odoo product approved for another code"
         elif len(odoo_by_code[r["wansoft_code"]]) > 1:
             reason = "code proposed for two Odoo products"
+        elif len(code_by_odoo[r["odoo_product_id"]]) > 1:
+            reason = "Odoo product proposed for two codes"
+        elif r["odoo_product_id"] in approved_odoo:
+            reason = "Odoo product already approved"
+        elif r["odoo_product_id"] in chosen_odoo:
+            reason = "copy of a pair already chosen (one row per Odoo product)"
         else:
+            chosen_odoo.add(r["odoo_product_id"])
             qualify.append(r)
             continue
         skipped.append((reason, r))

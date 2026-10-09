@@ -1,5 +1,7 @@
 import os
 import re
+from collections import Counter
+
 import pandas as pd
 
 from core.config.env_loader import load_environment
@@ -71,6 +73,28 @@ def execute_many_in_batches(cursor, insert_sql, rows, batch_size=BATCH_SIZE):
     for start in range(0, total, batch_size):
         batch = rows[start:start + batch_size]
         cursor.executemany(insert_sql, batch)
+
+
+def replace_snapshot_rows(conn, cursor, table, insert_sql, rows, key_index=0):
+    """
+    Replaces a snapshot table's content in ONE transaction (bug #44, 2026-10-09).
+
+    It used to TRUNCATE first: TRUNCATE commits by itself, so when the insert
+    failed (a duplicate key on 2026-10-09) the table stayed EMPTY and the
+    canonical load silently froze. Now the rows are checked for duplicate keys
+    before touching the table, the old content is removed with DELETE inside
+    the same transaction, and any error rolls back to the previous snapshot.
+    """
+    duplicates = [k for k, n in Counter(row[key_index] for row in rows).items() if n > 1]
+    if duplicates:
+        raise ValueError(f"{table}: {len(duplicates)} duplicate keys before loading, e.g. {sorted(duplicates)[:5]}; previous snapshot kept")
+    try:
+        cursor.execute(f"DELETE FROM {table}")
+        execute_many_in_batches(cursor, insert_sql, rows)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
 
 def format_value_counts(df: pd.DataFrame, column_name: str) -> str:
@@ -260,6 +284,7 @@ def load_inventory_mapping_dictionary_for_purchases(allowed_status=None):
 
     query = f"""
     SELECT
+        id,
         odoo_product_id,
         mapping_status,
         wansoft_code,
@@ -291,6 +316,21 @@ def load_inventory_mapping_dictionary_for_purchases(allowed_status=None):
         "mapping_status": "product_mapping_status",
         "mapping_source": "product_mapping_source",
     })
+
+    # One mapping per Odoo product (bug #44, 2026-10-09): the lines are merged
+    # on product_id, so two approved rows for the same product duplicated
+    # every purchase line of it and the snapshot load failed on its unique
+    # key. Copies that differ only by the '??' encoding damage keep the clean
+    # name; otherwise the oldest approval (lowest id) wins. Products whose
+    # approved rows carry DIFFERENT Wansoft codes are listed for review.
+    df["_damaged"] = df["wansoft_product_name"].fillna("").str.contains(r"\?\?", regex=True)
+    df = df.sort_values(["product_id", "_damaged", "id"])
+    codes = df.groupby("product_id")["wansoft_code"].nunique()
+    for product_id in codes[codes > 1].index:
+        options = df.loc[df["product_id"] == product_id, ["id", "wansoft_code", "wansoft_product_name"]]
+        print(f"[AVISO] Producto Odoo {int(product_id)} con mapeos aprobados de códigos distintos; se usa el primero: "
+              + "; ".join(f"id {r.id} {r.wansoft_code} {r.wansoft_product_name}" for r in options.itertuples()))
+    df = df.drop_duplicates(subset=["product_id"], keep="first")
 
     return df[[
         "product_id",
@@ -368,7 +408,6 @@ def save_purchase_orders(df: pd.DataFrame):
     conn = get_db_connection(target="wansoft")
     cursor = conn.cursor()
 
-    cursor.execute("TRUNCATE TABLE odoo_purchase_order_snapshot")
 
     insert_sql = """
     INSERT INTO odoo_purchase_order_snapshot (
@@ -424,13 +463,13 @@ def save_purchase_orders(df: pd.DataFrame):
             sql_safe(row.get("picking_count")),
         ))
 
-    execute_many_in_batches(cursor, insert_sql, rows)
-    conn.commit()
+    try:
+        replace_snapshot_rows(conn, cursor, "odoo_purchase_order_snapshot", insert_sql, rows)
+    finally:
+        cursor.close()
+        conn.close()
 
     inserted = len(rows)
-
-    cursor.close()
-    conn.close()
 
     print(f"Insertados {inserted} registros en odoo_purchase_order_snapshot.")
     return inserted
@@ -447,7 +486,6 @@ def save_purchase_order_lines(df: pd.DataFrame):
     conn = get_db_connection(target="wansoft")
     cursor = conn.cursor()
 
-    cursor.execute("TRUNCATE TABLE odoo_purchase_order_line_snapshot")
 
     insert_sql = """
     INSERT INTO odoo_purchase_order_line_snapshot (
@@ -527,13 +565,13 @@ def save_purchase_order_lines(df: pd.DataFrame):
             sql_safe(row.get("extracted_product_code")),
         ))
 
-    execute_many_in_batches(cursor, insert_sql, rows)
-    conn.commit()
+    try:
+        replace_snapshot_rows(conn, cursor, "odoo_purchase_order_line_snapshot", insert_sql, rows)
+    finally:
+        cursor.close()
+        conn.close()
 
     inserted = len(rows)
-
-    cursor.close()
-    conn.close()
 
     print(f"Insertados {inserted} registros en odoo_purchase_order_line_snapshot.")
     return inserted

@@ -8,7 +8,7 @@ from extract.purchases.odoo_purchase_receipts import (
 from extract.purchases.odoo_purchase_etl import (
     get_purchase_etl_config,
     apply_company_migration_policy,
-    execute_many_in_batches,
+    replace_snapshot_rows,
     sql_safe,
     format_value_counts
 )
@@ -29,7 +29,6 @@ def save_purchase_receipts(df: pd.DataFrame):
     conn = get_db_connection(target="wansoft")
     cursor = conn.cursor()
 
-    cursor.execute("TRUNCATE TABLE odoo_purchase_receipt_snapshot")
 
     insert_sql = """
     INSERT INTO odoo_purchase_receipt_snapshot (
@@ -83,13 +82,13 @@ def save_purchase_receipts(df: pd.DataFrame):
             sql_safe(row.get("move_line_count")),
         ))
 
-    execute_many_in_batches(cursor, insert_sql, rows)
-    conn.commit()
+    try:
+        replace_snapshot_rows(conn, cursor, "odoo_purchase_receipt_snapshot", insert_sql, rows)
+    finally:
+        cursor.close()
+        conn.close()
 
     inserted = len(rows)
-
-    cursor.close()
-    conn.close()
 
     print(f"Insertados {inserted} registros en odoo_purchase_receipt_snapshot.")
     return inserted
@@ -110,7 +109,6 @@ def save_purchase_receipt_moves(df: pd.DataFrame):
     conn = get_db_connection(target="wansoft")
     cursor = conn.cursor()
 
-    cursor.execute("TRUNCATE TABLE odoo_purchase_receipt_move_snapshot")
 
     insert_sql = """
     INSERT INTO odoo_purchase_receipt_move_snapshot (
@@ -170,13 +168,13 @@ def save_purchase_receipt_moves(df: pd.DataFrame):
             sql_safe(row.get("date_deadline")),
         ))
 
-    execute_many_in_batches(cursor, insert_sql, rows)
-    conn.commit()
+    try:
+        replace_snapshot_rows(conn, cursor, "odoo_purchase_receipt_move_snapshot", insert_sql, rows)
+    finally:
+        cursor.close()
+        conn.close()
 
     inserted = len(rows)
-
-    cursor.close()
-    conn.close()
 
     print(f"Insertados {inserted} registros en odoo_purchase_receipt_move_snapshot.")
     return inserted
