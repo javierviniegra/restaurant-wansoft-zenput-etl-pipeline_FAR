@@ -152,6 +152,7 @@ it the next night. The Task Scheduler limit for the whole task is 4 hours.
 |---|---|---|
 | `Wansoft_Update_Repo_Diario` | daily 00:30 | `git pull --ff-only` (`deploy/update_repo.ps1`) |
 | `Wansoft_Pipeline_Diario` | daily 01:30 | the nightly cycle |
+| `Wansoft_Cortes_Manana` | daily 07:30 | cash closings only (stage "Costos - cierre global de caja", ~30 s, log `logs\cash_closing_morning_<yyyyMMdd>.log`): some branches upload their closing to Wansoft after 01:30, and Central de Reportes reads at 08:00 |
 | `Wansoft_Backup_MySQL_Semanal` | Thursdays 18:00 | full backup of the 7 databases over the internal network, keeps 4 (`deploy/backup/`) |
 
 How to verify a night, re-run a missed night or a single stage: runbook Section 9

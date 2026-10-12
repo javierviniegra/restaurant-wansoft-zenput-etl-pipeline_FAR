@@ -4,6 +4,9 @@ param(
     [string]$ProjectDir = (Split-Path -Parent $PSScriptRoot),
     [string]$Python = '',
     [string]$Only = '',
+    # Names the log (logs\<prefix>_<yyyyMMdd>.log). The 07:30 cash-closing pass uses
+    # cash_closing_morning so the nightly log stays the night's alone (2026-10-12).
+    [string]$LogPrefix = 'daily_cycle',
     [int]$KeepLogDays = 30
 )
 
@@ -12,7 +15,7 @@ if (-not $Python) { $Python = Join-Path $ProjectDir '.venv\Scripts\python.exe' }
 if (-not (Test-Path $Python)) { throw "Python not found: $Python" }
 $logDir = Join-Path $ProjectDir 'logs'
 New-Item -ItemType Directory -Force $logDir | Out-Null
-$log = Join-Path $logDir ('daily_cycle_{0}.log' -f (Get-Date -Format 'yyyyMMdd'))
+$log = Join-Path $logDir ('{0}_{1}.log' -f $LogPrefix, (Get-Date -Format 'yyyyMMdd'))
 
 Set-Location $ProjectDir
 $env:PYTHONIOENCODING = 'utf-8'
@@ -43,7 +46,7 @@ finally {
 }
 $ErrorActionPreference = 'Stop'
 
-Get-ChildItem $logDir -Filter 'daily_cycle_*.log' |
+Get-ChildItem $logDir -Filter ('{0}_*.log' -f $LogPrefix) |
     Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-$KeepLogDays) } |
     Remove-Item -Force
 exit $code

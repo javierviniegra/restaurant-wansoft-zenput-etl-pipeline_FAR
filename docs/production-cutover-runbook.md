@@ -670,6 +670,20 @@ Select-String -Path $log -Pattern '\[AVISO\]|\[ALERTA\]|FAILED|\[ERROR|\[❌\]' 
 **Weekly backup (Thursday 18:00):** `Get-Content C:\Backups\mysql\backup.log -Tail 5`
 must end with `Backup finished`.
 
+**Morning cash-closing pass (since 2026-10-12).** `Wansoft_Cortes_Manana` runs only the
+stage "Costos - cierre global de caja" at 07:30 (`deploy/register_cash_closing_task.ps1`;
+log `logs\cash_closing_morning_<yyyyMMdd>.log`). Some branches (Antenas, Coyoacán,
+Taquería Parroquia, Versalles, Vía Vallejo) upload their closing to Wansoft's cloud after
+the 01:30 cycle: at 01:41 on 10-12 Wansoft returned nothing for their closing of 10-11,
+which existed by noon. The extraction itself was right (5-day window, upsert by
+`subsidiary_id` + `fecha_corte`); the closing simply was not there yet. Central de Reportes
+reads at 08:00. A closing uploaded after 07:30 still arrives the next night.
+
+```powershell
+Get-Content "C:\Apps\Wansoft_ETL\logs\cash_closing_morning_$(Get-Date -Format yyyyMMdd).log" -Tail 6 -Encoding UTF8
+Select-String -Path "C:\Apps\Wansoft_ETL\logs\cash_closing_morning_$(Get-Date -Format yyyyMMdd).log" -Pattern 'Insertado' -Encoding UTF8
+```
+
 ### 9.2 Check the data against the sources (dev PC or VM, read-only)
 
 These scripts only SELECT and read the sources, and always connect to the
