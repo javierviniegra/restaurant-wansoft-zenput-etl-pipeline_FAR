@@ -205,7 +205,6 @@ ODOO_COMPANY_SOURCE_KEY = {
     # ARGENTINA MAQ) moved from "wansoft" to "odoo" in COMPANY_SOURCE
     # above this same day, per project owner confirmation -- so this
     # mapping now feeds their official source, not just diagnostic data.
-    "FONDA ARGENTINA AEROPUERTO": "Aeropuerto",
     "FONDA ARGENTINA VALLEJO": "Vía Vallejo",
     "FONDA ARGENTINA VIADUCTO": "Viaducto",
     "FONDA ARGENTINA TOLLOCAN": "Metepec",
@@ -220,6 +219,44 @@ ODOO_COMPANY_SOURCE_KEY = {
     # Metepec, San Jeronimo, Isabel La Católica (still "wansoft" as of
     # 2026-08-26).
     "FONDA ARGENTINA POLYFORUM": "Napoles",
+    # Odoo BRANCHES (child companies of one legal entity), confirmed in Odoo
+    # on 2026-10-12. The owner: Aeropuerto and Taquería Viaducto start on
+    # Odoo on 2026-11-01 as branches of FONDA ARGENTINA AEROPUERTO; the
+    # others are configured but unused. Each branch is its own res.company,
+    # so its records carry the branch, never the legal entity
+    # (ODOO_HOLDING_COMPANIES below). Checklist:
+    # docs/odoo-wave-2026-11-01-checklist.md.
+    "Aeropuerto": "Aeropuerto",                  # branch of FONDA ARGENTINA AEROPUERTO
+    "Taquería Viaducto": "Taquería Viaducto",    # branch of FONDA ARGENTINA AEROPUERTO
+    "Parroquia": "Taquería parroquia",           # branch of PERALTA Y LEON
+    "Exhibimex": "Versalles",                    # branch of PERALTA Y LEON
+    "Cancún": "Cancun",                          # branch of LA PARRILLADA ORIGINAL DEL SUR
+    # Owner, 2026-10-12: Playa del Carmen closes next year and will NOT be
+    # integrated as an Odoo branch (its configured branch, id 31, is not
+    # added here; its name equals the branch key, so get_company_source_key
+    # still resolves it and the nightly detector would flag any activity
+    # there), and Cancún will run as a normal company, not a branch. How
+    # Cancún's company is mapped is settled when it starts; if the legal
+    # entity LA PARRILLADA ORIGINAL DEL SUR records activity itself, the
+    # nightly detector warns (scripts/check_odoo_company_activity.py).
+}
+
+
+# =====================================================
+# LEGAL ENTITIES THAT ONLY HOLD ODOO BRANCHES
+# =====================================================
+# One legal entity (razón social) with several branches. The entity itself
+# is not a branch: mapping it would be ambiguous (FONDA ARGENTINA AEROPUERTO
+# holds both Aeropuerto and Taquería Viaducto), and lookups from a branch to
+# its Odoo company (odoo_cost_report.resolve_odoo_company_id) take the first
+# matching name. Until 2026-10-12, "FONDA ARGENTINA AEROPUERTO" was mapped to
+# Aeropuerto; it had no Odoo activity.
+# =====================================================
+
+ODOO_HOLDING_COMPANIES = {
+    "FONDA ARGENTINA AEROPUERTO",
+    "PERALTA Y LEON",
+    "LA PARRILLADA ORIGINAL DEL SUR",
 }
 
 
@@ -323,6 +360,9 @@ def get_company_source_key(company_name):
         return None
 
     if is_internal_provider_company(normalized_name):
+        return None
+
+    if normalized_name in ODOO_HOLDING_COMPANIES:
         return None
 
     if normalized_name in ODOO_COMPANY_SOURCE_KEY:

@@ -458,7 +458,17 @@ See prior reports for bugs #1-#17.
 
 # 13. Identified Legacy / Consolidated Backlog
 
-## NOW / NEXT (2026-10-09, Friday)
+## NOW / NEXT (2026-10-12, Monday)
+
+**Weekend nights:** 10-10 17 stages 41.3 min, 10-11 19 stages 45.2 min (Sunday mapping job + first 5-day catalog review: only 9 zero-amount "sin catalogo" products left), 10-12 17 stages 44.7 min; all 0 failed. The 4 re-evaluated T+7 purchase checkpoints PASS. `odoo_inventory_quant_daily` has 10-08..10-11.
+
+**NEXT ODOO WAVE: Aeropuerto and Taquería Viaducto start on Odoo on Sunday 2026-11-01** (owner, 2026-10-12). In Odoo they are branches (ids 32, 33) of the legal entity FONDA ARGENTINA AEROPUERTO (8); Parroquia/Exhibimex (of PERALTA Y LEON) are configured the same way but unused. Cancún/Playa del Carmen (of LA PARRILLADA ORIGINAL DEL SUR) too, but (owner) Playa del Carmen closes next year and will not be integrated in Odoo, and Cancún will run as a normal company, not a branch. Done today: branch name mapping (the legal entities are `ODOO_HOLDING_COMPANIES`, no branch), nightly detector `scripts/check_odoo_company_activity.py` inside "Odoo cutover validation" (`[AVISO]` when an Odoo company has activity the configuration does not load; 0 today), checklist `docs/odoo-wave-2026-11-01-checklist.md`, scheduled Claude session on Monday 2026-10-26 09:00 to prepare it. Open risk: Odoo cost accounts of a branch belong to its legal entity (check `odoo_cost_report` on 32/33).
+
+**October wave is now active in Odoo:** in the 7 days to 10-12 Isabel had 15 confirmed purchases / 345 stock moves, Vía Vallejo 34 / 218, San Jerónimo 41 / 108 (opening balances apparently loaded). Their costs have not switched to Odoo yet (`costs_odoo_switch` empty): watch for the automatic switch.
+
+**Unified inventory, step 1 in progress:** `extract/inventory/odoo_stock_moves.py` (done Odoo stock moves + valuation, 1,616,098 moves of the 19 group companies) loading on dev.
+
+## Earlier NOW / NEXT (2026-10-09, Friday)
 
 **Night 10-08 to 10-09:** 17 stages, 40.5 min, **2 failed**: Purchases pipeline (bug #44) and Odoo cutover validation (4 T+7 purchase checkpoints against the frozen data). Everything else OK: bug #43 fixed in production (Odoo snapshot 1,956/1,956 correct codes, 0 of 473 approved mappings overwritten, `producto_sin_catalogo` $0), first `odoo_inventory_quant_daily` capture (stock date 2026-10-08, 4,219 rows, 10 branches), the 9 other checkpoints PASS.
 

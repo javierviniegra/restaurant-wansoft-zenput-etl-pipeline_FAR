@@ -302,7 +302,8 @@ def canonicalize_company_source_key(value: Any) -> Optional:
 
         # Aeropuerto
         normalize_name("Aeropuerto"): "Aeropuerto",
-        normalize_name("FONDA ARGENTINA AEROPUERTO"): "Aeropuerto",
+        # FONDA ARGENTINA AEROPUERTO is the legal entity holding the Odoo
+        # branches Aeropuerto and Taquería Viaducto (2026-10-12): not an alias.
 
         # Antenas
         normalize_name("Antenas"): "Antenas",
@@ -381,10 +382,12 @@ def canonicalize_company_source_key(value: Any) -> Optional:
         normalize_name("Versalles"): "Versalles",
         normalize_name("Taqueria Exhibimex"): "Versalles",
         normalize_name("Taquería Exhibimex"): "Versalles",
+        normalize_name("Exhibimex"): "Versalles",  # Odoo branch name (2026-10-12)
 
         normalize_name("Taquería parroquia"): "Taquería parroquia",
         normalize_name("Taqueria Parroquia"): "Taquería parroquia",
         normalize_name("Taquería Parroquia"): "Taquería parroquia",
+        normalize_name("Parroquia"): "Taquería parroquia",  # Odoo branch name (2026-10-12)
 
         normalize_name("Taquería Viaducto"): "Taquería Viaducto",
         normalize_name("Taqueria Viaducto"): "Taquería Viaducto",
