@@ -25,9 +25,17 @@ db_connection = get_db_connection(target="wansoft")
 #)
 cursor = db_connection.cursor()
 
+# Parallel mode (owner, 2026-10-10; docs/analytics-inventory-unified-design.md):
+# with WANSOFT_INVENTORY_PARALLEL=1 this script loads the branches already on
+# Odoo, which keep capturing inventory in Wansoft, into a table of its own, so
+# consumers of the main table (Power BI) never count it twice. Without the
+# variable it behaves exactly as before (branches on Wansoft, main table).
+PARALLEL = os.getenv("WANSOFT_INVENTORY_PARALLEL") == "1"
+ENTRADA_TABLE = "wansoft_parallel_inputinventory_entrada" if PARALLEL else "getinputinventory_entrada"
+
 # 2. Crear tabla si no existe
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS getinputinventory_entrada (
+cursor.execute(f"""
+CREATE TABLE IF NOT EXISTS {ENTRADA_TABLE} (
     id INT AUTO_INCREMENT PRIMARY KEY,
     subsidiary_name VARCHAR(255),
     IdEntrada VARCHAR(50),
@@ -97,7 +105,7 @@ from core.config.company_filter import is_wansoft_company
 
 subsidiaries = [
     s for s in subsidiaries
-    if is_wansoft_company(s["nombreCorto"])
+    if is_wansoft_company(s["nombreCorto"]) != PARALLEL
 ]
 
 db_connection.commit()
@@ -145,9 +153,9 @@ for sub in subsidiaries:
                     costo_unitario = parse_float(attrs.get("CostoUnitario"))
 
 
-                    cursor.execute("""
+                    cursor.execute(f"""
                                     SELECT Cantidad, CostoUnitario, TipoEntrada
-                                    FROM getinputinventory_entrada
+                                    FROM {ENTRADA_TABLE}
                                     WHERE IdEntrada = %s AND subsidiary_name = %s
                                 """, (id_entrada, sub['id']))
                     row = cursor.fetchone()  # Recupera con el mismo cursor
@@ -160,8 +168,8 @@ for sub in subsidiaries:
                             tipo_entrada_db != tipo_entrada
                         ):
                             # Actualizar si hay cambios
-                            update_query = """
-                                UPDATE getinputinventory_entrada SET
+                            update_query = f"""
+                                UPDATE {ENTRADA_TABLE} SET
                                     ClaveAlmacen=%s, Almacen=%s, IdAlmacen=%s,
                                     CuentaContableAlmacen=%s, CodigoDepartamento=%s, Departamento=%s,
                                     CuentaContableDepartamento=%s, IdProducto=%s, CodigoProducto=%s,
@@ -195,8 +203,8 @@ for sub in subsidiaries:
                             print(f"[✔] Sin cambios: {id_entrada}")
                     else:
                         # Insertar nuevo registro
-                        insert_query = """
-                            INSERT INTO getinputinventory_entrada (
+                        insert_query = f"""
+                            INSERT INTO {ENTRADA_TABLE} (
                                 subsidiary_name, IdEntrada, ClaveAlmacen, Almacen, IdAlmacen,
                                 CuentaContableAlmacen, CodigoDepartamento, Departamento, CuentaContableDepartamento,
                                 IdProducto, CodigoProducto, NombreProducto, CodigoUnidadDeMedida, IdUnidadDeMedida,

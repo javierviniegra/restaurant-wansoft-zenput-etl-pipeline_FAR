@@ -9,7 +9,7 @@ which system a branch uses, when it migrated, or which source produced each row.
 Odoo is read-only for this project: nothing here writes to Odoo.
 
 > **Current state (2026-10-07):** in production since **2026-10-01**. The nightly task
-> `Wansoft_Pipeline_Diario` runs at **01:30** on the tasks VM, **17 stages, about 40-50 minutes**,
+> `Wansoft_Pipeline_Diario` runs at **01:30** on the tasks VM, **19 stages, about 45-50 minutes**,
 > writing to the live `wansoft` and `zenput` databases. The legacy `FondaCroned_*` tasks are
 > disabled. Full history, decisions and the open backlog are in
 > [`PROJECT_CONTEXT_REPORT.md`](PROJECT_CONTEXT_REPORT.md) (start with Section 13 "NOW / NEXT").
@@ -114,20 +114,22 @@ in order, **continues after a failed stage**, and exits 1 if any stage failed. T
 | 1 | Ventas (Candado real) | Wansoft tickets by day (XML), validated against **all** cash closings of the day; re-downloads any day that does not match |
 | 2 | Inventario - entradas | Wansoft inventory entries (Wansoft branches) |
 | 3 | Inventario - salidas | Wansoft inventory exits |
-| 4 | Costos - semana PyQ | week-to-date costs (`costeomensual_semanapyq`), Wansoft or Odoo per routing |
-| 5 | Costos - descarga Wansoft | month-to-date costs (`costeomensual`) |
-| 6 | Costos - cierre global de caja | cash closings (`getglobalcashclosing`) |
-| 7 | Compras - facturas/gastos | Wansoft invoices/expenses (`getexpenses_factura`) |
-| 8 | Costos - tablajería | butchery report (Wansoft branches only; being phased out) |
-| 9 | Costos - costo total por fecha | daily cost (`gettotalcostbydate`) |
-| 10 | Costos - cambio automático a Odoo | automatic cost switch, publishes `costs_source_by_company`, validates duplicates and continuity of every Odoo-costed branch |
-| 11 | Zenput - forms | checklists and answers |
-| 12 | Zenput - tasks | tasks |
-| 13 | Inventory pipeline | Odoo inventory snapshot (mapped to Wansoft codes), scope, `analytics_inventory_balance`, validation |
-| 14 | Inventario Odoo - foto diaria | raw Odoo stock of the day (internal and transit locations, every company) into `odoo_inventory_quant_daily`: the Odoo branches' day-by-day stock history (since 2026-10-08) |
-| 15 | Purchases pipeline | Odoo snapshots (confirmed orders, receipts), canonical layer merging Wansoft history and Odoo, rollout validation |
-| 16 | Analytics purchase pipeline | rebuilds `dim_vendor` / `dim_product`, then the `analytics_purchase_*` tables and their validators |
-| 17 | Odoo cutover validation | T+7 / T+30 checkpoints of every branch's Odoo start (confirmed orders only; a FAIL fails the stage) |
+| 4 | Inventario paralelo Wansoft - entradas | the Wansoft entries the Odoo branches keep capturing in parallel, into `wansoft_parallel_inputinventory_entrada` (never in business totals; since 2026-10-01) |
+| 5 | Inventario paralelo Wansoft - salidas | the same for exits, into `wansoft_parallel_outgoinginventory_salida` |
+| 6 | Costos - semana PyQ | week-to-date costs (`costeomensual_semanapyq`), Wansoft or Odoo per routing |
+| 7 | Costos - descarga Wansoft | month-to-date costs (`costeomensual`) |
+| 8 | Costos - cierre global de caja | cash closings (`getglobalcashclosing`) |
+| 9 | Compras - facturas/gastos | Wansoft invoices/expenses (`getexpenses_factura`) |
+| 10 | Costos - tablajería | butchery report (Wansoft branches only; being phased out) |
+| 11 | Costos - costo total por fecha | daily cost (`gettotalcostbydate`) |
+| 12 | Costos - cambio automático a Odoo | automatic cost switch, publishes `costs_source_by_company`, validates duplicates and continuity of every Odoo-costed branch |
+| 13 | Zenput - forms | checklists and answers |
+| 14 | Zenput - tasks | tasks |
+| 15 | Inventory pipeline | Odoo inventory snapshot (mapped to Wansoft codes), scope, `analytics_inventory_balance`, validation |
+| 16 | Inventario Odoo - foto diaria | raw Odoo stock of the day (internal and transit locations, every company) into `odoo_inventory_quant_daily`: the Odoo branches' day-by-day stock history (since 2026-10-08) |
+| 17 | Purchases pipeline | Odoo snapshots (confirmed orders, receipts), canonical layer merging Wansoft history and Odoo, rollout validation |
+| 18 | Analytics purchase pipeline | rebuilds `dim_vendor` / `dim_product`, then the `analytics_purchase_*` tables and their validators |
+| 19 | Odoo cutover validation | T+7 / T+30 checkpoints of every branch's Odoo start (confirmed orders only; a FAIL fails the stage) |
 
 Conditional stages, appended at the end:
 - **Sundays:** "Product mapping backlog (weekly)" (product mapping dictionary).

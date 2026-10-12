@@ -19,6 +19,14 @@ from core.config.lookback import WANSOFT_LOOKBACK_DAYS
 # reciente para auto-repararse solo. Alineado con getInputInventory.py.
 # Decision confirmada por el dueno del proyecto (2026-08-27), tras la
 # ventana temporal de 90 dias usada para el Paso 18.22 (ya cerrada).
+# Parallel mode (owner, 2026-10-10; docs/analytics-inventory-unified-design.md):
+# with WANSOFT_INVENTORY_PARALLEL=1 this script loads the branches already on
+# Odoo, which keep capturing inventory in Wansoft, into a table of its own, so
+# consumers of the main table (Power BI) never count it twice. Without the
+# variable it behaves exactly as before (branches on Wansoft, main table).
+PARALLEL = os.getenv("WANSOFT_INVENTORY_PARALLEL") == "1"
+SALIDA_TABLE = "wansoft_parallel_outgoinginventory_salida" if PARALLEL else "getOutgoingInventory_Salida"
+
 start_date_range = datetime.now() - timedelta(days=WANSOFT_LOOKBACK_DAYS)
 end_date_range = datetime.now() - timedelta(days=1)
 #start_date_range = datetime(2025, 1, 1)
@@ -50,7 +58,7 @@ from core.config.company_filter import is_wansoft_company
 
 subsidiaries = [
     s for s in subsidiaries
-    if is_wansoft_company(s["nombreCorto"])
+    if is_wansoft_company(s["nombreCorto"]) != PARALLEL
 ]
 
 # Configuración de la conexión a MySQL
@@ -58,8 +66,10 @@ db_connection = get_db_connection(target="wansoft")
 cursor = db_connection.cursor()
 
 # Verificar si la tabla cost_reports existe y si no, crearla
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS getOutgoingInventory_Salida (
+# The unique key is what the upsert below relies on; production's main table
+# got it at the cutover migration (2026-10-01), a new table needs it here.
+cursor.execute(f"""
+CREATE TABLE IF NOT EXISTS {SALIDA_TABLE} (
     id INT AUTO_INCREMENT PRIMARY KEY,
     subsidiary_name VARCHAR(255), -- Nombre de la subsidiaria (parámetro externo)
     IdSalida VARCHAR(50), -- ID de la salida
@@ -88,7 +98,8 @@ CREATE TABLE IF NOT EXISTS getOutgoingInventory_Salida (
     IdUsuario VARCHAR(50), -- ID del usuario
     NombreUsuario VARCHAR(255), -- Nombre del usuario
     FechaReal DATE, -- Fecha real
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- Fecha de creación del registro
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Fecha de creación del registro
+    UNIQUE KEY uq_subsidiary_fecha_idsalida (subsidiary_name, Fecha, IdSalida)
 );
 """)
 db_connection.commit()
@@ -138,8 +149,8 @@ def generate_insert_queries(salidas_xml, subsidiary_name, current_date_str):
     if not salidas:
         return None, None
 
-    upsert_query = """
-        INSERT INTO getOutgoingInventory_Salida (
+    upsert_query = f"""
+        INSERT INTO {SALIDA_TABLE} (
             subsidiary_name,
             IdSalida,
             IdEntrada,

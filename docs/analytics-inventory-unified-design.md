@@ -161,6 +161,15 @@ nine consistent branches it equals the forward sum.
    and CentroMyJ from opening). Validate against `odoo_inventory_quant_daily`.
 2. **Parallel Wansoft inventory** of the 8 migrated branches since
    2026-10-01, into its own raw tables (same loaders, different target).
+   **Built 2026-10-12:** `WANSOFT_INVENTORY_PARALLEL=1` makes
+   `getInputInventory.py` / `getOutgoingInventory.py` load the branches on
+   Odoo into `wansoft_parallel_inputinventory_entrada` /
+   `wansoft_parallel_outgoinginventory_salida` (the exits table carries the
+   unique key `uq_subsidiary_fecha_idsalida` the upsert needs); nightly
+   stages "Inventario paralelo Wansoft - entradas/salidas"
+   (`pipelines/jobs/parallel_inventory_job.py`). Dev test from 2026-09-29:
+   5,327 entries and 134,656 exits of the 8 branches, a second run changed
+   nothing, the main tables got no row of them.
 3. **`analytics_inventory_movements`**: one-off backfill, then a nightly
    window; new nightly stage.
 4. **`analytics_inventory_stock_daily`** from the movements.

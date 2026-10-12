@@ -106,11 +106,16 @@ nightly window re-reads the last 5 days.
 | San Jerónimo | 5319 | 2026-10-01 | 2021-10 → 2026-09-30 | **yes**: 212 / 2,377 | today + daily from 2026-10-08 |
 | Vía Vallejo | 5318 | 2026-10-01 | 2021-10 → 2026-09-30 | **yes**: 41 / 650 | today + daily from 2026-10-08 |
 
-- **Their Wansoft movements stop on 2026-09-30 in the warehouse**, by the
-  decision of 2026-09-28 (no Wansoft purchase/inventory downloads for
-  migrated branches after the cutover). Wansoft itself keeps recording
-  them: invoices, transfers and waste are still captured there in parallel,
-  and every sale still deducts inventory through Wansoft's recipes.
+- **Their Wansoft movements stop on 2026-09-30 in the main tables**, by the
+  decision of 2026-09-28. Wansoft itself keeps recording them (invoices,
+  transfers, waste, and every sale deducts inventory through Wansoft's
+  recipes). **Since 2026-10-13 that parallel capture is loaded again**
+  (owner, 2026-10-10), into its own tables
+  `wansoft_parallel_inputinventory_entrada` and
+  `wansoft_parallel_outgoinginventory_salida` (same columns as the main
+  ones), from 2026-10-01, by the nightly stages "Inventario paralelo
+  Wansoft". It is for comparison only: never in the business totals, and
+  consumers of the main tables (Power BI) do not see it.
 - **Odoo stock history: none for 2026-10-01 to 2026-10-07.** The daily Odoo
   capture starts with stock date 2026-10-08; the first week can only be
   rebuilt from Odoo's stock moves (part b).
@@ -136,7 +141,7 @@ nightly window re-reads the last 5 days.
 | Odoo stock history | the 10 Odoo branches | Puebla/CentroMyJ: opening → 2026-10-07; the 8 migrated: 2026-10-01 → 2026-10-07 | Odoo stock moves, part b (the daily capture covers from 2026-10-08) |
 | Odoo movements (consumption, waste, transfers) | the 10 Odoo branches | since each Odoo start | part b |
 | Odoo inventory value in pesos | the 10 Odoo branches | since each Odoo start | part b (`stock.valuation.layer`) |
-| Wansoft parallel capture not loaded | the 8 migrated | since 2026-10-01 | owner's decision: reload Wansoft inventory for them as a parallel (non-final) source |
+| Wansoft parallel capture | the 8 migrated | since 2026-10-01 | **closed 2026-10-13**: loaded into the `wansoft_parallel_*` tables (non-final) |
 
 ---
 

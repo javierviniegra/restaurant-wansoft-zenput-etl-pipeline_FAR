@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 from pipelines.jobs.input_inventory_job import run_input_inventory_job
 from pipelines.jobs.outgoing_inventory_job import run_outgoing_inventory_job
+from pipelines.jobs.parallel_inventory_job import run_parallel_input_inventory_job, run_parallel_outgoing_inventory_job
 from pipelines.jobs.extract_all_orders_xml_job import run_extract_all_orders_xml_job
 from pipelines.jobs.cost_report_semana_pyq_job import run_cost_report_semana_pyq_job
 from pipelines.jobs.download_costs_job import run_download_costs_job
@@ -80,6 +81,10 @@ DAILY_LEGACY_CHAIN_STEPS = [
     ("Ventas (Candado real)", run_extract_all_orders_xml_job),
     ("Inventario - entradas", run_input_inventory_job),
     ("Inventario - salidas", run_outgoing_inventory_job),
+    # Wansoft inventory the Odoo branches keep capturing in parallel, into its
+    # own tables, never in the business totals (owner, 2026-10-10).
+    ("Inventario paralelo Wansoft - entradas", run_parallel_input_inventory_job),
+    ("Inventario paralelo Wansoft - salidas", run_parallel_outgoing_inventory_job),
     ("Costos - semana PyQ", run_cost_report_semana_pyq_job),
     ("Costos - descarga Wansoft", run_download_costs_job),
     ("Costos - cierre global de caja", run_global_cash_closing_job),
