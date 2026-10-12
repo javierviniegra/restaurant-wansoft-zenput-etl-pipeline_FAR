@@ -99,6 +99,50 @@ At a branch's Odoo start date the series switches from the Wansoft balance
 to the Odoo one (each system's own count; Odoo starts from its opening
 balances). The nightly run recomputes only the days inside the reload window.
 
+## Odoo stock rebuilt from moves: findings and rule (2026-10-12)
+
+Step 1 loaded every done `stock.move` of the 19 group companies (1,616,098)
+into `odoo_stock_move_snapshot` and rebuilt Odoo's stock from them against
+the production capture of stock date 2026-10-11. What it takes to match
+Odoo's own stock:
+
+1. **Only storable products** (`product.product.is_storable`; this Odoo has
+   `type` `consu` for both). Consumables (paper napkins...) are received and
+   delivered but never stocked.
+2. **The quantity done in the product's unit**: `stock.move.quantity` is in
+   the move's unit (recipes consume grams of an onion bought in kg) and
+   `product_qty` is the demand; `done_qty` = quantity converted with Odoo's
+   unit factors.
+3. **Compare per branch × product**, summing every internal location of the
+   branch: a move names the branch's general location (`FAACX/Existencias`)
+   while the stock sits in sub-locations (Almacén, Cocina...), which only the
+   move lines carry.
+
+4. **Only the moves that existed at the capture**: Odoo moves are often
+   registered later with an earlier effective date (on 2026-10-12, 1,020
+   Acoxpa moves, 60 Oceanía, 41 CentroMyJ were dated before the 01:52
+   capture but written after it). They belong to their day, but the capture
+   could not include them.
+
+Result (reload of 2026-10-12 with `done_qty` and `product_is_storable`,
+1,616,472 moves): **exact (0 differences) for 9 of the 10 branches**:
+Isabel, San Jerónimo, Vía Vallejo, Oceanía, Tepeyac, Coyoacán, Puebla,
+Acoxpa and CentroMyJ. Only **Antenas** (the 2024 prototype, 336 of 374
+products) carries stock values in Odoo that are not the sum of its own move
+lines (for example "Moneda Ovalada Leyenda Fonda": move lines −480, Odoo
+stock +119); Odoo itself is inconsistent there, the extraction is complete.
+The internal providers (El Bodegón 32, Las Empanadas 10 products) also
+differ; they are not branches.
+
+**Rule (owner, 2026-10-12): Odoo daily stock is rebuilt BACKWARDS from
+Odoo's latest daily capture.** Stock on day D = the latest capture
+(`odoo_inventory_quant_daily`, from stock date 2026-10-08 on) minus the net
+`done_qty` of the moves dated after D up to that capture. Every night the
+recent days are recomputed from the new capture, so moves registered late
+with an earlier date land on their day, today's stock is always exactly
+Odoo's, and Antenas' inconsistency stays out of the daily series. For the
+nine consistent branches it equals the forward sum.
+
 ## Validation
 
 - Wansoft stock on any date equals the formula in
