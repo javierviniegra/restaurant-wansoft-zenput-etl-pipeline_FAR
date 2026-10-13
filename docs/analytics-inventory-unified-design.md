@@ -57,34 +57,91 @@ Where each domain stands:
 
 ## Table 1: `analytics_inventory_movements`
 
-One row = one inventory movement of one product in one branch on one day.
+One row = one inventory movement of one product in one branch. **Structure
+approved by the owner on 2026-10-13 (block 3b):**
+
+```sql
+CREATE TABLE analytics_inventory_movements (
+  movement_key              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  movement_date             DATE NOT NULL,
+  company_source_key        VARCHAR(100) NOT NULL,
+  source_system             VARCHAR(10)  NOT NULL,   -- wansoft / odoo
+  source_record             VARCHAR(20)  NOT NULL,   -- wansoft_entrada / wansoft_salida / odoo_move
+  source_movement_id        VARCHAR(80)  NOT NULL,
+  captured_date             DATE NULL,
+  direction                 CHAR(3)      NOT NULL,   -- in / out
+  movement_type             VARCHAR(20)  NOT NULL,
+  source_movement_type      VARCHAR(100) NULL,
+  wansoft_code              VARCHAR(50)  NULL,
+  odoo_product_id           INT          NULL,
+  product_name              VARCHAR(255) NULL,
+  unit_name                 VARCHAR(50)  NULL,
+  quantity                  DECIMAL(18,6) NOT NULL,  -- signed: + in, - out
+  unit_cost                 DECIMAL(18,6) NULL,
+  total_cost                DECIMAL(18,4) NULL,      -- signed
+  location_name             VARCHAR(255) NULL,
+  counts_in_stock           TINYINT(1)   NOT NULL,
+  final_source_status       VARCHAR(40)  NOT NULL,
+  include_in_business_views TINYINT(1)   NOT NULL,
+  loaded_at                 DATETIME     NOT NULL,
+  UNIQUE KEY uq_movement (source_record, company_source_key, source_movement_id),
+  KEY idx_company_date (company_source_key, movement_date),
+  KEY idx_product_date (wansoft_code, movement_date),
+  KEY idx_captured (source_system, captured_date)
+);
+```
 
 | Column | Meaning |
 |---|---|
 | `movement_date` | business date (Wansoft: `FechaEntrada` / `COALESCE(NULLIF(Fecha,'0000-00-00'), FechaReal)`; Odoo: `stock.move.date` in Mexico City time) |
 | `company_source_key` | branch |
-| `source_system`, `source_movement_id` | `wansoft` + `IdEntrada`/`IdSalida`, or `odoo` + `stock.move` id |
+| `source_record`, `source_movement_id` | the source row, with the same identity the loaders use: Wansoft entries `IdEntrada` (unique per branch), Wansoft exits `Fecha` + `IdSalida` (the exits table's unique key), Odoo `stock.move` id |
+| `captured_date` | when the source captured it (Wansoft `FechaEntrada`/`FechaSalida`, Odoo `write_date`); drives the nightly window |
 | `direction` | `in` / `out` |
 | `movement_type` | normalized: `purchase_receipt`, `sale_consumption`, `sale_cancellation`, `waste`, `theft`, `consumption`, `production_in`, `production_out`, `transfer_in`, `transfer_out`, `adjustment`, `initial_inventory`, `other` (Wansoft catalog below) |
-| `source_movement_type` | the original: Wansoft `TipoEntrada`/`TipoSalida`; Odoo picking type and source/destination location usage |
-| `wansoft_code`, `odoo_product_id`, `product_analytical_key`, `product_name` | product |
-| `quantity` | signed (+ in, − out), in the product's unit |
+| `source_movement_type` | the original: Wansoft `TipoEntrada`/`TipoSalida`; Odoo operation type and source/destination location usage |
+| `wansoft_code`, `odoo_product_id`, `product_name`, `unit_name` | product; Odoo rows get `wansoft_code` from the approved `inventory_mapping_dictionary` rows |
+| `quantity` | signed (+ in, − out), in the product's unit (Odoo `done_qty`) |
 | `unit_cost`, `total_cost` | Wansoft `CostoUnitario`; Odoo `stock.valuation.layer` (unit cost and value) |
 | `location_name` | warehouse / kitchen when known |
-| `counts_in_stock` | whether it moves the stock balance, with the rules already used by `analytics_inventory_balance` (Wansoft: purchase orders, transfers on both sides, capture errors and rejected invoices do not) |
+| `counts_in_stock` | whether it moves the stock balance, with the rules already used by `analytics_inventory_balance` (Wansoft catalog below; Odoo: storable products only) |
 | `final_source_status`, `include_in_business_views` | as above |
 
-**Sources and sizes (2026-10-10):** Wansoft entries 1.26 M rows, exits
-25.1 M (about 800 k a year per large branch); Odoo done `stock.move` about
-1.04 M for the group's companies since June 2026 (1.64 M in the whole
-database), with `stock.valuation.layer` (1.6 M layers) for the value.
+**Decisions of 2026-10-13 (owner):**
+
+1. **No `product_analytical_key` per row** (written down only, no change to
+   other tables): `dim_product` has repeated Wansoft codes and would fan out
+   rows, as the balance builder already warns. Consumers join the dimensions
+   by `wansoft_code` / `odoo_product_id`. Also saves space on ~41 M rows.
+2. **Odoo moves between two locations of the same branch (Almacén →
+   Cocina) are not stored.** In Odoo such a transfer is one `stock.move`; it
+   generates no separate entry or exit, and it does not change the branch's
+   stock. What the kitchen then consumes are other moves, which are stored.
+   The raw move stays in `odoo_stock_move_snapshot`. Moves between branches
+   (or through transit) are stored as `transfer_out` / `transfer_in` of each
+   branch. Wansoft "Transferencia" rows are already separate entries and
+   exits and stay, with `counts_in_stock` = 0.
+3. **Odoo moves of a migrated branch before its Odoo start date** (they
+   captured in Odoo in parallel since June) are kept as
+   `odoo_parallel_before_start`, `include_in_business_views` = 0; the
+   mirror of `wansoft_parallel_after_odoo`.
+4. **Nightly reload:** Wansoft rows are deleted and reinserted by
+   `captured_date` over the last 10 days (an adjustment captured today with a
+   business date weeks ago is not missed); Odoo and the parallel Wansoft
+   inventory (small) are rebuilt in full. The September rows that exist only
+   in the parallel tables enter once, through the unique key.
+
+**Sources and sizes (2026-10-13, production):** Wansoft entries 1.85 M rows,
+exits 37.5 M; Odoo done `stock.move` about 1.6 M for the group's companies,
+with `stock.valuation.layer` for the value. About 41 M rows, ~10 GB on the
+database server (243 GB free on 2026-10-13).
 
 **Odoo movement direction**, from the branch's point of view: `in` when the
 destination location is an internal location of the branch, `out` when the
 source is; typed by the other side's usage (supplier → `purchase_receipt`,
 customer → `sale_consumption`, inventory → `adjustment`/`waste` (scrap),
-production → `production_in/out`, internal or transit → `transfer_in/out`).
-To be confirmed against real moves in step 1.
+production → `production_in/out`, another branch or transit →
+`transfer_in/out`). To be confirmed against real moves when building.
 
 ## Wansoft movement-type catalog (block 3a, owner approved 2026-10-13)
 
