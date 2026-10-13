@@ -6,9 +6,10 @@ Para: equipos externos que construirán su propio ETL sobre estas bases (por
 ejemplo, una capa de preguntas y respuestas / chatbot). Indica **qué tabla usar
 para cada pregunta de negocio, qué campos importan, cómo se unen las tablas y
 qué trampas evitar**. Cada regla se verificó contra el esquema y los datos
-reales el 2026-09-28; la guía está actualizada al **2026-10-07**, después de la
-primera semana en producción, y ese día se comprobó que existen en producción
-todas las tablas y columnas que nombra. Versión en PDF: [data-access-guide.es.pdf](data-access-guide.es.pdf).
+reales el 2026-09-28; la guía está actualizada al **2026-10-13**. El 2026-10-07
+se comprobó que existen en producción todas las tablas y columnas que nombra, y
+el esquema completo de cada tabla (Apéndice A) se tomó de producción el
+2026-10-13. Versión en PDF: [data-access-guide.es.pdf](data-access-guide.es.pdf).
 
 ## Índice
 
@@ -27,6 +28,9 @@ todas las tablas y columnas que nombra. Versión en PDF: [data-access-guide.es.p
 6. [No usar](#6-no-usar)
 7. [Frescura y horarios](#7-frescura-y-horarios)
 8. [Acceso](#8-acceso)
+9. [Lo que falta (en construcción)](#9-lo-que-falta-en-construcción)
+
+[Apéndice A. Esquema de las tablas](#apéndice-a-esquema-de-las-tablas)
 
 ---
 
@@ -157,6 +161,7 @@ Notas:
 | Compras (mercancía) de cualquier sucursal y periodo | `analytics_purchase_order_lines` / `analytics_purchase_orders` / `analytics_purchase_daily_company_product` | `include_in_business_views = 1` |
 | Gasto por cuenta contable (Costo operativo, Gastos directos...) | `getexpenses_factura` | solo Wansoft (ver 5.3) |
 | Detalle de entradas y salidas de inventario (Wansoft) | `getinputinventory_entrada`, `getoutgoinginventory_salida` | sucursales Wansoft |
+| Lo que las sucursales de Odoo siguen capturando en Wansoft (solo para comparar) | `wansoft_parallel_inputinventory_entrada`, `wansoft_parallel_outgoinginventory_salida` | desde el 2026-10-01; nunca en totales (ver 5.4) |
 | Existencias actuales, las 19 sucursales | `analytics_inventory_balance` (y `analytics_inventory_current_product_location` para Odoo por ubicación) | `include_in_business_views = 1`; solo la foto de hoy |
 | Existencias a una fecha pasada, sucursales Wansoft | `getinputinventory_entrada` − `getoutgoinginventory_salida` hasta esa fecha | ver 5.4 |
 | Existencias a una fecha pasada, sucursales Odoo | `odoo_inventory_quant_daily` | desde el 2026-10-08 (ver 5.4) |
@@ -183,6 +188,7 @@ Fechas de inicio medidas en producción el 2026-09-28; la puesta en producción 
 | Salidas de inventario | `getoutgoinginventory_salida` | Wansoft | 2020-11-30 | Unas 1.1 millones de filas traen `Fecha` vacía (`0000-00-00`): son ajustes y mermas con su fecha de negocio en `FechaReal`. **No las excluyas**: usa `COALESCE(NULLIF(Fecha, '0000-00-00'), FechaReal)` (5.4) |
 | **Compras unificadas** | `analytics_purchase_order_lines`, `analytics_purchase_orders`, `analytics_purchase_daily_company_product` | **Wansoft + Odoo** | **2021-09-01** | Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde entonces (1 de octubre de 2026 para las migradas; Puebla y CentroMyJ desde su apertura en junio). Verificado año por año: mismos renglones y pesos que las facturas de Wansoft en producción |
 | **Existencias unificadas** | `analytics_inventory_current_product_location`, `analytics_inventory_balance` | **Wansoft + Odoo** | Foto actual | Sin histórico por diseño; el saldo de Wansoft se recalcula cada noche con todos los movimientos desde 2020-11-30 |
+| Inventario paralelo de Wansoft (8 sucursales migradas) | `wansoft_parallel_inputinventory_entrada`, `wansoft_parallel_outgoinginventory_salida` | Wansoft | 2026-10-01 | Solo para comparar con Odoo; las filas anteriores al 2026-10-01 son de septiembre y se leen de las tablas principales (5.4) |
 | Existencias de Odoo día por día | `odoo_inventory_quant_daily` | Odoo | 2026-10-08 | Una foto cruda por noche (producto × ubicación); no hay historia de Odoo antes de esa fecha |
 | Checklists | `zenput.submissions`, `zenput.submission_answers` | Zenput | 2025-06-11 |  |
 | Tareas | `zenput.zenput_tasks` | Zenput | 2025-06-03 |  |
@@ -438,8 +444,18 @@ registra en otro lado), así que no uses ese campo para cuentas por pagar.
   `subsidiary_name`). Sucursal = ID de Wansoft en `subsidiary_name`;
   producto = `CodigoProducto`; cantidad `Cantidad`, costo `CostoUnitario`.
   Solo traen sucursales Wansoft; las 8 migradas a Odoo llegan hasta el
-  2026-09-30 (siguen capturando en Wansoft en paralelo, pero esos movimientos
-  ya no se cargan).
+  2026-09-30.
+- **Inventario paralelo de Wansoft (desde la noche del 12 al 13 de octubre
+  de 2026):** las 8 sucursales migradas a Odoo (Acoxpa, Antenas, Tepeyac,
+  Oceanía, La Esquina Coyoacán, Isabel La Católica, San Jerónimo, Vía
+  Vallejo) siguen capturando entradas y salidas en Wansoft. Eso se carga en
+  `wansoft_parallel_inputinventory_entrada` y
+  `wansoft_parallel_outgoinginventory_salida`, con las mismas columnas que
+  las tablas principales. **Es solo para comparar Wansoft contra Odoo: nunca
+  lo sumes a las existencias ni a los totales**; para esas sucursales la
+  fuente oficial desde el 2026-10-01 es Odoo. Usa solo fechas desde el
+  2026-10-01: las filas anteriores son movimientos de septiembre que se
+  leen de las tablas principales.
 - **Existencias a una fecha pasada, sucursales Wansoft:** entradas − salidas
   hasta esa fecha, con las mismas reglas que el saldo de hoy (sin
   transferencias, sin órdenes de compra, sin errores de captura ni facturas
@@ -469,7 +485,8 @@ SELECT
   mapeos aprobados de `inventory_mapping_dictionary`. **No hay historia de
   existencias de Odoo antes del 2026-10-08.**
 - Todavía **no hay** movimientos de Odoo (consumos, mermas, transferencias)
-  **ni valuación de inventario** en dinero para las sucursales de Odoo.
+  **ni valuación de inventario** en dinero para las sucursales de Odoo (en
+  construcción, sección 9).
   Cobertura detallada por sucursal: `docs/inventory-coverage-by-branch.md`
   del repositorio.
 
@@ -541,3 +558,1004 @@ credenciales nunca se escriben en este documento). Consulta
 `getoutgoinginventory_salida` y las tablas de detalle de ventas siempre con
 filtro de fechas: tienen decenas de millones de filas. Cada usuario tiene un
 máximo de 4 conexiones simultáneas y 30 minutos por consulta.
+
+Las tablas que el usuario puede leer son exactamente las del Apéndice A, con
+todas sus columnas. Cuando se agrega una tabla nueva (sección 9), se concede al
+usuario y se actualizan esta guía y el apéndice.
+
+---
+
+## 9. Lo que falta (en construcción)
+
+Estado al 2026-10-13. Ninguna de estas tablas existe todavía en producción;
+cuando entren, se concederán al usuario y se documentarán aquí.
+
+| Qué | Tabla | Estado | Qué resuelve |
+|---|---|---|---|
+| Movimientos de inventario unificados | `analytics_inventory_movements` | Diseñada; en construcción | Una fila por movimiento (compra, venta, merma, consumo, producción, ajuste, transferencia), Wansoft + Odoo, todo el histórico, con tipo normalizado y costo. Para las sucursales de Odoo trae sus movimientos y su valuación en pesos, que hoy no existen en la base |
+| Existencias diarias unificadas | `analytics_inventory_stock_daily` | Diseñada | Existencias por sucursal × producto × día desde el primer movimiento, ambas fuentes; reemplaza la fórmula de entradas − salidas de la sección 5.4 y cubre los huecos de Odoo antes del 2026-10-08 |
+| Facturas de proveedor unificadas | `analytics_expense_invoices` | Diseñada | Facturas por cuenta contable de Wansoft + facturas de proveedor de Odoo; hoy los gastos que no son mercancía de las sucursales de Odoo no se extraen (5.3) |
+
+Otros cambios próximos:
+- **Aeropuerto y Taquería Viaducto pasan a Odoo el 2026-11-01** (como
+  sucursales de la empresa FONDA ARGENTINA AEROPUERTO). Desde ese día sus
+  compras, inventario y costos saldrán de Odoo, con la misma regla de la
+  sección 3; las ventas siguen en Wansoft.
+- **Isabel La Católica, San Jerónimo y Vía Vallejo** siguen con costo de
+  Wansoft hasta que Odoo tenga su costo de venta; `costs_source_by_company`
+  muestra el día del cambio (5.2).
+- **Antenas** sigue con costo de Wansoft mientras se repara su base en Odoo.
+
+<!-- schema-appendix:start -->
+
+## Apéndice A. Esquema de las tablas
+
+Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas del esquema de producción el 2026-10-13. **Nulo**: si la columna admite NULL. **Llave**: `PRI` llave primaria, `UNI` parte de una llave única, `MUL` parte de un índice. El significado de los campos importantes está en la sección indicada entre paréntesis.
+
+### A.1 Ventas
+
+**`getallordenesbyday_new_venta`**: encabezado del ticket (5.1). 24 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `id` | int(11) | no | PRI |
+| `Sucursal` | varchar(255) | sí |  |
+| `Venta_Id` | varchar(255) | sí |  |
+| `Movimento` | varchar(255) | sí | MUL |
+| `Orden` | varchar(255) | sí |  |
+| `Mesa` | varchar(255) | sí |  |
+| `Fecha` | varchar(255) | sí |  |
+| `Mesero` | varchar(255) | sí |  |
+| `Subtotal` | varchar(255) | sí |  |
+| `IVA` | varchar(255) | sí |  |
+| `IEPS` | varchar(255) | sí |  |
+| `Total` | varchar(255) | sí |  |
+| `Terminal` | varchar(255) | sí |  |
+| `Personas` | varchar(255) | sí |  |
+| `Descuento` | varchar(255) | sí |  |
+| `Impuesto` | varchar(255) | sí |  |
+| `MontoDescontado` | varchar(255) | sí |  |
+| `TipoOrden` | varchar(255) | sí |  |
+| `HoraApertura` | varchar(255) | sí |  |
+| `HoraCierre` | varchar(255) | sí |  |
+| `Moneda` | varchar(255) | sí |  |
+| `CodigoCliente` | varchar(255) | sí |  |
+| `Estatus` | varchar(255) | sí |  |
+| `Ventas_Id` | varchar(255) | sí |  |
+
+**`getallordenesbyday_new_detalleventa`**: renglones del ticket (5.1). 30 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `id` | int(11) | no | PRI |
+| `Sucursal` | varchar(255) | sí |  |
+| `Movimiento_Id` | varchar(255) | sí | MUL |
+| `DetalleVenta_Id` | varchar(255) | sí |  |
+| `Descripcion` | varchar(255) | sí |  |
+| `Cantidad` | varchar(255) | sí |  |
+| `PrecioUnitario` | varchar(255) | sí |  |
+| `Descuento` | varchar(255) | sí |  |
+| `Subtotal` | varchar(255) | sí |  |
+| `IVA` | varchar(255) | sí |  |
+| `IEPS` | varchar(255) | sí |  |
+| `Total` | varchar(255) | sí |  |
+| `Modificador` | varchar(255) | sí |  |
+| `Hora` | varchar(255) | sí |  |
+| `Costo` | varchar(255) | sí |  |
+| `TipoGrupo` | varchar(255) | sí |  |
+| `CodigoTipoGrupo` | varchar(255) | sí |  |
+| `CuentaContableTipoGrupo` | varchar(255) | sí |  |
+| `Grupo` | varchar(255) | sí |  |
+| `CodigoGrupo` | varchar(255) | sí |  |
+| `CuentaContableGrupo` | varchar(255) | sí |  |
+| `CodigoPlatillo` | varchar(255) | sí |  |
+| `CuentaContablePlatillo` | varchar(255) | sí |  |
+| `Platillo` | varchar(255) | sí |  |
+| `ConIVA` | varchar(255) | sí |  |
+| `ComandaId` | varchar(255) | sí |  |
+| `TipoPlatilloId` | varchar(255) | sí |  |
+| `TipoPromocionId` | varchar(255) | sí |  |
+| `Cortesia` | varchar(255) | sí |  |
+| `DetallesVenta_Id` | varchar(255) | sí |  |
+
+**`getallordenesbyday_new_pago`**: pagos del ticket (5.1). 17 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `id` | int(11) | no | PRI |
+| `Sucursal` | varchar(255) | sí |  |
+| `Movimiento_Id` | varchar(255) | sí |  |
+| `Fecha` | varchar(255) | sí |  |
+| `IdMetodoDePago` | varchar(255) | sí |  |
+| `MetodoDePago` | varchar(255) | sí |  |
+| `CodigoMetodoDePago` | varchar(255) | sí |  |
+| `ClaveSATMetodoDePago` | varchar(255) | sí |  |
+| `CuentaContableMetodoDePago` | varchar(255) | sí |  |
+| `Terminal` | varchar(255) | sí |  |
+| `Total` | varchar(255) | sí |  |
+| `Propina` | varchar(255) | sí |  |
+| `Equivalencia` | varchar(255) | sí |  |
+| `Moneda` | varchar(255) | sí |  |
+| `MontoRecibidoEnMoneda` | varchar(255) | sí |  |
+| `PagoAnticipadoId` | varchar(255) | sí |  |
+| `Pagos_Id` | varchar(255) | sí | MUL |
+
+**`getallordenesbyday_new_modificador`**: modificadores de los renglones (5.1). 28 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `id` | int(11) | no | PRI |
+| `Sucursal` | varchar(255) | sí |  |
+| `Movimiento_Id` | varchar(255) | sí | MUL |
+| `Descripcion` | varchar(255) | sí |  |
+| `Cantidad` | varchar(255) | sí |  |
+| `PrecioUnitario` | varchar(255) | sí |  |
+| `Descuento` | varchar(255) | sí |  |
+| `Subtotal` | varchar(255) | sí |  |
+| `IVA` | varchar(255) | sí |  |
+| `IEPS` | varchar(255) | sí |  |
+| `Total` | varchar(255) | sí |  |
+| `Modificador` | varchar(255) | sí |  |
+| `Hora` | varchar(255) | sí |  |
+| `Costo` | varchar(255) | sí |  |
+| `TipoGrupo` | varchar(255) | sí |  |
+| `CodigoTipoGrupo` | varchar(255) | sí |  |
+| `CuentaContableTipoGrupo` | varchar(255) | sí |  |
+| `Grupo` | varchar(255) | sí |  |
+| `CodigoGrupo` | varchar(255) | sí |  |
+| `CuentaContableGrupo` | varchar(255) | sí |  |
+| `CodigoPlatillo` | varchar(255) | sí |  |
+| `CuentaContablePlatillo` | varchar(255) | sí |  |
+| `Platillo` | varchar(255) | sí |  |
+| `ConIVA` | varchar(255) | sí |  |
+| `ComandaId` | varchar(255) | sí |  |
+| `TipoPlatilloId` | varchar(255) | sí |  |
+| `TipoPromocionId` | varchar(255) | sí |  |
+| `Modificadores_Id` | varchar(255) | sí |  |
+
+**`getglobalcashclosing`**: cierre de caja (corte Z) por sucursal y día (5.1). 49 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `id` | int(11) | no | PRI |
+| `subsidiary_id` | int(11) | sí | MUL |
+| `subsidiary_name` | varchar(255) | sí |  |
+| `fecha_corte` | datetime | sí |  |
+| `usuario` | varchar(255) | sí |  |
+| `subtotal` | decimal(10,2) | sí |  |
+| `iva` | decimal(10,2) | sí |  |
+| `ieps` | decimal(10,2) | sí |  |
+| `total_ventas` | decimal(10,2) | sí |  |
+| `efectivo_por_ventas` | decimal(10,2) | sí |  |
+| `efectivo_por_propina` | decimal(10,2) | sí |  |
+| `fondo_de_caja` | decimal(10,2) | sí |  |
+| `efectivo_real` | decimal(10,2) | sí |  |
+| `no_ordenes` | int(11) | sí |  |
+| `no_platillos` | int(11) | sí |  |
+| `total_personas` | int(11) | sí |  |
+| `promedio_platillos_orden` | decimal(10,2) | sí |  |
+| `promedio_por_orden` | decimal(10,2) | sí |  |
+| `promedio_por_persona` | decimal(10,2) | sí |  |
+| `total_ordenes_para_llevar` | int(11) | sí |  |
+| `total_mesas_atendidas` | int(11) | sí |  |
+| `total_ordenes_a_domicilio` | int(11) | sí |  |
+| `total_ordenes_recoger` | int(11) | sí |  |
+| `no_cortesias_en_cuentas` | int(11) | sí |  |
+| `cortesias_en_cuentas` | decimal(10,2) | sí |  |
+| `no_cortesias_en_platillos` | int(11) | sí |  |
+| `cortesias_en_platillos` | decimal(10,2) | sí |  |
+| `no_cancelaciones_en_cuentas` | int(11) | sí |  |
+| `cancelaciones_en_cuentas` | decimal(10,2) | sí |  |
+| `no_cancelaciones_en_platillos` | int(11) | sí |  |
+| `cancelaciones_en_platillos` | decimal(10,2) | sí |  |
+| `no_descuentos_en_cuentas` | int(11) | sí |  |
+| `descuentos_en_cuentas` | decimal(10,2) | sí |  |
+| `no_descuentos_en_platillos` | int(11) | sí |  |
+| `descuentos_en_platillos` | decimal(10,2) | sí |  |
+| `no_anulaciones_en_cuentas` | int(11) | sí |  |
+| `anulaciones_en_cuentas` | decimal(10,2) | sí |  |
+| `no_anulaciones_en_platillos` | int(11) | sí |  |
+| `anulaciones_en_platillos` | decimal(10,2) | sí |  |
+| `no_dxu_platillos` | int(11) | sí |  |
+| `dxu_platillos` | decimal(10,2) | sí |  |
+| `no_descuentos_megapuntos` | int(11) | sí |  |
+| `descuentos_megapuntos` | decimal(10,2) | sí |  |
+| `no_promociones` | int(11) | sí |  |
+| `promociones` | decimal(10,2) | sí |  |
+| `no_cupones` | int(11) | sí |  |
+| `cupones` | decimal(10,2) | sí |  |
+| `mes_ano` | varchar(7) | sí |  |
+| `created_at` | timestamp | no |  |
+
+### A.2 Costos
+
+**`costeomensual`**: costo acumulado del mes, foto diaria (5.2). 17 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `id` | int(11) | no | PRI |
+| `subsidiary_id` | int(11) | sí | MUL |
+| `subsidiary_name` | varchar(255) | sí |  |
+| `CostoTotal` | decimal(10,2) | sí |  |
+| `CostoDeProductosVendidos` | decimal(10,2) | sí |  |
+| `CostoIdealDeProductosPendientesDeRebaja` | decimal(10,2) | sí |  |
+| `CostoDeCortesías` | decimal(10,2) | sí |  |
+| `CostoDeCancelaciones` | decimal(10,2) | sí |  |
+| `CostoDeMerma` | decimal(10,2) | sí |  |
+| `CostoDeDesperdicio` | decimal(10,2) | sí |  |
+| `CostoDeRobo` | decimal(10,2) | sí |  |
+| `CostoDeConsumo` | decimal(10,2) | sí |  |
+| `AjustePorSobrantes` | decimal(10,2) | sí |  |
+| `UtilidadMarginal` | decimal(10,2) | sí |  |
+| `mes_ano` | varchar(7) | sí |  |
+| `created_at` | timestamp | no |  |
+| `created_date` | date | sí |  |
+
+**`costeomensual_semanapyq`**: costo acumulado de la semana (5.2). 17 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `id` | int(11) | no | PRI |
+| `subsidiary_id` | int(11) | sí | MUL |
+| `subsidiary_name` | varchar(255) | sí |  |
+| `CostoTotal` | decimal(10,2) | sí |  |
+| `CostoDeProductosVendidos` | decimal(10,2) | sí |  |
+| `CostoIdealDeProductosPendientesDeRebaja` | decimal(10,2) | sí |  |
+| `CostoDeCortesías` | decimal(10,2) | sí |  |
+| `CostoDeCancelaciones` | decimal(10,2) | sí |  |
+| `CostoDeMerma` | decimal(10,2) | sí |  |
+| `CostoDeDesperdicio` | decimal(10,2) | sí |  |
+| `CostoDeRobo` | decimal(10,2) | sí |  |
+| `CostoDeConsumo` | decimal(10,2) | sí |  |
+| `AjustePorSobrantes` | decimal(10,2) | sí |  |
+| `UtilidadMarginal` | decimal(10,2) | sí |  |
+| `mes_ano` | varchar(7) | sí |  |
+| `created_at` | timestamp | no |  |
+| `created_date` | date | sí |  |
+
+**`gettotalcostbydate`**: costo de venta del día (5.2). 7 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `id` | int(11) | no | PRI |
+| `subsidiary_id` | int(11) | sí | MUL |
+| `subsidiary_name` | varchar(255) | sí |  |
+| `CostoTotalVenta` | decimal(10,2) | sí |  |
+| `mes_ano` | varchar(7) | sí |  |
+| `created_at` | timestamp | no |  |
+| `created_date` | date | sí |  |
+
+**`gettablajeriareport`**: rendimientos de tablajería, solo histórico Wansoft (5.2). 17 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `id` | int(11) | no | PRI |
+| `subsidiary_id` | int(11) | sí |  |
+| `subsidiary_name` | varchar(255) | sí |  |
+| `InputDate` | date | sí |  |
+| `UserName` | varchar(255) | sí |  |
+| `QuantityOfBaseProduct` | decimal(15,10) | sí |  |
+| `ProductBase` | varchar(255) | sí |  |
+| `ProductBaseCost` | decimal(15,4) | sí |  |
+| `UnitOfMeasureOfBaseProduct` | varchar(50) | sí |  |
+| `QuantityDecrease` | decimal(15,10) | sí |  |
+| `Warehouse` | varchar(255) | sí |  |
+| `QuantityOfGeneratedProduct` | decimal(15,10) | sí |  |
+| `GeneratedProduct` | varchar(255) | sí |  |
+| `UnitCostOfGeneratedProduct` | decimal(15,10) | sí |  |
+| `totalCostOfGeneratedProduct` | decimal(15,10) | sí |  |
+| `RegistrationDate` | date | sí |  |
+| `created_at` | timestamp | no |  |
+
+**`costs_source_by_company`**: fuente del costo por sucursal (5.2). 6 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `company_source_key` | varchar(100) | no | PRI |
+| `wansoft_subsidiary_id` | int(11) | sí |  |
+| `odoo_company_id` | int(11) | sí |  |
+| `odoo_cost_start_date` | date | sí |  |
+| `reason` | varchar(30) | no |  |
+| `updated_at` | datetime | no |  |
+
+### A.3 Compras y facturas
+
+**`analytics_purchase_order_lines`**: renglones de compra, Wansoft + Odoo (5.3). 58 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `purchase_order_line_analytical_key` | bigint(20) | no | PRI |
+| `canonical_purchase_order_line_id` | bigint(20) | no | UNI |
+| `source_system` | varchar(50) | no | MUL |
+| `source_domain` | varchar(100) | sí |  |
+| `source_order_line_id` | varchar(100) | sí |  |
+| `source_order_id` | varchar(100) | sí |  |
+| `purchase_order_name` | varchar(255) | sí |  |
+| `company_source_key` | varchar(255) | sí | MUL |
+| `company_analytical_key` | bigint(20) | sí |  |
+| `company_id` | varchar(100) | sí |  |
+| `company_name` | varchar(255) | sí |  |
+| `final_purchase_source_status` | varchar(100) | sí |  |
+| `company_migration_type` | varchar(100) | sí |  |
+| `history_source` | varchar(100) | sí |  |
+| `include_odoo_history` | tinyint(1) | sí |  |
+| `operational_start_date` | date | sí |  |
+| `migration_policy_source` | varchar(100) | sí |  |
+| `order_date` | datetime | sí |  |
+| `order_date_key` | int(11) | sí |  |
+| `vendor_analytical_key` | bigint(20) | sí | MUL |
+| `vendor_id` | varchar(100) | sí |  |
+| `vendor_name` | varchar(255) | sí |  |
+| `normalized_vendor_name` | varchar(255) | sí |  |
+| `is_internal_vendor` | tinyint(1) | no |  |
+| `include_vendor_in_business_views` | tinyint(1) | no |  |
+| `product_analytical_key` | bigint(20) | sí | MUL |
+| `product_id` | varchar(100) | sí |  |
+| `product_name` | varchar(255) | sí |  |
+| `wansoft_code` | varchar(100) | sí |  |
+| `wansoft_product_name` | varchar(255) | sí |  |
+| `wansoft_department` | varchar(255) | sí |  |
+| `product_mapping_found` | tinyint(1) | sí |  |
+| `product_mapping_status` | varchar(100) | sí |  |
+| `product_mapping_source` | varchar(100) | sí |  |
+| `purchase_line_type` | varchar(100) | sí |  |
+| `purchase_product_scope` | varchar(100) | sí |  |
+| `purchase_mapping_bucket` | varchar(100) | sí |  |
+| `purchase_classification_source` | varchar(100) | sí |  |
+| `extracted_product_code` | varchar(100) | sí |  |
+| `product_identity_status` | varchar(100) | sí |  |
+| `dim_product_mapping_status` | varchar(100) | sí |  |
+| `is_product_mapped` | tinyint(1) | no |  |
+| `is_product_review_required` | tinyint(1) | no |  |
+| `include_product_in_business_views` | tinyint(1) | no |  |
+| `product_qty` | decimal(18,4) | sí |  |
+| `qty_received` | decimal(18,4) | sí |  |
+| `qty_invoiced` | decimal(18,4) | sí |  |
+| `price_unit` | decimal(18,4) | sí |  |
+| `price_subtotal` | decimal(18,4) | sí |  |
+| `price_total` | decimal(18,4) | sí |  |
+| `state` | varchar(100) | sí |  |
+| `canonical_loaded_at` | timestamp | sí |  |
+| `include_in_business_views` | tinyint(1) | no | MUL |
+| `exclude_reason` | varchar(500) | sí |  |
+| `line_review_status` | varchar(100) | sí |  |
+| `catalog_status` | varchar(50) | sí |  |
+| `created_at` | datetime | no |  |
+| `updated_at` | datetime | no |  |
+
+**`analytics_purchase_orders`**: órdenes de compra / facturas, Wansoft + Odoo (5.3). 43 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `purchase_order_analytical_key` | bigint(20) | no | PRI |
+| `source_system` | varchar(50) | no | MUL |
+| `source_domain` | varchar(100) | sí |  |
+| `source_order_id` | varchar(100) | no |  |
+| `purchase_order_name` | varchar(255) | sí |  |
+| `company_source_key` | varchar(255) | sí | MUL |
+| `company_analytical_key` | bigint(20) | sí |  |
+| `company_id` | varchar(100) | sí |  |
+| `company_name` | varchar(255) | sí |  |
+| `final_purchase_source_status` | varchar(100) | sí |  |
+| `company_migration_type` | varchar(100) | sí |  |
+| `history_source` | varchar(100) | sí |  |
+| `include_odoo_history` | tinyint(1) | sí |  |
+| `operational_start_date` | date | sí |  |
+| `migration_policy_source` | varchar(100) | sí |  |
+| `order_date` | datetime | sí |  |
+| `order_date_key` | int(11) | sí |  |
+| `vendor_analytical_key` | bigint(20) | sí | MUL |
+| `vendor_id` | varchar(100) | sí |  |
+| `vendor_name` | varchar(255) | sí |  |
+| `normalized_vendor_name` | varchar(255) | sí |  |
+| `is_internal_vendor` | tinyint(1) | no |  |
+| `include_vendor_in_business_views` | tinyint(1) | no |  |
+| `line_count` | bigint(20) | no |  |
+| `business_line_count` | bigint(20) | no |  |
+| `excluded_line_count` | bigint(20) | no |  |
+| `review_required_line_count` | bigint(20) | no |  |
+| `internal_vendor_line_count` | bigint(20) | no |  |
+| `review_required_product_line_count` | bigint(20) | no |  |
+| `orphan_product_line_count` | bigint(20) | no |  |
+| `product_qty_total` | decimal(18,4) | sí |  |
+| `qty_received_total` | decimal(18,4) | sí |  |
+| `qty_invoiced_total` | decimal(18,4) | sí |  |
+| `price_subtotal_total` | decimal(18,4) | sí |  |
+| `price_total_total` | decimal(18,4) | sí |  |
+| `state_values` | text | sí |  |
+| `canonical_loaded_at_min` | timestamp | sí |  |
+| `canonical_loaded_at_max` | timestamp | sí |  |
+| `include_in_business_views` | tinyint(1) | no | MUL |
+| `exclude_reason` | varchar(500) | sí |  |
+| `order_review_status` | varchar(100) | sí |  |
+| `created_at` | datetime | no |  |
+| `updated_at` | datetime | no |  |
+
+**`analytics_purchase_daily_company_product`**: compras por sucursal × día × producto (5.3). 42 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `daily_company_product_key` | bigint(20) | no | PRI |
+| `company_source_key` | varchar(255) | no | MUL |
+| `company_analytical_key` | bigint(20) | sí |  |
+| `order_date` | date | sí |  |
+| `order_date_key` | int(11) | no |  |
+| `product_analytical_key` | bigint(20) | sí | MUL |
+| `product_analytical_group_key` | bigint(20) | no | MUL |
+| `source_system` | varchar(50) | no | MUL |
+| `product_identity_status` | varchar(100) | sí |  |
+| `dim_product_mapping_status` | varchar(100) | sí |  |
+| `is_product_mapped` | tinyint(1) | no |  |
+| `is_product_review_required` | tinyint(1) | no |  |
+| `include_product_in_business_views` | tinyint(1) | no |  |
+| `line_count` | bigint(20) | no |  |
+| `business_line_count` | bigint(20) | no |  |
+| `excluded_line_count` | bigint(20) | no |  |
+| `review_required_line_count` | bigint(20) | no |  |
+| `internal_vendor_line_count` | bigint(20) | no |  |
+| `review_required_product_line_count` | bigint(20) | no |  |
+| `orphan_product_line_count` | bigint(20) | no |  |
+| `purchase_order_count` | bigint(20) | no |  |
+| `vendor_count` | bigint(20) | no |  |
+| `product_qty_total` | decimal(18,4) | sí |  |
+| `qty_received_total` | decimal(18,4) | sí |  |
+| `qty_invoiced_total` | decimal(18,4) | sí |  |
+| `business_product_qty_total` | decimal(18,4) | sí |  |
+| `business_qty_received_total` | decimal(18,4) | sí |  |
+| `business_qty_invoiced_total` | decimal(18,4) | sí |  |
+| `excluded_product_qty_total` | decimal(18,4) | sí |  |
+| `excluded_qty_received_total` | decimal(18,4) | sí |  |
+| `excluded_qty_invoiced_total` | decimal(18,4) | sí |  |
+| `price_subtotal_total` | decimal(18,4) | sí |  |
+| `price_total_total` | decimal(18,4) | sí |  |
+| `business_price_subtotal_total` | decimal(18,4) | sí |  |
+| `business_price_total_total` | decimal(18,4) | sí |  |
+| `excluded_price_subtotal_total` | decimal(18,4) | sí |  |
+| `excluded_price_total_total` | decimal(18,4) | sí |  |
+| `include_in_business_views` | tinyint(1) | no | MUL |
+| `exclude_reason` | varchar(500) | sí |  |
+| `aggregate_review_status` | varchar(100) | sí | MUL |
+| `created_at` | datetime | no |  |
+| `updated_at` | datetime | no |  |
+
+**`getexpenses_factura`**: facturas de proveedor de Wansoft por cuenta contable (5.3). 37 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `id` | int(11) | no |  |
+| `Sucursal` | varchar(255) | sí |  |
+| `Factura_Id` | varchar(255) | sí |  |
+| `IdDocumento` | varchar(255) | sí |  |
+| `Folio` | varchar(255) | sí |  |
+| `RFCProveedor` | varchar(255) | sí |  |
+| `NombreProveedor` | varchar(255) | sí |  |
+| `ClaveProveedor` | varchar(255) | sí |  |
+| `CuentaContableProveedor` | varchar(255) | sí |  |
+| `Subtotal` | varchar(255) | sí |  |
+| `IVA` | varchar(255) | sí |  |
+| `IEPS` | varchar(255) | sí |  |
+| `Total` | varchar(255) | sí |  |
+| `FechaDeExpedicion` | varchar(255) | sí |  |
+| `FechaDeExpiracion` | varchar(255) | sí |  |
+| `TerminosDePago` | varchar(255) | sí |  |
+| `Cuenta` | varchar(255) | sí |  |
+| `Subcuenta` | varchar(255) | sí |  |
+| `Estatus` | varchar(255) | sí |  |
+| `TotalDeudor` | varchar(255) | sí |  |
+| `TipoDeEgreso` | varchar(255) | sí |  |
+| `UUID` | varchar(255) | sí |  |
+| `IdOrdenCompra` | varchar(255) | sí |  |
+| `FolioOrdenCompra` | varchar(255) | sí |  |
+| `FechaDeRegistro` | varchar(255) | sí |  |
+| `DiasCredito` | varchar(255) | sí |  |
+| `ColoniaProveedor` | varchar(255) | sí |  |
+| `CiudadProveedor` | varchar(255) | sí |  |
+| `CPProveedor` | varchar(255) | sí |  |
+| `TelefonoProveedor` | varchar(255) | sí |  |
+| `CorreoProveedor` | varchar(255) | sí |  |
+| `CalleProveedor` | varchar(255) | sí |  |
+| `NumeroIntProveedor` | varchar(255) | sí |  |
+| `NumeroExtProveedor` | varchar(255) | sí |  |
+| `Discount` | varchar(255) | sí |  |
+| `Retentions` | varchar(255) | sí |  |
+| `Egresos_Id` | varchar(255) | sí |  |
+
+### A.4 Inventario
+
+**`analytics_inventory_balance`**: existencias de hoy, las 19 sucursales (5.4). 15 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `inventory_balance_key` | bigint(20) | no | PRI |
+| `company_source_key` | varchar(255) | no | MUL |
+| `source_system` | varchar(20) | no |  |
+| `wansoft_code` | varchar(255) | no | MUL |
+| `product_name` | varchar(500) | sí |  |
+| `current_balance_qty` | decimal(18,4) | no |  |
+| `source_row_count` | bigint(20) | no |  |
+| `entrada_qty` | decimal(18,4) | sí |  |
+| `salida_qty` | decimal(18,4) | sí |  |
+| `final_inventory_source_status` | varchar(100) | no |  |
+| `include_in_business_views` | tinyint(1) | no | MUL |
+| `exclude_reason` | varchar(500) | sí |  |
+| `refreshed_at` | datetime | no |  |
+| `created_at` | datetime | no |  |
+| `updated_at` | datetime | no |  |
+
+**`analytics_inventory_current_product_location`**: existencias de hoy de Odoo por ubicación (5.4). 37 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `inventory_current_product_location_key` | bigint(20) | no | PRI |
+| `current_snapshot_loaded_at` | datetime | no | MUL |
+| `snapshot_date` | date | sí |  |
+| `snapshot_date_key` | int(11) | no | MUL |
+| `product_analytical_key` | bigint(20) | no | MUL |
+| `odoo_product_id` | varchar(100) | sí |  |
+| `odoo_product_name` | varchar(500) | sí |  |
+| `product_code` | varchar(255) | sí |  |
+| `wansoft_code` | varchar(255) | sí |  |
+| `wansoft_product_name` | varchar(500) | sí |  |
+| `wansoft_department` | varchar(255) | sí |  |
+| `product_identity_status` | varchar(100) | sí |  |
+| `dim_product_mapping_status` | varchar(100) | sí |  |
+| `is_product_mapped` | tinyint(1) | no |  |
+| `is_product_review_required` | tinyint(1) | no |  |
+| `include_product_in_business_views` | tinyint(1) | no |  |
+| `source_location_id` | varchar(100) | no | MUL |
+| `location_name` | varchar(500) | sí |  |
+| `normalized_location_name` | varchar(500) | sí |  |
+| `location_usage_type` | varchar(100) | sí |  |
+| `is_virtual_location` | tinyint(1) | no |  |
+| `is_partner_location` | tinyint(1) | no |  |
+| `is_internal_location` | tinyint(1) | no |  |
+| `location_mapping_status` | varchar(100) | sí |  |
+| `company_source_key` | varchar(255) | sí |  |
+| `company_mapping_status` | varchar(100) | sí |  |
+| `source_row_count` | bigint(20) | no |  |
+| `current_stock_qty` | decimal(18,4) | no |  |
+| `positive_stock_qty` | decimal(18,4) | no |  |
+| `zero_stock_row_count` | bigint(20) | no |  |
+| `negative_stock_qty` | decimal(18,4) | no |  |
+| `negative_row_count` | bigint(20) | no |  |
+| `include_in_business_views` | tinyint(1) | no | MUL |
+| `exclude_reason` | varchar(500) | sí |  |
+| `aggregate_review_status` | varchar(100) | no | MUL |
+| `created_at` | datetime | no |  |
+| `updated_at` | datetime | no |  |
+
+**`getinputinventory_entrada`**: entradas de inventario de Wansoft (5.4). 38 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `id` | int(11) | no | PRI |
+| `subsidiary_name` | varchar(255) | sí |  |
+| `IdEntrada` | varchar(50) | sí | MUL |
+| `ClaveAlmacen` | varchar(50) | sí |  |
+| `Almacen` | varchar(255) | sí |  |
+| `IdAlmacen` | int(11) | sí |  |
+| `CuentaContableAlmacen` | varchar(255) | sí |  |
+| `CodigoDepartamento` | varchar(255) | sí |  |
+| `Departamento` | varchar(255) | sí |  |
+| `CuentaContableDepartamento` | varchar(255) | sí |  |
+| `IdProducto` | int(11) | sí |  |
+| `CodigoProducto` | varchar(50) | sí |  |
+| `NombreProducto` | varchar(255) | sí |  |
+| `CodigoUnidadDeMedida` | varchar(50) | sí |  |
+| `IdUnidadDeMedida` | int(11) | sí |  |
+| `UnidadDeMedida` | varchar(50) | sí |  |
+| `TipoEntrada` | varchar(50) | sí |  |
+| `Cantidad` | decimal(15,10) | sí |  |
+| `CostoUnitario` | decimal(15,4) | sí |  |
+| `ProductoConIVA` | tinyint(1) | sí |  |
+| `Caducidad` | date | sí |  |
+| `FechaEntrada` | datetime | sí |  |
+| `Factura` | varchar(50) | sí |  |
+| `FechaFactura` | date | sí |  |
+| `RFCProveedor` | varchar(50) | sí |  |
+| `ClaveProveedor` | varchar(50) | sí |  |
+| `NombreProveedor` | varchar(255) | sí |  |
+| `IdTransferencia` | int(11) | sí |  |
+| `FolioTransferencia` | varchar(50) | sí |  |
+| `IdOrdenCompra` | int(11) | sí |  |
+| `FolioOrdenCompra` | varchar(50) | sí |  |
+| `RFCProveedorOrdenCompra` | varchar(50) | sí |  |
+| `ProveedorOrdenCompra` | varchar(255) | sí |  |
+| `IdDocumento` | int(11) | sí |  |
+| `IdUsuario` | int(11) | sí |  |
+| `NombreUsuario` | varchar(255) | sí |  |
+| `FechaReal` | date | sí |  |
+| `created_at` | timestamp | no |  |
+
+**`getoutgoinginventory_salida`**: salidas de inventario de Wansoft (5.4). 29 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `id` | int(11) | no | PRI |
+| `subsidiary_name` | varchar(255) | sí | MUL |
+| `IdSalida` | varchar(50) | sí |  |
+| `IdEntrada` | varchar(50) | sí |  |
+| `IdAlmacen` | int(11) | sí |  |
+| `Almacen` | varchar(255) | sí |  |
+| `CuentaContableAlmacen` | varchar(255) | sí |  |
+| `CuentaContableDepartamento` | varchar(255) | sí |  |
+| `Departamento` | varchar(255) | sí |  |
+| `IdProducto` | int(11) | sí |  |
+| `CodigoProducto` | varchar(50) | sí |  |
+| `NombreProducto` | varchar(255) | sí |  |
+| `CodigoUnidadDeMedida` | varchar(50) | sí |  |
+| `IdUnidadDeMedida` | int(11) | sí |  |
+| `UnidadDeMedida` | varchar(50) | sí |  |
+| `TipoSalida` | varchar(50) | sí |  |
+| `Cantidad` | decimal(15,10) | sí |  |
+| `CostoUnitario` | decimal(15,4) | sí |  |
+| `Caducidad` | date | sí |  |
+| `FechaSalida` | datetime | sí |  |
+| `IdTransferencia` | varchar(50) | sí |  |
+| `FolioTransferencia` | varchar(50) | sí |  |
+| `Orden` | varchar(50) | sí |  |
+| `Fecha` | date | sí |  |
+| `IdDetalleVenta` | varchar(50) | sí |  |
+| `IdUsuario` | varchar(50) | sí |  |
+| `NombreUsuario` | varchar(255) | sí |  |
+| `FechaReal` | date | sí |  |
+| `created_at` | timestamp | no |  |
+
+**`wansoft_parallel_inputinventory_entrada`**: entradas que las sucursales de Odoo siguen capturando en Wansoft, solo para comparar (5.4). 38 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `id` | int(11) | no | PRI |
+| `subsidiary_name` | varchar(255) | sí |  |
+| `IdEntrada` | varchar(50) | sí | MUL |
+| `ClaveAlmacen` | varchar(50) | sí |  |
+| `Almacen` | varchar(255) | sí |  |
+| `IdAlmacen` | int(11) | sí |  |
+| `CuentaContableAlmacen` | varchar(255) | sí |  |
+| `CodigoDepartamento` | varchar(255) | sí |  |
+| `Departamento` | varchar(255) | sí |  |
+| `CuentaContableDepartamento` | varchar(255) | sí |  |
+| `IdProducto` | int(11) | sí |  |
+| `CodigoProducto` | varchar(50) | sí |  |
+| `NombreProducto` | varchar(255) | sí |  |
+| `CodigoUnidadDeMedida` | varchar(50) | sí |  |
+| `IdUnidadDeMedida` | int(11) | sí |  |
+| `UnidadDeMedida` | varchar(50) | sí |  |
+| `TipoEntrada` | varchar(50) | sí |  |
+| `Cantidad` | decimal(15,10) | sí |  |
+| `CostoUnitario` | decimal(15,4) | sí |  |
+| `ProductoConIVA` | tinyint(1) | sí |  |
+| `Caducidad` | date | sí |  |
+| `FechaEntrada` | datetime | sí |  |
+| `Factura` | varchar(50) | sí |  |
+| `FechaFactura` | date | sí |  |
+| `RFCProveedor` | varchar(50) | sí |  |
+| `ClaveProveedor` | varchar(50) | sí |  |
+| `NombreProveedor` | varchar(255) | sí |  |
+| `IdTransferencia` | int(11) | sí |  |
+| `FolioTransferencia` | varchar(50) | sí |  |
+| `IdOrdenCompra` | int(11) | sí |  |
+| `FolioOrdenCompra` | varchar(50) | sí |  |
+| `RFCProveedorOrdenCompra` | varchar(50) | sí |  |
+| `ProveedorOrdenCompra` | varchar(255) | sí |  |
+| `IdDocumento` | int(11) | sí |  |
+| `IdUsuario` | int(11) | sí |  |
+| `NombreUsuario` | varchar(255) | sí |  |
+| `FechaReal` | date | sí |  |
+| `created_at` | timestamp | no |  |
+
+**`wansoft_parallel_outgoinginventory_salida`**: salidas que las sucursales de Odoo siguen capturando en Wansoft, solo para comparar (5.4). 29 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `id` | int(11) | no | PRI |
+| `subsidiary_name` | varchar(255) | sí | MUL |
+| `IdSalida` | varchar(50) | sí |  |
+| `IdEntrada` | varchar(50) | sí |  |
+| `IdAlmacen` | int(11) | sí |  |
+| `Almacen` | varchar(255) | sí |  |
+| `CuentaContableAlmacen` | varchar(255) | sí |  |
+| `CuentaContableDepartamento` | varchar(255) | sí |  |
+| `Departamento` | varchar(255) | sí |  |
+| `IdProducto` | int(11) | sí |  |
+| `CodigoProducto` | varchar(50) | sí |  |
+| `NombreProducto` | varchar(255) | sí |  |
+| `CodigoUnidadDeMedida` | varchar(50) | sí |  |
+| `IdUnidadDeMedida` | int(11) | sí |  |
+| `UnidadDeMedida` | varchar(50) | sí |  |
+| `TipoSalida` | varchar(50) | sí |  |
+| `Cantidad` | decimal(15,10) | sí |  |
+| `CostoUnitario` | decimal(15,4) | sí |  |
+| `Caducidad` | date | sí |  |
+| `FechaSalida` | datetime | sí |  |
+| `IdTransferencia` | varchar(50) | sí |  |
+| `FolioTransferencia` | varchar(50) | sí |  |
+| `Orden` | varchar(50) | sí |  |
+| `Fecha` | date | sí |  |
+| `IdDetalleVenta` | varchar(50) | sí |  |
+| `IdUsuario` | varchar(50) | sí |  |
+| `NombreUsuario` | varchar(255) | sí |  |
+| `FechaReal` | date | sí |  |
+| `created_at` | timestamp | no |  |
+
+**`odoo_inventory_quant_daily`**: existencias de Odoo día por día, desde 2026-10-08 (5.4). 14 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `stock_date` | date | no | PRI |
+| `odoo_location_id` | int(11) | no | PRI |
+| `odoo_product_id` | int(11) | no | PRI |
+| `captured_at` | datetime | no |  |
+| `odoo_company_id` | int(11) | sí |  |
+| `odoo_company_name` | varchar(255) | sí |  |
+| `company_source_key` | varchar(100) | sí | MUL |
+| `location_name` | varchar(500) | sí |  |
+| `location_usage` | varchar(30) | no |  |
+| `product_code` | varchar(100) | sí |  |
+| `product_name` | varchar(500) | sí |  |
+| `quantity` | decimal(18,4) | no |  |
+| `reserved_quantity` | decimal(18,4) | no |  |
+| `quant_count` | int(11) | no |  |
+
+### A.5 Gobierno y dimensiones
+
+**`analytics_company_domain_coverage`**: fuente de cada dominio por sucursal (5.6). 31 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `company_source_key` | varchar(255) | no | PRI |
+| `display_name` | varchar(255) | no |  |
+| `is_active_branch` | tinyint(1) | no |  |
+| `is_internal_provider` | tinyint(1) | no |  |
+| `is_final_operating_branch` | tinyint(1) | no |  |
+| `is_future_rollout` | tinyint(1) | no |  |
+| `is_zenput_location` | tinyint(1) | no |  |
+| `is_zenput_only` | tinyint(1) | no |  |
+| `purchases_source_system` | varchar(100) | no |  |
+| `inventory_source_system` | varchar(100) | no |  |
+| `sales_source_system` | varchar(100) | no |  |
+| `zenput_source_status` | varchar(100) | no |  |
+| `rollout_type` | varchar(100) | sí | MUL |
+| `rollout_status` | varchar(100) | sí |  |
+| `operational_start_date` | date | sí |  |
+| `has_purchases` | tinyint(1) | no | MUL |
+| `has_purchase_orders` | tinyint(1) | no |  |
+| `has_purchase_lines` | tinyint(1) | no |  |
+| `has_inventory` | tinyint(1) | no |  |
+| `has_zenput_submissions` | tinyint(1) | no |  |
+| `has_zenput_tasks` | tinyint(1) | no |  |
+| `has_sales_future_placeholder` | tinyint(1) | no |  |
+| `purchase_order_count` | bigint(20) | no |  |
+| `purchase_line_count` | bigint(20) | no |  |
+| `inventory_snapshot_count` | bigint(20) | no |  |
+| `zenput_submission_count` | bigint(20) | no |  |
+| `zenput_task_count` | bigint(20) | no |  |
+| `coverage_status` | varchar(100) | no | MUL |
+| `coverage_notes` | text | sí |  |
+| `created_at` | datetime | no |  |
+| `updated_at` | datetime | no |  |
+
+**`dim_company_analytical`**: sucursales y empresas (5.6). 25 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `company_analytical_key` | bigint(20) | no | PRI |
+| `company_source_key` | varchar(255) | no | UNI |
+| `display_name` | varchar(255) | no | MUL |
+| `normalized_name` | varchar(255) | sí |  |
+| `brand_group` | varchar(255) | sí |  |
+| `is_active_branch` | tinyint(1) | no |  |
+| `is_internal_provider` | tinyint(1) | no |  |
+| `is_final_operating_branch` | tinyint(1) | no |  |
+| `is_future_rollout` | tinyint(1) | no |  |
+| `is_wansoft_company` | tinyint(1) | no |  |
+| `is_odoo_company` | tinyint(1) | no |  |
+| `is_zenput_location` | tinyint(1) | no |  |
+| `is_zenput_only` | tinyint(1) | no |  |
+| `purchases_source_system` | varchar(100) | no | MUL |
+| `inventory_source_system` | varchar(100) | no |  |
+| `sales_source_system` | varchar(100) | no |  |
+| `zenput_source_status` | varchar(100) | no |  |
+| `rollout_type` | varchar(100) | sí | MUL |
+| `rollout_status` | varchar(100) | sí |  |
+| `operational_start_date` | date | sí |  |
+| `include_in_business_views` | tinyint(1) | no |  |
+| `exclude_reason` | varchar(255) | sí |  |
+| `notes` | text | sí |  |
+| `created_at` | datetime | no |  |
+| `updated_at` | datetime | no |  |
+
+**`dim_product`**: productos (5.3). 38 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `product_analytical_key` | bigint(20) | no | PRI |
+| `product_display_name` | varchar(500) | no |  |
+| `normalized_product_name` | varchar(500) | no | MUL |
+| `product_canonical_name` | varchar(500) | sí |  |
+| `product_identity_status` | varchar(100) | no | MUL |
+| `wansoft_code` | varchar(255) | sí | MUL |
+| `wansoft_product_name` | varchar(500) | sí |  |
+| `wansoft_department` | varchar(255) | sí |  |
+| `wansoft_family` | varchar(255) | sí |  |
+| `wansoft_group` | varchar(255) | sí |  |
+| `odoo_product_id` | varchar(255) | sí | MUL |
+| `odoo_product_name` | varchar(500) | sí |  |
+| `odoo_default_code` | varchar(255) | sí |  |
+| `odoo_category` | varchar(255) | sí |  |
+| `odoo_uom` | varchar(100) | sí |  |
+| `mapping_status` | varchar(100) | no | MUL |
+| `mapping_source` | varchar(255) | sí |  |
+| `mapping_confidence` | varchar(100) | sí |  |
+| `is_mapped` | tinyint(1) | no |  |
+| `is_unmapped` | tinyint(1) | no |  |
+| `is_review_required` | tinyint(1) | no |  |
+| `is_excluded` | tinyint(1) | no |  |
+| `exclude_reason` | varchar(255) | sí |  |
+| `company_scope` | varchar(255) | sí |  |
+| `scope_bucket` | varchar(255) | sí | MUL |
+| `product_business_domain` | varchar(255) | sí |  |
+| `is_restaurant_product` | tinyint(1) | no |  |
+| `is_bodegon_product` | tinyint(1) | no |  |
+| `is_empanadas_product` | tinyint(1) | no |  |
+| `is_shared_cross_company` | tinyint(1) | no |  |
+| `source_system` | varchar(100) | no | MUL |
+| `source_table` | varchar(255) | sí |  |
+| `source_product_key` | varchar(255) | no |  |
+| `source_product_name` | varchar(500) | sí |  |
+| `include_in_business_views` | tinyint(1) | no | MUL |
+| `notes` | text | sí |  |
+| `created_at` | datetime | no |  |
+| `updated_at` | datetime | no |  |
+
+**`dim_vendor`**: proveedores (5.3). 18 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `vendor_analytical_key` | bigint(20) | no | PRI |
+| `vendor_display_name` | varchar(255) | no | MUL |
+| `normalized_vendor_name` | varchar(255) | no | UNI |
+| `vendor_canonical_name` | varchar(255) | sí |  |
+| `vendor_source_system` | varchar(100) | no | MUL |
+| `wansoft_vendor_id` | varchar(255) | sí |  |
+| `odoo_vendor_id` | varchar(255) | sí |  |
+| `source_vendor_name` | text | sí |  |
+| `source_vendor_key` | text | sí |  |
+| `is_internal_vendor` | tinyint(1) | no | MUL |
+| `is_external_vendor` | tinyint(1) | no |  |
+| `is_active` | tinyint(1) | no |  |
+| `is_review_required` | tinyint(1) | no |  |
+| `include_in_business_views` | tinyint(1) | no | MUL |
+| `exclude_reason` | varchar(255) | sí |  |
+| `notes` | text | sí |  |
+| `created_at` | datetime | no |  |
+| `updated_at` | datetime | no |  |
+
+**`dim_time`**: calendario (5.6). 37 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `date_key` | int(11) | no | PRI |
+| `calendar_date` | date | no | UNI |
+| `year` | smallint(6) | no | MUL |
+| `year_start_date` | date | no |  |
+| `year_end_date` | date | no |  |
+| `is_year_start` | tinyint(1) | no |  |
+| `is_year_end` | tinyint(1) | no |  |
+| `quarter_number` | tinyint(4) | no |  |
+| `quarter_name` | varchar(10) | no |  |
+| `year_quarter` | varchar(20) | no | MUL |
+| `quarter_start_date` | date | no |  |
+| `quarter_end_date` | date | no |  |
+| `is_quarter_start` | tinyint(1) | no |  |
+| `is_quarter_end` | tinyint(1) | no |  |
+| `month_number` | tinyint(4) | no |  |
+| `month_name` | varchar(20) | no |  |
+| `month_short_name` | varchar(10) | no |  |
+| `year_month_label` | varchar(10) | no | MUL |
+| `month_start_date` | date | no |  |
+| `month_end_date` | date | no |  |
+| `is_month_start` | tinyint(1) | no |  |
+| `is_month_end` | tinyint(1) | no |  |
+| `week_of_year` | tinyint(4) | no |  |
+| `iso_week_of_year` | tinyint(4) | no |  |
+| `iso_year` | smallint(6) | no | MUL |
+| `week_start_date` | date | no |  |
+| `week_end_date` | date | no |  |
+| `is_week_start` | tinyint(1) | no |  |
+| `is_week_end` | tinyint(1) | no |  |
+| `day_of_month` | tinyint(4) | no |  |
+| `day_of_year` | smallint(6) | no |  |
+| `day_of_week_number` | tinyint(4) | no |  |
+| `day_of_week_name` | varchar(20) | no |  |
+| `day_of_week_short_name` | varchar(10) | no |  |
+| `is_weekend` | tinyint(1) | no | MUL |
+| `created_at` | datetime | no |  |
+| `updated_at` | datetime | no |  |
+
+### A.6 Zenput (base zenput)
+
+**`form_templates`**: plantillas de checklist (5.5). 8 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `form_id` | int(11) | no | PRI |
+| `title` | varchar(255) | sí |  |
+| `num_submissions` | int(11) | sí |  |
+| `date_created` | datetime | sí |  |
+| `date_last_submitted` | datetime | sí |  |
+| `creator_full_name` | varchar(255) | sí |  |
+| `category_name` | varchar(255) | sí |  |
+| `last_updated` | timestamp | no |  |
+
+**`submissions`**: checklists contestados (5.5). 6 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `submission_id` | varchar(255) | no | PRI |
+| `form_template_id` | int(11) | sí | MUL |
+| `location_name` | varchar(255) | sí |  |
+| `user_display_name` | varchar(255) | sí |  |
+| `date_submitted` | datetime | sí |  |
+| `time_to_complete` | int(11) | sí |  |
+
+**`submission_answers`**: respuestas (5.5). 6 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `answer_id` | int(11) | no | PRI |
+| `submission_id` | varchar(255) | sí | MUL |
+| `field_id` | int(11) | sí |  |
+| `title` | text | sí |  |
+| `field_type` | varchar(50) | sí |  |
+| `value_as_string` | text | sí |  |
+
+**`zenput_tasks`**: tareas (5.5). 42 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `task_id` | int(11) | no | PRI |
+| `title` | text | sí |  |
+| `description` | text | sí |  |
+| `company_id` | int(11) | sí |  |
+| `account_id` | int(11) | sí |  |
+| `account_name` | varchar(255) | sí |  |
+| `account_address` | text | sí |  |
+| `account_city` | varchar(100) | sí |  |
+| `account_state` | varchar(100) | sí |  |
+| `account_zipcode` | varchar(20) | sí |  |
+| `account_country` | varchar(10) | sí |  |
+| `account_lat` | decimal(10,8) | sí |  |
+| `account_lon` | decimal(11,8) | sí |  |
+| `status_id` | int(11) | sí |  |
+| `status_type` | varchar(50) | sí |  |
+| `status_name` | varchar(50) | sí |  |
+| `reply_type` | varchar(50) | sí |  |
+| `reporter_id` | int(11) | sí |  |
+| `reporter_display_name` | varchar(255) | sí |  |
+| `assignee_id` | int(11) | sí |  |
+| `assignee_display_name` | varchar(255) | sí |  |
+| `date_created` | datetime | sí |  |
+| `date_modified` | datetime | sí |  |
+| `date_start` | datetime | sí |  |
+| `date_due` | datetime | sí |  |
+| `time_zone` | varchar(100) | sí |  |
+| `is_active` | tinyint(1) | sí |  |
+| `is_closed` | tinyint(1) | sí |  |
+| `project_id` | int(11) | sí |  |
+| `fulfillment_type` | varchar(50) | sí |  |
+| `fulfillment_date_completed` | datetime | sí |  |
+| `fulfillment_date_submitted` | datetime | sí |  |
+| `fulfillment_user_id` | int(11) | sí |  |
+| `fulfillment_user_display_name` | varchar(255) | sí |  |
+| `fulfillment_fields` | longtext | sí |  |
+| `date_submitted` | datetime | sí |  |
+| `deleted` | tinyint(1) | sí |  |
+| `num_comments` | int(11) | sí |  |
+| `is_completed_late` | tinyint(1) | sí |  |
+| `current_state` | varchar(50) | sí |  |
+| `subscribers` | longtext | sí |  |
+| `last_updated` | timestamp | no |  |
+
+<!-- schema-appendix:end -->
+

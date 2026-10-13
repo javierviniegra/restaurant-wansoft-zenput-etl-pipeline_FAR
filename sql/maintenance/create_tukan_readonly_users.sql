@@ -84,9 +84,35 @@ GRANT SELECT ON `wansoft`.`costs_source_by_company`                      TO 'tuk
 -- run with the code of 2026-10-08; run only this line (as root).
 GRANT SELECT ON `wansoft`.`odoo_inventory_quant_daily`                   TO 'tukan_wansoft'@'%';
 
+-- ---------------- PART E (2026-10-13) ----------------
+-- Wansoft inventory the 8 Odoo-migrated branches keep capturing in parallel,
+-- loaded nightly since the night of 2026-10-12 to 10-13 (guide 5.4). Comparison
+-- only: never part of the business totals.
+GRANT SELECT ON `wansoft`.`wansoft_parallel_inputinventory_entrada`      TO 'tukan_wansoft'@'%';
+GRANT SELECT ON `wansoft`.`wansoft_parallel_outgoinginventory_salida`    TO 'tukan_wansoft'@'%';
+
+-- Re-running the WHOLE file is safe: CREATE USER IF NOT EXISTS leaves an
+-- existing user and its password untouched (a note, not an error), and a GRANT
+-- that already exists changes nothing. Do that when parts C/D/E are in doubt.
+-- The list of tables is also the source of the guide's schema appendix
+-- (docs/data-access-guide/build_schema_appendix.py reads the GRANT lines).
+
 -- ---------------- VERIFY ----------------
 SHOW GRANTS FOR 'tukan_wansoft'@'%';
 SHOW GRANTS FOR 'tukan_zenput'@'%';
+-- Expected: USAGE + 26 table grants for tukan_wansoft; USAGE + `zenput`.* for tukan_zenput.
+
+-- ---------------- DIAGNOSE: "Access denied ... @'localhost'" (2026-10-13) ----------------
+-- phpMyAdmin runs ON the database server, so it logs in as 'tukan_wansoft'@'localhost',
+-- not '%'. If an anonymous user ''@'localhost' exists (XAMPP ships one), MariaDB
+-- matches it first (a named host beats '%') and rejects the password. tukanmx
+-- connects from outside and is not affected. Check:
+SELECT user, host, plugin, authentication_string <> '' AS has_password
+FROM mysql.user
+WHERE user IN ('', 'tukan_wansoft', 'tukan_zenput')
+ORDER BY user, host;
+-- A real test is from another machine (the tasks VM), the way tukanmx connects:
+--   C:\Backups\mariadb-client\mariadb-10.4.28-winx64\bin\mysql.exe -h 192.168.100.183 -u tukan_wansoft -p -e "SHOW GRANTS"
 
 -- ---------------- REVOKE (end of the engagement) ----------------
 -- DROP USER 'tukan_wansoft'@'%';
