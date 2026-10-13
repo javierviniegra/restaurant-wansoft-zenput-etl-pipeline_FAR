@@ -22,8 +22,25 @@ Wansoft side (this block):
   (odoo_company_migration_policy.operational_start_date) and
   'wansoft_parallel_after_odoo' from it (include_in_business_views = 0).
 
+Odoo side (odoo_stock_move_snapshot, done moves with valuation):
+- One row per move and branch it touches: 'out' for the branch whose internal
+  location is the source, 'in' for the branch whose internal location is the
+  destination. A move between two locations of the same branch (Almacen ->
+  Cocina) is not stored (owner, 2026-10-13). Internal providers (El Bodegon,
+  Las Empanadas) are not branches and are left out, as in purchases.
+- movement_type from the other side's location usage: customer -> sale,
+  supplier -> purchase receipt, production -> production in/out, inventory ->
+  adjustment (waste when scrapped), another branch or transit -> transfer.
+- quantity = done_qty (the product's unit), total_cost = the valuation layers'
+  value, both signed; counts_in_stock = product_is_storable.
+- wansoft_code from the approved dictionary mapping when the Odoo product has
+  exactly one and it is not under review (EXCLUDED_DICTIONARY_IDS).
+- final_source_status: 'odoo_final' for an Odoo branch from its start date,
+  'odoo_parallel_before_start' otherwise (include_in_business_views = 0).
+- Rebuilt in full on every run (about 1.6 M moves).
+
 Runs inside MySQL (INSERT ... SELECT): a full rebuild by ranges of the source
-tables' primary key; the nightly window by capture date.
+tables' primary key; the nightly window by capture date (Wansoft).
 
     python -m scripts.build_analytics_inventory_movements --full      # rebuild everything
     python -m scripts.build_analytics_inventory_movements             # nightly window
@@ -38,6 +55,12 @@ from core.database.mysql import get_db_connection
 
 TABLE = "analytics_inventory_movements"
 DEFAULT_WINDOW_DAYS = 10
+ODOO_SOURCE = "odoo_stock_move_snapshot"
+# Approved mappings whose Odoo id is another product but is in use in 2026;
+# waiting for the owner's review (reports/inventory_mapping_review/
+# revision_mapeos_odoo_wansoft_20261013.xlsx). Their moves keep odoo_product_id
+# and get no wansoft_code until then.
+EXCLUDED_DICTIONARY_IDS = (70, 120, 138, 144, 189, 233, 243, 262, 291, 346, 352, 485, 1346)
 CHUNK = 200_000  # source primary-key ids per statement in a full rebuild
 
 # (TipoEntrada / TipoSalida) -> (movement_type, counts_in_stock); owner, 2026-10-13
@@ -267,6 +290,110 @@ def load_wansoft(conn, window_start=None):
     return totals
 
 
+def create_odoo_helpers(cur):
+    """Odoo company -> branch with its start date; Odoo product -> one Wansoft code."""
+    cur.execute(f"SELECT DISTINCT odoo_company_id, company_source_key FROM {ODOO_SOURCE} WHERE company_source_key IS NOT NULL")
+    companies = cur.fetchall()
+    cur.execute("SELECT odoo_company_id, operational_start_date FROM odoo_company_migration_policy WHERE is_active = 1")
+    starts = dict(cur.fetchall())
+    cur.execute("DROP TEMPORARY TABLE IF EXISTS tmp_aim_odoo_company")
+    cur.execute(
+        "CREATE TEMPORARY TABLE tmp_aim_odoo_company ("
+        " odoo_company_id INT PRIMARY KEY, company_source_key VARCHAR(100), odoo_start_date DATE NULL, is_odoo_branch TINYINT(1))"
+    )
+    cur.executemany(
+        "INSERT INTO tmp_aim_odoo_company VALUES (%s, %s, %s, %s)",
+        [(cid, key, starts.get(cid), int(COMPANY_SOURCE.get(key) == "odoo")) for cid, key in companies],
+    )
+    cur.execute("DROP TEMPORARY TABLE IF EXISTS tmp_aim_odoo_product")
+    cur.execute(f"""
+        CREATE TEMPORARY TABLE tmp_aim_odoo_product (PRIMARY KEY (odoo_product_id))
+        SELECT odoo_product_id, MIN(wansoft_code) AS wansoft_code
+        FROM inventory_mapping_dictionary
+        WHERE mapping_status = 'approved' AND odoo_product_id IS NOT NULL
+          AND wansoft_code IS NOT NULL AND wansoft_code <> ''
+          AND id NOT IN ({",".join(["%s"] * len(EXCLUDED_DICTIONARY_IDS))})
+        GROUP BY odoo_product_id
+        HAVING COUNT(DISTINCT wansoft_code) = 1
+    """, EXCLUDED_DICTIONARY_IDS)
+
+
+def odoo_insert_sql(direction):
+    """INSERT ... SELECT of the 'out' or 'in' side of Odoo moves, one id range."""
+    if direction == "out":
+        here, other, sign = "location", "location_dest", "-"
+        mtype = """CASE m.location_dest_usage
+            WHEN 'customer' THEN 'sale_consumption' WHEN 'production' THEN 'production_out'
+            WHEN 'inventory' THEN IF(m.scrapped = 1, 'waste', 'adjustment')
+            WHEN 'transit' THEN 'transfer_out' WHEN 'internal' THEN 'transfer_out' ELSE 'other' END"""
+    else:
+        here, other, sign = "location_dest", "location", ""
+        mtype = """CASE m.location_usage
+            WHEN 'supplier' THEN 'purchase_receipt' WHEN 'production' THEN 'production_in'
+            WHEN 'inventory' THEN 'adjustment'
+            WHEN 'transit' THEN 'transfer_in' WHEN 'internal' THEN 'transfer_in' ELSE 'other' END"""
+    status = ("CASE WHEN c.is_odoo_branch = 1 AND c.odoo_start_date IS NOT NULL "
+              "AND m.movement_date >= c.odoo_start_date THEN 'odoo_final' ELSE 'odoo_parallel_before_start' END")
+    return f"""
+        INSERT INTO {TABLE} (
+            movement_date, company_source_key, source_system, source_record, source_movement_id,
+            captured_date, direction, movement_type, source_movement_type, wansoft_code,
+            odoo_product_id, product_name, unit_name, quantity, unit_cost, total_cost,
+            location_name, counts_in_stock, final_source_status, include_in_business_views, loaded_at
+        )
+        SELECT
+            m.movement_date,
+            c.company_source_key,
+            'odoo',
+            'odoo_move',
+            m.odoo_move_id,
+            DATE(m.odoo_write_date),
+            '{direction}',
+            {mtype},
+            LEFT(CONCAT(m.location_usage, ' -> ', m.location_dest_usage,
+                        IFNULL(CONCAT(' (', m.picking_type_name, ')'), '')), 100),
+            p.wansoft_code,
+            m.odoo_product_id,
+            LEFT(m.product_display_name, 255),
+            LEFT(m.product_uom_name, 50),
+            {sign}m.done_qty,
+            CASE WHEN m.valuation_layer_count > 0 AND COALESCE(m.valuation_qty, 0) <> 0
+                 THEN ABS(m.valuation_value / m.valuation_qty) ELSE m.price_unit END,
+            {sign}ABS(m.valuation_value),
+            LEFT(m.{here}_name, 255),
+            m.product_is_storable,
+            {status},
+            ({status}) = 'odoo_final',
+            NOW()
+        FROM {ODOO_SOURCE} m
+        JOIN tmp_aim_odoo_company c ON c.odoo_company_id = COALESCE(m.{here}_company_id, m.odoo_company_id)
+        LEFT JOIN tmp_aim_odoo_product p ON p.odoo_product_id = m.odoo_product_id
+        WHERE m.{here}_usage = 'internal'
+          AND NOT (m.{other}_usage = 'internal'
+                   AND COALESCE(m.{other}_company_id, m.odoo_company_id) = COALESCE(m.{here}_company_id, m.odoo_company_id))
+          AND m.odoo_move_id >= %s AND m.odoo_move_id < %s
+    """
+
+
+def load_odoo(conn):
+    """Odoo side, rebuilt in full (deleted and reinserted by move-id ranges)."""
+    cur = conn.cursor()
+    create_odoo_helpers(cur)
+    cur.execute(f"DELETE FROM {TABLE} WHERE source_system = 'odoo'")
+    conn.commit()
+    cur.execute(f"SELECT MIN(odoo_move_id), MAX(odoo_move_id) FROM {ODOO_SOURCE}")
+    low, high = cur.fetchone()
+    for direction in ("out", "in"):
+        started, rows = time.time(), 0
+        sql = odoo_insert_sql(direction)
+        for first in range(low or 0, (high or -1) + 1, CHUNK):
+            cur.execute(sql, (first, first + CHUNK))
+            rows += cur.rowcount
+            conn.commit()
+        print(f"  {ODOO_SOURCE} ({direction}): {rows:,} filas ({time.time() - started:.0f} s)")
+    cur.close()
+
+
 def report(conn):
     cur = conn.cursor()
     cur.execute(f"""
@@ -286,6 +413,13 @@ def report(conn):
         print("[AVISO] Tipos de Wansoft fuera del catálogo (cargados como 'other', cuentan en existencias):")
         for row in unknown:
             print("  ", row)
+    cur.execute(f"""
+        SELECT COUNT(*), COUNT(DISTINCT odoo_product_id) FROM {TABLE}
+        WHERE source_system = 'odoo' AND final_source_status = 'odoo_final'
+          AND counts_in_stock = 1 AND wansoft_code IS NULL
+    """)
+    rows, products = cur.fetchone()
+    print(f"Odoo final almacenable sin código Wansoft: {rows:,} filas de {products:,} productos (se ven por odoo_product_id)")
     cur.close()
 
 
@@ -307,12 +441,16 @@ def main(argv=None):
             cur.execute(f"DELETE FROM {TABLE} WHERE source_system = 'wansoft'")
             conn.commit()
             load_wansoft(conn)
+            print("Reconstrucción del lado Odoo")
+            load_odoo(conn)
         else:
             window_start = today - timedelta(days=args.window_days)
             print(f"Ventana nocturna de {TABLE} (lado Wansoft): capturado desde {window_start}")
             cur.execute(f"DELETE FROM {TABLE} WHERE source_system = 'wansoft' AND captured_date >= %s", (window_start,))
             conn.commit()
             load_wansoft(conn, window_start)
+            print("Reconstrucción del lado Odoo")
+            load_odoo(conn)
         cur.close()
         report(conn)
         return 0
