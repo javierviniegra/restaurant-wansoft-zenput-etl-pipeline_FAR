@@ -103,10 +103,11 @@ SHOW GRANTS FOR 'tukan_zenput'@'%';
 -- Expected: USAGE + 26 table grants for tukan_wansoft; USAGE + `zenput`.* for tukan_zenput.
 
 -- ---------------- DIAGNOSE: "Access denied ... @'localhost'" (2026-10-13) ----------------
--- phpMyAdmin runs ON the database server, so it logs in as 'tukan_wansoft'@'localhost',
--- not '%'. If an anonymous user ''@'localhost' exists (XAMPP ships one), MariaDB
--- matches it first (a named host beats '%') and rejects the password. tukanmx
--- connects from outside and is not affected. Check:
+-- phpMyAdmin runs ON the database server, so it logs in as 'tukan_wansoft'@'localhost'.
+-- An anonymous user ''@'localhost' would win over '%' and reject the password.
+-- Checked in production on 2026-10-13: no anonymous user exists, only the two
+-- '%' users with a password, and the VM test below logged in; the phpMyAdmin
+-- failure was most likely a mistyped password. Check:
 SELECT user, host, plugin, authentication_string <> '' AS has_password
 FROM mysql.user
 WHERE user IN ('', 'tukan_wansoft', 'tukan_zenput')

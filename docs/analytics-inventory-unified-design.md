@@ -65,7 +65,7 @@ One row = one inventory movement of one product in one branch on one day.
 | `company_source_key` | branch |
 | `source_system`, `source_movement_id` | `wansoft` + `IdEntrada`/`IdSalida`, or `odoo` + `stock.move` id |
 | `direction` | `in` / `out` |
-| `movement_type` | normalized: `purchase_receipt`, `sale_consumption`, `sale_cancellation`, `waste`, `consumption`, `production_in`, `production_out`, `transfer_in`, `transfer_out`, `adjustment`, `initial_inventory`, `other` |
+| `movement_type` | normalized: `purchase_receipt`, `sale_consumption`, `sale_cancellation`, `waste`, `theft`, `consumption`, `production_in`, `production_out`, `transfer_in`, `transfer_out`, `adjustment`, `initial_inventory`, `other` (Wansoft catalog below) |
 | `source_movement_type` | the original: Wansoft `TipoEntrada`/`TipoSalida`; Odoo picking type and source/destination location usage |
 | `wansoft_code`, `odoo_product_id`, `product_analytical_key`, `product_name` | product |
 | `quantity` | signed (+ in, − out), in the product's unit |
@@ -85,6 +85,66 @@ source is; typed by the other side's usage (supplier → `purchase_receipt`,
 customer → `sale_consumption`, inventory → `adjustment`/`waste` (scrap),
 production → `production_in/out`, internal or transit → `transfer_in/out`).
 To be confirmed against real moves in step 1.
+
+## Wansoft movement-type catalog (block 3a, owner approved 2026-10-13)
+
+Measured in production on 2026-10-13 (full history, read-only). `counts_in_stock`
+replicates `analytics_inventory_balance` exactly, so today's stock still
+matches it; only the `movement_type` labels were new decisions.
+
+Entries (`getinputinventory_entrada.TipoEntrada`, 1.85 M rows):
+
+| TipoEntrada | Rows | `movement_type` | `counts_in_stock` |
+|---|---|---|---|
+| Factura | 797,522 | `purchase_receipt` | 1 |
+| Transferencia | 443,126 | `transfer_in` | 0 |
+| Entrada con canal | 307,180 | `production_in` | 1 |
+| Ajuste de inventario | 157,276 | `adjustment` | 1 |
+| Producto procesado | 87,372 | `production_in` | 1 |
+| Orden de compra a proveedor | 46,588 | `other` | 0 |
+| Inventario inicial | 8,200 | `initial_inventory` | 1 |
+| Eliminado por ajuste de lote | 2,513 | `adjustment` | 1 |
+| Anulación | 73 | `other` | 1 |
+| Ajuste por lote | 57 | `adjustment` | 1 |
+| Cancelación de transferencia | 7 | `other` | 1 |
+| Devolución | 2 | `other` | 1 |
+
+Exits (`getoutgoinginventory_salida.TipoSalida`, 37.5 M rows):
+
+| TipoSalida | Rows | `movement_type` | `counts_in_stock` |
+|---|---|---|---|
+| Venta | 35,559,459 | `sale_consumption` | 1 |
+| Transferencia | 566,572 | `transfer_out` | 0 |
+| Producción de subproducto | 534,511 | `production_out` | 1 |
+| Merma | 224,056 | `waste` | 1 |
+| Producción de subproducto con canal | 221,763 | `production_out` | 1 |
+| Consumo | 178,858 | `consumption` | 1 |
+| Ajuste de inventario | 174,200 | `adjustment` | 1 |
+| Venta cancelada | 24,239 | `sale_cancellation` | 1 |
+| Ajuste por lote | 2,867 | `adjustment` | 1 |
+| Error de captura | 1,977 | `other` | 0 |
+| Desperdicio | 1,394 | `waste` | 1 |
+| Devolución de producto | 699 | `other` | 1 |
+| Registro de nota de crédito | 618 | `other` | 1 |
+| Factura de egresos rechazada | 349 | `other` | 0 |
+| Robo | 40 | `theft` | 1 |
+
+Owner's decisions: **"Venta cancelada" subtracts stock** (confirmed again; first
+decided 2026-08-21: the ingredients were cooked and lost; 24,239 rows, all
+positive, $973 k of cost in five years, 0.1% of Venta) with its own type
+`sale_cancellation`; **Robo gets its own type `theft`**; the rest as
+proposed. "Entrada con canal" and "Producto procesado" are the entry side of
+production: their cost matches their paired exits ($526 M vs $528 M, $43.6 M
+vs $43.7 M). A `TipoEntrada`/`TipoSalida` not in these tables maps to `other`
+with `counts_in_stock` = 1 (the balance's default) and is reported by the
+build.
+
+**September gap found (2026-10-13):** the parallel tables hold 12,290 exits
+and 329 entries of the 8 migrated branches dated before 2026-10-01 that are
+not in the main tables (captured in Wansoft after the main load stopped for
+those branches). `wansoft_history_before_odoo` must read both tables,
+deduplicated by branch + date + `IdSalida` (exits) / `IdEntrada` + product
+(entries).
 
 ## Table 2: `analytics_inventory_stock_daily`
 
