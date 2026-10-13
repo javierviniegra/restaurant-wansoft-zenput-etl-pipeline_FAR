@@ -1,0 +1,324 @@
+"""
+Build analytics_inventory_movements: one row per inventory movement of one
+product in one branch, Wansoft and Odoo together, with their whole history
+(design: docs/analytics-inventory-unified-design.md, Table 1, approved by the
+owner on 2026-10-13).
+
+Wansoft side (this block):
+- Sources: getinputinventory_entrada / getoutgoinginventory_salida (main) and
+  wansoft_parallel_inputinventory_entrada / wansoft_parallel_outgoinginventory_salida
+  (what the Odoo branches keep capturing in Wansoft). The main tables load
+  first; a parallel row with the same identity changes nothing. The parallel
+  tables also hold September rows missing from the main tables (captured
+  after the main load stopped for those branches); those enter here.
+- Identity of a row = the loaders' own: entries IdEntrada per branch, exits
+  Fecha + IdSalida per branch (Fecha is NULL on adjustments and waste, whose
+  date is FechaReal; IdSalida alone is unique among them).
+- movement_type / counts_in_stock: the catalog approved on 2026-10-13
+  (counts_in_stock reproduces analytics_inventory_balance). A type not in the
+  catalog becomes 'other' and counts, and is reported.
+- final_source_status: 'wansoft_final' for a branch on Wansoft;
+  'wansoft_history_before_odoo' before an Odoo branch's start date
+  (odoo_company_migration_policy.operational_start_date) and
+  'wansoft_parallel_after_odoo' from it (include_in_business_views = 0).
+
+Runs inside MySQL (INSERT ... SELECT): a full rebuild by ranges of the source
+tables' primary key; the nightly window by capture date.
+
+    python -m scripts.build_analytics_inventory_movements --full      # rebuild everything
+    python -m scripts.build_analytics_inventory_movements             # nightly window
+    python -m scripts.build_analytics_inventory_movements --window-days 10
+"""
+import argparse
+import time
+from datetime import date, timedelta
+
+from core.config.companies import COMPANY_SOURCE, WANSOFT_SUBSIDIARY_SOURCE_KEY, get_company_source_key
+from core.database.mysql import get_db_connection
+
+TABLE = "analytics_inventory_movements"
+DEFAULT_WINDOW_DAYS = 10
+CHUNK = 200_000  # source primary-key ids per statement in a full rebuild
+
+# (TipoEntrada / TipoSalida) -> (movement_type, counts_in_stock); owner, 2026-10-13
+ENTRY_TYPES = {
+    "Factura": ("purchase_receipt", 1),
+    "Transferencia": ("transfer_in", 0),
+    "Entrada con canal": ("production_in", 1),
+    "Ajuste de inventario": ("adjustment", 1),
+    "Producto procesado": ("production_in", 1),
+    "Orden de compra a proveedor": ("other", 0),
+    "Inventario inicial": ("initial_inventory", 1),
+    "Eliminado por ajuste de lote": ("adjustment", 1),
+    "Anulación": ("other", 1),
+    "Ajuste por lote": ("adjustment", 1),
+    "Cancelación de transferencia": ("other", 1),
+    "Devolución": ("other", 1),
+}
+EXIT_TYPES = {
+    "Venta": ("sale_consumption", 1),
+    "Transferencia": ("transfer_out", 0),
+    "Producción de subproducto": ("production_out", 1),
+    "Merma": ("waste", 1),
+    "Producción de subproducto con canal": ("production_out", 1),
+    "Consumo": ("consumption", 1),
+    "Ajuste de inventario": ("adjustment", 1),
+    "Venta cancelada": ("sale_cancellation", 1),
+    "Ajuste por lote": ("adjustment", 1),
+    "Error de captura": ("other", 0),
+    "Desperdicio": ("waste", 1),
+    "Devolución de producto": ("other", 1),
+    "Registro de nota de crédito": ("other", 1),
+    "Factura de egresos rechazada": ("other", 0),
+    "Robo": ("theft", 1),
+}
+
+DDL = f"""
+CREATE TABLE IF NOT EXISTS {TABLE} (
+    movement_key              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    movement_date             DATE NOT NULL,
+    company_source_key        VARCHAR(100) NOT NULL,
+    source_system             VARCHAR(10)  NOT NULL,
+    source_record             VARCHAR(20)  NOT NULL,
+    source_movement_id        VARCHAR(80)  NOT NULL,
+    captured_date             DATE NULL,
+    direction                 CHAR(3)      NOT NULL,
+    movement_type             VARCHAR(20)  NOT NULL,
+    source_movement_type      VARCHAR(100) NULL,
+    wansoft_code              VARCHAR(50)  NULL,
+    odoo_product_id           INT          NULL,
+    product_name              VARCHAR(255) NULL,
+    unit_name                 VARCHAR(50)  NULL,
+    quantity                  DECIMAL(18,6) NOT NULL,
+    unit_cost                 DECIMAL(18,6) NULL,
+    total_cost                DECIMAL(18,4) NULL,
+    location_name             VARCHAR(255) NULL,
+    counts_in_stock           TINYINT(1)   NOT NULL,
+    final_source_status       VARCHAR(40)  NOT NULL,
+    include_in_business_views TINYINT(1)   NOT NULL,
+    loaded_at                 DATETIME     NOT NULL,
+    UNIQUE KEY uq_movement (source_record, company_source_key, source_movement_id),
+    KEY idx_company_date (company_source_key, movement_date),
+    KEY idx_product_date (wansoft_code, movement_date),
+    KEY idx_captured (source_system, captured_date)
+)
+"""
+
+# Per source table: how each column of the target is read.
+WANSOFT_SOURCES = [
+    {
+        "label": "entradas",
+        "table": "getinputinventory_entrada",
+        "record": "wansoft_entrada",
+        "direction": "in",
+        "sign": "",
+        "type_col": "TipoEntrada",
+        "types": ENTRY_TYPES,
+        "id_expr": "s.IdEntrada",
+        "date_expr": "DATE(s.FechaEntrada)",
+        "captured_expr": "DATE(s.FechaEntrada)",
+    },
+    {
+        "label": "salidas",
+        "table": "getoutgoinginventory_salida",
+        "record": "wansoft_salida",
+        "direction": "out",
+        "sign": "-",
+        "type_col": "TipoSalida",
+        "types": EXIT_TYPES,
+        "id_expr": "CONCAT(COALESCE(s.Fecha, ''), '|', s.IdSalida)",  # Fecha is NULL on adjustments/waste
+        "date_expr": "COALESCE(NULLIF(s.Fecha, '0000-00-00'), s.FechaReal)",
+        "captured_expr": "DATE(s.FechaSalida)",
+    },
+]
+PARALLEL_TABLES = {
+    "getinputinventory_entrada": "wansoft_parallel_inputinventory_entrada",
+    "getoutgoinginventory_salida": "wansoft_parallel_outgoinginventory_salida",
+}
+
+UPDATE_COLUMNS = [
+    "movement_date", "captured_date", "direction", "movement_type", "source_movement_type",
+    "wansoft_code", "product_name", "unit_name", "quantity", "unit_cost", "total_cost",
+    "location_name", "counts_in_stock", "final_source_status", "include_in_business_views", "loaded_at",
+]
+
+
+def load_branches(cur):
+    """Wansoft subsidiary id -> (company_source_key, Odoo start date or None)."""
+    cur.execute("SELECT company_name, operational_start_date FROM odoo_company_migration_policy WHERE is_active = 1")
+    starts = {}
+    for company_name, start in cur.fetchall():
+        key = get_company_source_key(company_name)
+        if key:
+            starts[key] = start
+    branches = {}
+    for subsidiary_id, key in WANSOFT_SUBSIDIARY_SOURCE_KEY.items():
+        start = starts.get(key) if COMPANY_SOURCE.get(key) == "odoo" else None
+        branches[subsidiary_id] = (key, start)
+    return branches
+
+
+def create_helper_tables(cur, branches):
+    cur.execute("DROP TEMPORARY TABLE IF EXISTS tmp_aim_branch")
+    cur.execute(
+        "CREATE TEMPORARY TABLE tmp_aim_branch ("
+        " subsidiary_name VARCHAR(255) PRIMARY KEY, company_source_key VARCHAR(100), odoo_start_date DATE NULL)"
+    )
+    cur.executemany(
+        "INSERT INTO tmp_aim_branch VALUES (%s, %s, %s)",
+        [(sid, key, start) for sid, (key, start) in branches.items()],
+    )
+    cur.execute("DROP TEMPORARY TABLE IF EXISTS tmp_aim_type")
+    cur.execute(
+        "CREATE TEMPORARY TABLE tmp_aim_type ("
+        " source_record VARCHAR(20), source_type VARCHAR(100), movement_type VARCHAR(20), counts_in_stock TINYINT(1),"
+        " PRIMARY KEY (source_record, source_type))"
+    )
+    rows = [("wansoft_entrada", t, m, c) for t, (m, c) in ENTRY_TYPES.items()]
+    rows += [("wansoft_salida", t, m, c) for t, (m, c) in EXIT_TYPES.items()]
+    cur.executemany("INSERT INTO tmp_aim_type VALUES (%s, %s, %s, %s)", rows)
+
+
+def wansoft_insert_sql(src, table, mode):
+    """INSERT ... SELECT for one Wansoft source table, one branch, one date range.
+
+    mode 'upsert' (main tables: their values win) or 'ignore' (parallel
+    tables: only rows the main tables do not have)."""
+    date_expr = src["date_expr"]
+    status = (
+        f"CASE WHEN b.odoo_start_date IS NULL THEN 'wansoft_final' "
+        f"WHEN {date_expr} < b.odoo_start_date THEN 'wansoft_history_before_odoo' "
+        f"ELSE 'wansoft_parallel_after_odoo' END"
+    )
+    verb = "INSERT IGNORE INTO" if mode == "ignore" else "INSERT INTO"
+    sql = f"""
+        {verb} {TABLE} (
+            movement_date, company_source_key, source_system, source_record, source_movement_id,
+            captured_date, direction, movement_type, source_movement_type, wansoft_code,
+            odoo_product_id, product_name, unit_name, quantity, unit_cost, total_cost,
+            location_name, counts_in_stock, final_source_status, include_in_business_views, loaded_at
+        )
+        SELECT
+            {date_expr},
+            b.company_source_key,
+            'wansoft',
+            '{src["record"]}',
+            {src["id_expr"]},
+            {src["captured_expr"]},
+            '{src["direction"]}',
+            COALESCE(t.movement_type, 'other'),
+            s.{src["type_col"]},
+            NULLIF(s.CodigoProducto, ''),
+            NULL,
+            s.NombreProducto,
+            s.UnidadDeMedida,
+            {src["sign"]}s.Cantidad,
+            s.CostoUnitario,
+            {src["sign"]}s.Cantidad * s.CostoUnitario,
+            s.Almacen,
+            COALESCE(t.counts_in_stock, 1),
+            {status},
+            ({status}) <> 'wansoft_parallel_after_odoo',
+            NOW()
+        FROM {table} s
+        JOIN tmp_aim_branch b ON b.subsidiary_name = s.subsidiary_name
+        LEFT JOIN tmp_aim_type t ON t.source_record = '{src["record"]}' AND t.source_type = s.{src["type_col"]}
+        WHERE {{where}}
+    """
+    if mode == "upsert":
+        sql += " ON DUPLICATE KEY UPDATE " + ", ".join(f"{c} = VALUES({c})" for c in UPDATE_COLUMNS)
+    return sql
+
+
+def id_chunks(cur, table):
+    """[from, to) ranges of the source table's primary key, CHUNK ids each."""
+    cur.execute(f"SELECT MIN(id), MAX(id) FROM {table}")
+    low, high = cur.fetchone()
+    if low is None:
+        return
+    for first in range(low, high + 1, CHUNK):
+        yield first, first + CHUNK
+
+
+def load_wansoft(conn, window_start=None):
+    """Full rebuild (window_start None): every source row, by primary-key
+    ranges. Nightly: rows captured since window_start, one statement per
+    table (a scan of the table, no per-branch loop)."""
+    cur = conn.cursor()
+    totals = {}
+    for src in WANSOFT_SOURCES:
+        for table, mode in ((src["table"], "upsert"), (PARALLEL_TABLES[src["table"]], "ignore")):
+            started, rows = time.time(), 0
+            if window_start is None:
+                sql = wansoft_insert_sql(src, table, mode).replace("{where}", "s.id >= %s AND s.id < %s")
+                for first, last in id_chunks(cur, table):
+                    cur.execute(sql, (first, last))
+                    rows += cur.rowcount
+                    conn.commit()
+            else:
+                where = f"{src['captured_expr']} >= %s"
+                sql = wansoft_insert_sql(src, table, mode).replace("{where}", where)
+                cur.execute(sql, (window_start,))
+                rows += cur.rowcount
+                conn.commit()
+            totals[table] = rows
+            print(f"  {table}: {rows:,} filas afectadas ({time.time() - started:.0f} s)")
+    cur.close()
+    return totals
+
+
+def report(conn):
+    cur = conn.cursor()
+    cur.execute(f"""
+        SELECT source_record, final_source_status, include_in_business_views, COUNT(*), MIN(movement_date), MAX(movement_date)
+        FROM {TABLE} GROUP BY 1, 2, 3 ORDER BY 1, 2
+    """)
+    print("Resumen por origen y estado:")
+    for row in cur.fetchall():
+        print("  ", row)
+    cur.execute(f"""
+        SELECT source_record, source_movement_type, COUNT(*) FROM {TABLE}
+        WHERE source_system = 'wansoft' GROUP BY 1, 2
+    """)
+    catalog = {"wansoft_entrada": ENTRY_TYPES, "wansoft_salida": EXIT_TYPES}
+    unknown = [row for row in cur.fetchall() if row[1] not in catalog[row[0]]]
+    if unknown:
+        print("[AVISO] Tipos de Wansoft fuera del catálogo (cargados como 'other', cuentan en existencias):")
+        for row in unknown:
+            print("  ", row)
+    cur.close()
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--full", action="store_true", help="rebuild the whole history")
+    parser.add_argument("--window-days", type=int, default=DEFAULT_WINDOW_DAYS, help="nightly window, by capture date")
+    args = parser.parse_args(argv)
+
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(DDL)
+        branches = load_branches(cur)
+        create_helper_tables(cur, branches)
+        today = date.today()
+        if args.full:
+            print(f"Reconstrucción completa de {TABLE} (lado Wansoft)")
+            cur.execute(f"DELETE FROM {TABLE} WHERE source_system = 'wansoft'")
+            conn.commit()
+            load_wansoft(conn)
+        else:
+            window_start = today - timedelta(days=args.window_days)
+            print(f"Ventana nocturna de {TABLE} (lado Wansoft): capturado desde {window_start}")
+            cur.execute(f"DELETE FROM {TABLE} WHERE source_system = 'wansoft' AND captured_date >= %s", (window_start,))
+            conn.commit()
+            load_wansoft(conn, window_start)
+        cur.close()
+        report(conn)
+        return 0
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
