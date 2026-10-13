@@ -1059,6 +1059,12 @@ key; some Zenput locations have no POS branch.</p>
   appears the night after it is confirmed (section 5.3).</li>
 <li>Costs in Wansoft can be recalculated by Wansoft after the fact; the latest
   snapshot wins.</li>
+<li>Some branches (Antenas, Vía Vallejo, Coyoacán, Metepec, Taquería Parroquia,
+  Versalles, Tepeyac) upload their cash closing to Wansoft only the next
+  morning, even when they close at night: their <code>getglobalcashclosing</code> row
+  arrives <strong>one day late</strong> (sales are on time in the tickets). Until it
+  arrives, that day has no cancellations, courtesies or discounts; take sales
+  from the tickets.</li>
 <li>Weekly backup Thursdays 18:00. Avoid heavy queries at 01:30–03:00.</li>
 </ul>
 <h1>8. Access</h1>

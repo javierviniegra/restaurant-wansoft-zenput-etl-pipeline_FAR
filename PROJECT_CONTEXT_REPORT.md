@@ -2,7 +2,7 @@
 
 Master continuity document. Generated/updated automatically at the close of major steps, on explicit request ("Generate project context report"), when the conversation gets very long, when consumed context exceeds ~70%, or when a new chat needs to be opened due to token limits. Always regenerated in full, never as an incremental patch.
 
-Last generated: 2026-10-07 (Wednesday, afternoon), for a chat handoff. It covers the first production week (2026-10-01 to 10-07) on top of the earlier sessions kept below. **Production runs on the new pipeline since 2026-10-01 (`Wansoft_Pipeline_Diario`, 01:30, 16 stages, ~40 min). The first week found and fixed bugs #35-#41 and added: automatic Wansoft-to-Odoo cost switch, continuous period totals, a long Odoo cost window, the `costs_source_by_company` table, timeouts on every source call, a Candado that reads all cash closings, a full read-only reconciliation script, and (tonight's first run) the owner's "option 1" for unclassified purchases with nightly catalogs and a 5-day review. NEXT (owner, in this order): (1) bring all documentation and the data guides up to date; (2) review the night of 10-07 to 10-08 (option 1 in production, unclassified products, pending mappings); (3) the expenses domain; (4) Power BI.** Read **Section 13 "NOW / NEXT"** first, then Section 0 (machines), 7 (status by domain) and 18 (handoff). Command-level procedures: `docs/production-cutover-runbook.md` (6.1 cutover, 7b costs).
+Last generated: 2026-10-13 (Tuesday), for a chat handoff. **Production runs the nightly cycle `Wansoft_Pipeline_Diario` at 01:30 with 19 stages (~45 min) plus `Wansoft_Cortes_Manana` at 07:30.** Since 2026-10-07: documentation brought up to date; option 1 and rules A+B for unclassified purchases; bugs #42 (cutover checkpoints), #43 (Odoo inventory mapping scrambled), #44 (purchases load emptied by duplicate approvals) found and fixed; Odoo stock day by day (`odoo_inventory_quant_daily`); November wave (Aeropuerto and Taquería Viaducto as Odoo branches on 2026-11-01) prepared with a nightly detector, checklist and a scheduled session on 10-26; late cash closings closed as known behavior. **Unified inventory (owner's goal: one source-agnostic table per domain with all history): step 1 (Odoo stock moves + valuation, validated 9 of 10 branches) built, not wired; step 2 (parallel Wansoft inventory) in production. NEXT: step 3 block 3a (owner to confirm the movement-type catalog, open point "Venta cancelada"), check database-server disk, block 3b (`analytics_inventory_movements`).** Read Section 13 "NOW / NEXT" first, then `docs/analytics-inventory-unified-design.md`, `docs/inventory-coverage-by-branch.md` and Section 0 (machines).
 
 ---
 
@@ -458,7 +458,15 @@ See prior reports for bugs #1-#17.
 
 # 13. Identified Legacy / Consolidated Backlog
 
-## NOW / NEXT (2026-10-12, Monday)
+## NOW / NEXT (2026-10-13, Tuesday)
+
+**Night 10-12 to 10-13:** first with 19 stages; the two "Inventario paralelo Wansoft" stages ran (parallel exits of the 8 migrated branches up to 10-12), `odoo_inventory_quant_daily` has 10-08..10-12, purchases updated. Step 2 (parallel Wansoft inventory) is in production, backfilled from 2026-09-28 (`ec87af6`).
+
+**Late cash closings (Central de Reportes, 10-12) closed as known behavior (owner, 2026-10-13):** Antenas, Vía Vallejo, Coyoacán, Metepec, Taquería Parroquia, Versalles and Tepeyac upload their Wansoft closing the next morning (10-12's: absent at 01:40 and at the 07:30 pass, Metepec by 09:03, Antenas/Vallejo/Coyoacán by 10:41, Parroquia/Versalles/Tepeyac still absent at 10:49; tickets on time and equal to the closings). Verified independently with SoapUI by the owner: the API returns no closing until the branch uploads; the extraction is right. No change: that day has no cancellations/courtesies/discounts until the next night. `Wansoft_Cortes_Manana` (07:30, `6b337a8`) kept. Documented in runbook 9.1 and both data guides.
+
+**Next:** unified inventory step 3 (block 3a: owner to confirm the movement-type catalog, open point "Venta cancelada" subtracts stock as today; then 3b table and load, after checking free disk on the database server, ~40 M rows / ~10 GB; dev disk is 95% full and dev holds only 0.57 M Wansoft exits).
+
+## Earlier NOW / NEXT (2026-10-12, Monday)
 
 **Weekend nights:** 10-10 17 stages 41.3 min, 10-11 19 stages 45.2 min (Sunday mapping job + first 5-day catalog review: only 9 zero-amount "sin catalogo" products left), 10-12 17 stages 44.7 min; all 0 failed. The 4 re-evaluated T+7 purchase checkpoints PASS. `odoo_inventory_quant_daily` has 10-08..10-11.
 

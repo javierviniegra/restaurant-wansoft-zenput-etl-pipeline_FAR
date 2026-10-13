@@ -524,6 +524,12 @@ de venta.
   compras de Wansoft 35 días. Las compras de Odoo se recargan completas cada
   noche; una orden aparece la noche siguiente a su confirmación (sección 5.3).
 - Wansoft puede recalcular sus costos después; manda la foto más reciente.
+- Algunas sucursales (Antenas, Vía Vallejo, Coyoacán, Metepec, Taquería
+  Parroquia, Versalles, Tepeyac) suben su corte de caja a Wansoft hasta la
+  mañana siguiente, aunque lo hagan en la noche: su fila de
+  `getglobalcashclosing` llega **un día tarde** (la venta sí está a tiempo
+  en los tickets). Mientras no llegue, ese día no tiene cancelaciones,
+  cortesías ni descuentos; toma la venta de los tickets.
 - Respaldo semanal los jueves a las 18:00. Evita consultas pesadas entre la
   01:30 y las 03:00.
 

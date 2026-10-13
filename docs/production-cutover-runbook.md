@@ -679,6 +679,21 @@ which existed by noon. The extraction itself was right (5-day window, upsert by
 `subsidiary_id` + `fecha_corte`); the closing simply was not there yet. Central de Reportes
 reads at 08:00. A closing uploaded after 07:30 still arrives the next night.
 
+**Measured on 2026-10-13 (owner's decision: known behavior, no change).** The
+closings of 2026-10-12 of Antenas, Vía Vallejo, Coyoacán, Metepec, Taquería
+Parroquia, Versalles and Tepeyac were not in Wansoft at 01:40 nor at 07:30 (the
+morning pass inserted nothing); Metepec appeared by 09:03, Antenas, Vía Vallejo
+and Coyoacán by 10:41, and Parroquia, Versalles and Tepeyac were still missing at
+10:49. Their tickets were in the warehouse on time, and each closing equals its
+tickets to the peso. Checked independently with SoapUI by the owner
+(`GetGlobalCashClosing_Xml`, SOAP 1.2, `http://tempuri.org/`): the API returns
+an empty `<Cortes />` until the branch uploads, so the extraction is not at
+fault. These branches upload the closing the next morning; until then that day
+has no cancellations, courtesies or discounts (Central de Reportes takes sales
+from the tickets). The 07:30 pass is kept: harmless, and it catches any branch
+that uploads earlier. Do not re-investigate this as a pipeline bug; check the
+API for that branch and day first.
+
 ```powershell
 Get-Content "C:\Apps\Wansoft_ETL\logs\cash_closing_morning_$(Get-Date -Format yyyyMMdd).log" -Tail 6 -Encoding UTF8
 Select-String -Path "C:\Apps\Wansoft_ETL\logs\cash_closing_morning_$(Get-Date -Format yyyyMMdd).log" -Pattern 'Insertado' -Encoding UTF8
