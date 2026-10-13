@@ -473,7 +473,80 @@ See prior reports for bugs #1-#17.
 
 # 13. Identified Legacy / Consolidated Backlog
 
-## NOW / NEXT (2026-10-13, Tuesday)
+## NOW / NEXT (2026-10-14, Wednesday) — start here
+
+**First thing (owner, agreed 2026-10-13): test 1 on the dev MySQL, then validate.**
+The dev MariaDB (XAMPP 10.4.32) crashes reproducibly with InnoDB page assertions
+(`0x80000003`, `btr0pcur.cc 527` / `log0recv.cc 1541/1590`, "page_is_comp")
+right after a heavy load, then cannot restart (redo recovery assertion). It
+happened on a brand-new datadir and after the owner excluded `C:\xampp\mysql`
+from Windows Defender, so it is neither accumulated damage nor the antivirus.
+**Hypothesis:** `innodb_use_native_aio=0`, set in `C:\xampp\mysql\bin\my.ini` on
+2026-09-07 to stop an `os0file.cc` "slot" assertion: every page-corruption
+incident (09-08, 09-10, 09-15, 09-17, 09-28, 10-13) came after it; Windows
+builds are rarely run with simulated AIO.
+
+Test 1 (steps):
+1. Dev MySQL is DOWN. In `my.ini` set `innodb_use_native_aio=1` (keep a
+   dated comment explaining why).
+2. Rename `C:\xampp\mysql\data` to `data_failed_20261013c`, create a new
+   one with `mysql_install_db.exe --datadir="C:\xampp\mysql\data"`, owner
+   starts MySQL from the XAMPP panel (the harness cannot start mysqld reliably).
+3. Run the rebuild chain (scratch script of 10-13, recreate it if gone):
+   restore `C:\xampp\mysql\rebuild_20261013\dumps` (4 databases + 44 small
+   wansoft tables), copy from production read-only (Wansoft inventory since
+   2026-09-01; sales/purchases since 2026-07-15; `getexpenses_factura`,
+   `odoo_purchase_*`, parallel exits in full; batches of 2,000 rows), set
+   `Fecha='0000-00-00' WHERE Fecha IS NULL` on both exits tables (the Python
+   connector turns zero dates into NULL), copy production
+   `inventory_mapping_dictionary` and run
+   `python -m scripts.reject_mismapped_unused_mappings --apply`, run
+   `python -m extract.inventory.odoo_stock_moves --full` (~20 min), then
+   `python -m scripts.build_analytics_inventory_movements --full`.
+4. It always crashed on the summary SELECT right after the build: if it
+   survives, run `python -m scripts.validate_analytics_inventory_movements --since 2026-09-01`
+   (Wansoft side PASSed on 10-13) and validate the Odoo side against Odoo's
+   stock (sum of `quantity` where `counts_in_stock` per branch x product vs
+   `odoo_inventory_quant_daily`, moves written before the capture; step 1
+   found 9 of 10 branches exact, Antenas is inconsistent in Odoo itself).
+5. If it still crashes: option 2, a modern MariaDB (10.11/11.4 LTS) for dev on
+   another port; needs the owner's OK to download/install, and
+   ControlPresupuestos_AP / Central de Reportes must be checked against it.
+
+Folders kept on the dev PC (delete only with the owner's OK): `data_old_20261013`
+(9.7 GB, the original datadir), `data_failed_20261013b` (4.3 GB), current
+`data` (3.9 GB, crashed), `recovery_backup_20261013`, `rebuild_20261013\dumps`.
+
+**Done on 2026-10-13 (this chat), besides the earlier entries:**
+- Unified inventory block 3b, decisions written down (`f2bdc3d`): no
+  `product_analytical_key` per row; Odoo moves between two locations of the
+  same branch are not stored; `odoo_parallel_before_start`; nightly reload by
+  capture date. Wansoft side built and validated on dev (`51dd586`, PASS for
+  17 branches; overlaps identical to production: 21,603 exits / 1,684 entries
+  in main and parallel tables). Odoo side written (commit of 10-13 evening,
+  **not validated yet**): 1,092,073 'out' + 45,899 'in' rows loaded in 47 s
+  before the crash. The exits identity uses `COALESCE(Fecha,'')`.
+- **Mapping review (owner):** of 373 approved Odoo->Wansoft mappings, 106 have
+  a different Odoo name today: 24 renames (kept), 82 point at another product
+  (mostly Odoo menu items 5100-/5200- matched to Wansoft supplies 1000- by code
+  base, or ids from an earlier Odoo database; the "meat cuts" 3213/3217 are
+  today two teas; the real Odoo Back Rib/Vacio are 3767/3768, unmapped).
+  Workbook: `reports/inventory_mapping_review/revision_mapeos_odoo_wansoft_20261013.xlsx`
+  (gitignored, on the dev PC). Owner: **reject the 69 never used** —
+  `scripts/reject_mismapped_unused_mappings.py` (`58aefae`), tested on dev
+  (purchase lines identical before/after to the cent; dim_product 465 -> 419
+  approved). **Pending: run it in production on the VM** (dry run, then
+  `--apply`; writes the live dictionary). The **13 in use** (Empanada de
+  Camaron -> Retazo de Pollo, Empanada copia -> Huevo, Costillar 1600 ->
+  Pina en Almibar, Dedos de Pollo -> Te de Limon, 9 meat cuts with a single
+  Antenas adjustment) wait for the owner's investigation; the movements build
+  leaves them without `wansoft_code` (`EXCLUDED_DICTIONARY_IDS`).
+- tukanmx: data guide with schema appendix (`ebd6b37`); grants part E added;
+  **pending: confirm on the VM that `SHOW GRANTS` lists 26 tables (parts C/D/E)**,
+  otherwise re-run the SQL file as root.
+- Production was never written from the dev PC today (read-only queries only).
+
+## Earlier NOW / NEXT (2026-10-13, Tuesday)
 
 **Night 10-12 to 10-13:** first with 19 stages; the two "Inventario paralelo Wansoft" stages ran (parallel exits of the 8 migrated branches up to 10-12), `odoo_inventory_quant_daily` has 10-08..10-12, purchases updated. Step 2 (parallel Wansoft inventory) is in production, backfilled from 2026-09-28 (`ec87af6`).
 
