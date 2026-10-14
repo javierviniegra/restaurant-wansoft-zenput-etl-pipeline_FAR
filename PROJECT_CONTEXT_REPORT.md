@@ -473,7 +473,68 @@ See prior reports for bugs #1-#17.
 
 # 13. Identified Legacy / Consolidated Backlog
 
-## NOW / NEXT (2026-10-14, Wednesday) — start here
+## NOW / NEXT (2026-10-16, Friday) — start here
+
+**State at the end of 2026-10-14: `analytics_inventory_movements` is LIVE in production** (unified inventory step 3 done).
+- Initial load on the VM (12:05-14:30): 40.6 M rows, ~18.6 GB. Wansoft: entries
+  1,850,540 + parallel 5,797; exits 37,499,835 (2 h 11 min) + parallel 137,014.
+  Odoo: 1,095,626 out + 46,153 in. Status: Wansoft final 18.2 M, history before
+  Odoo 21.2 M (since 2021), parallel after Odoo 130 k (not counted); Odoo final
+  304,646, parallel before start 837,133 (not counted).
+- **Validator in production: PASS** (`--since 2026-01-01 --odoo-stock-date 2026-10-13`):
+  Wansoft 17 branches equal to their sources; Odoo equal to its own capture in
+  Acoxpa, Isabel, Coyoacan, Oceania, Puebla, San Jeronimo, Via Vallejo; CentroMyJ
+  0.04 and Tepeyac 0.17 (minimal); Antenas 337 of 494 products differ (its known
+  Odoo inconsistency).
+- `odoo_stock_move_snapshot` loaded in production (1,627,059 moves).
+- **Nightly cycle now 21 stages**: "Inventario Odoo - movimientos" (incremental)
+  and "Inventario - movimientos unificados" (Wansoft by capture date, last 10
+  days; Odoo side rebuilt in full), after "Inventario Odoo - foto diaria"; about
+  6 min on dev.
+- **Mapping work in production:** the 69 never-used wrong mappings rejected
+  (`reject_mismapped_unused_mappings --apply`, Rejected: 69). The weekly name
+  matcher was applied once (`match_odoo_products_by_name --apply`): catalog 1,475
+  Wansoft codes, 898 Odoo products on a temporary code, **322 approved
+  automatically** (163,364 of 217,298 counting Odoo rows), **26 re-pointed**
+  (rejected rows whose name pair was right but Odoo id wrong), 269 for review
+  (workbook on the VM: `reports\inventory_mapping_review\emparejamiento_odoo_wansoft_20261014.xlsx`),
+  307 without candidate. The nightly-mode build was run right after to put the
+  codes in the table (expected: Odoo counting rows without Wansoft code ~217 k -> ~50 k).
+- `openpyxl==3.1.5` installed in the VM venv (added to requirements, `9b5af48`); the
+  matcher now falls back to CSV without it.
+- Dev MySQL fixed for good: `innodb_use_native_aio=1` (the 2026-09-07 setting `0`
+  caused every page-corruption incident); fresh datadir, partial production copy.
+- Data guide **version 1.3** with "what is new" box and version history (`f6b20e7`);
+  every guide change bumps the version.
+
+**Friday (owner back), in this order:**
+1. Check the nights of 10-14→10-15 and 10-15→10-16: **21 stages, 0 failed**; the two
+   new stages ~6 min; `daily_cycle_<date>.log`. Then
+   `validate_analytics_inventory_movements --since 2026-10-01 --odoo-stock-date <yesterday>`.
+2. On the VM: `git pull; git log --oneline -1` must show `9b5af48` or later
+   (needed before Sunday's mapping job).
+3. Owner reviews: the 269 name-match candidates (workbook above) and the 13
+   in-use wrong mappings (`revision_mapeos_odoo_wansoft_20261013.xlsx`; their ids are
+   `EXCLUDED_DICTIONARY_IDS` in the builder). Old weekly matcher: only looks at
+   sold Odoo products (`sale_ok`) and a Wansoft catalog frozen in 2024; decide
+   whether to retire its code-base rule.
+4. tukanmx: confirm `SHOW GRANTS FOR 'tukan_wansoft'@'%'` lists 26 tables; then
+   grant `analytics_inventory_movements` (part F of the SQL file, to write), guide
+   **v1.4** (Section 5.4 + Appendix A rerun), hand over.
+5. Unified inventory step 4: `analytics_inventory_stock_daily` (Odoo rebuilt
+   backwards from the latest capture, rule of 2026-10-12).
+6. Disk: on WansoftServer, measure which folders hold the ~220 GB not explained
+   by the databases (command in the 10-14 chat); host SVR-HIKCENTER free space.
+   Growth estimate 2026-10-14: ~1-1.3 GB/month on the database server, ~222 GB
+   free after the new tables -> 7-14 years.
+7. Housekeeping: delete dev folders `C:\xampp\mysql\data_old_20261013`,
+   `data_failed_20261013b`, `data_failed_20261013c` (~18 GB) once ControlPresupuestos_AP
+   and Analisis Ejecutivos are checked on the rebuilt dev MySQL; clean the bogus
+   dev replication (`multi-master.info`, 63 relay logs); from the 10-13 list:
+   change the `analisisbi` password and re-register the VM tasks; meat cuts /
+   19 spirits decisions.
+
+## Earlier NOW / NEXT (2026-10-14, Wednesday)
 
 **First thing (owner, agreed 2026-10-13): test 1 on the dev MySQL, then validate.**
 The dev MariaDB (XAMPP 10.4.32) crashes reproducibly with InnoDB page assertions
