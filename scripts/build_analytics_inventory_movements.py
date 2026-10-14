@@ -34,7 +34,9 @@ Odoo side (odoo_stock_move_snapshot, done moves with valuation):
 - quantity = done_qty (the product's unit), total_cost = the valuation layers'
   value, both signed; counts_in_stock = product_is_storable.
 - wansoft_code from the approved dictionary mapping when the Odoo product has
-  exactly one and it is not under review (EXCLUDED_DICTIONARY_IDS).
+  exactly one and it is not under review (EXCLUDED_DICTIONARY_IDS);
+  product_code / product_code_status (generated columns) carry the Wansoft
+  code or a temporary ODOO-<id> until the weekly name matcher maps it.
 - final_source_status: 'odoo_final' for an Odoo branch from its start date,
   'odoo_parallel_before_start' otherwise (include_in_business_views = 0).
 - Rebuilt in full on every run (about 1.6 M moves).
@@ -120,9 +122,17 @@ CREATE TABLE IF NOT EXISTS {TABLE} (
     final_source_status       VARCHAR(40)  NOT NULL,
     include_in_business_views TINYINT(1)   NOT NULL,
     loaded_at                 DATETIME     NOT NULL,
+    -- One product code for both systems (owner, 2026-10-14): the Wansoft code,
+    -- or a temporary ODOO-<id> while the Odoo product has no approved mapping.
+    -- Computed by MySQL, so a mapping approved later reaches every row on the
+    -- next rebuild of the Odoo side.
+    product_code              VARCHAR(60) AS (COALESCE(wansoft_code,
+                                  IF(source_system = 'odoo', CONCAT('ODOO-', odoo_product_id), NULL))) STORED,
+    product_code_status       VARCHAR(15) AS (CASE WHEN wansoft_code IS NOT NULL THEN 'wansoft'
+                                  WHEN source_system = 'odoo' THEN 'temporal_odoo' ELSE 'sin_codigo' END) STORED,
     UNIQUE KEY uq_movement (source_record, company_source_key, source_movement_id),
     KEY idx_company_date (company_source_key, movement_date),
-    KEY idx_product_date (wansoft_code, movement_date),
+    KEY idx_product_date (product_code, movement_date),
     KEY idx_captured (source_system, captured_date)
 )
 """

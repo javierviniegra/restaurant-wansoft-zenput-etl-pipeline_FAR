@@ -25,3 +25,12 @@ def run_product_mapping_backlog_job():
         env=env,
         check=True,
     )
+    # Odoo products still on a temporary ODOO-<id> code in
+    # analytics_inventory_movements, matched to Wansoft by normalized name
+    # (owner, 2026-10-14): equal name and one candidate -> approved; the rest
+    # go to reports/inventory_mapping_review/emparejamiento_odoo_wansoft_<date>.xlsx.
+    subprocess.run(
+        [sys.executable, "-m", "scripts.match_odoo_products_by_name", "--apply"],
+        env=env,
+        check=True,
+    )

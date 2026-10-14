@@ -1,5 +1,11 @@
 """Bulk-approves the weekly job's safest product mappings (owner, 2026-10-08, "A").
 
+WARNING (2026-10-14): do not run again. The names it compares are the ones
+stored in the dictionary, which can be stale: on 2026-10-13, 62 approved
+'exact_code_base' rows pointed at a different Odoo product (Odoo menu items
+5100-/5200- vs Wansoft supplies 1000-). Odoo products are now matched by
+their current name in scripts/match_odoo_products_by_name.py (weekly).
+
     python -m scripts.approve_exact_code_base_mappings                     # dry run: list only
     python -m scripts.approve_exact_code_base_mappings --apply --expect N  # write, only if N rows qualify
 

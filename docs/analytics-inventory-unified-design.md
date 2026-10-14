@@ -143,6 +143,34 @@ customer → `sale_consumption`, inventory → `adjustment`/`waste` (scrap),
 production → `production_in/out`, another branch or transit →
 `transfer_in/out`). To be confirmed against real moves when building.
 
+## Product code for both systems (owner, 2026-10-14)
+
+`product_code` = the Wansoft code, or a temporary `ODOO-<odoo_product_id>`
+while the Odoo product has no approved mapping; `product_code_status` =
+`wansoft`, `temporal_odoo` or `sin_codigo` (a Wansoft row without code).
+Both are generated columns, so an approved mapping reaches every row of the
+product on the next rebuild of the Odoo side. `wansoft_code` keeps only real
+Wansoft codes. The product index is on `product_code`.
+
+**Weekly name matcher** (`scripts/match_odoo_products_by_name.py`, run on
+Sundays by the product-mapping job after its own step): Odoo products with a
+temporary code are compared with the live Wansoft catalog (`dim_product` +
+`getinputinventory_entrada`) by normalized name (lower case, no accents,
+punctuation, Odoo code in brackets or "(copia)"). Equal name and exactly one
+Wansoft code -> `approved`; shared words (score >= 0.5) -> `pending_review`
+in the workbook `reports/inventory_mapping_review/emparejamiento_odoo_wansoft_<date>.xlsx`;
+the rest are listed. It never adds a second approved code to an Odoo
+product (bug #44), fills the Odoo id of old approved rows that lacked it, and
+re-points a row rejected on 2026-10-13 for its wrong Odoo id when the names
+are equal (history kept in `notes`). The old weekly job only looks at Odoo
+products that are sold (`sale_ok`) and uses a Wansoft catalog frozen in
+2024, which is why supplies such as Lomo or Jitomate were never proposed.
+
+Dev result (2026-10-14): before, 205,234 of the counting Odoo rows (521
+products) had no Wansoft code; after one run, 48,398 (319 products): 84%
+coded. 289 approved, 26 re-pointed, 147 for review. Purchase lines
+identical before and after (46,529 lines, same total to the cent).
+
 ## Wansoft movement-type catalog (block 3a, owner approved 2026-10-13)
 
 Measured in production on 2026-10-13 (full history, read-only). `counts_in_stock`
