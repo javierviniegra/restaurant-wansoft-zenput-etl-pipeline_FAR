@@ -7,15 +7,22 @@ For every branch and source (entries / exits) since --since:
 2. quantity: the same, summed (exits negative in the movements table);
 3. status: no branch-day counted from both main history and parallel
    (wansoft_parallel_after_odoo only from the branch's Odoo start date).
+4. Odoo side (--odoo-stock-date): per branch x Odoo product, the sum of the
+   storable movements written before Odoo's daily capture equals that
+   capture (odoo_inventory_quant_daily, internal locations). Reported, not
+   failed: Antenas (the 2024 prototype) carries stock in Odoo that is not
+   the sum of its own moves.
 Prints only the differences, then PASS / FAIL. Read-only.
 
     python -m scripts.validate_analytics_inventory_movements --since 2026-09-01
+    python -m scripts.validate_analytics_inventory_movements --since 2026-09-01 --odoo-stock-date 2026-10-13
 """
 import argparse
 
 from core.database.mysql import get_db_connection
 
 TABLE = "analytics_inventory_movements"
+MEXICO_CITY_TO_UTC_HOURS = 6  # captured_at is Mexico City time; odoo_write_date is UTC
 
 SOURCES = [
     # record, main, parallel, same-row condition (indexed), business date, sign
@@ -43,9 +50,45 @@ def source_totals(cur, main, parallel, same_row, date_expr, sign, since):
     return {row[0]: (row[1], float(row[2] or 0)) for row in cur.fetchall()}
 
 
+def odoo_vs_capture(cur, stock_date):
+    """Odoo side against Odoo's own stock capture of stock_date (see docstring, 4)."""
+    cur.execute("SELECT MAX(captured_at) FROM odoo_inventory_quant_daily WHERE stock_date = %s", (stock_date,))
+    captured_at = cur.fetchone()[0]
+    if captured_at is None:
+        print(f"Odoo: no hay foto de existencias para {stock_date}")
+        return
+    cur.execute(f"""
+        CREATE TEMPORARY TABLE tmp_val_moves (PRIMARY KEY (k, pid))
+        SELECT m.company_source_key k, m.odoo_product_id pid, SUM(m.quantity) qty
+        FROM {TABLE} m JOIN odoo_stock_move_snapshot s ON s.odoo_move_id = m.source_movement_id
+        WHERE m.source_system = 'odoo' AND m.counts_in_stock = 1
+          AND s.odoo_write_date <= %s + INTERVAL {MEXICO_CITY_TO_UTC_HOURS} HOUR
+        GROUP BY 1, 2
+    """, (captured_at,))
+    cur.execute("""
+        CREATE TEMPORARY TABLE tmp_val_quant (PRIMARY KEY (k, pid))
+        SELECT company_source_key k, odoo_product_id pid, SUM(quantity) qty
+        FROM odoo_inventory_quant_daily
+        WHERE stock_date = %s AND location_usage = 'internal' AND company_source_key IS NOT NULL
+        GROUP BY 1, 2
+    """, (stock_date,))
+    cur.execute("""
+        SELECT k, COUNT(*), SUM(ABS(dif) < 0.01), SUM(ABS(dif) >= 0.01), ROUND(SUM(ABS(dif)), 2)
+        FROM (SELECT a.k, a.pid, a.qty - COALESCE(q.qty, 0) dif FROM tmp_val_moves a LEFT JOIN tmp_val_quant q USING (k, pid)
+              UNION ALL
+              SELECT q.k, q.pid, -q.qty FROM tmp_val_quant q LEFT JOIN tmp_val_moves a USING (k, pid) WHERE a.pid IS NULL) x
+        GROUP BY k ORDER BY k
+    """)
+    print(f"Odoo contra su foto de existencias del {stock_date} (tomada {captured_at}):")
+    print("  sucursal | productos | exactos | distintos | suma |diferencia|")
+    for row in cur.fetchall():
+        print("  ", row)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--since", required=True, help="business date to start from, YYYY-MM-DD")
+    parser.add_argument("--odoo-stock-date", help="also compare the Odoo side with Odoo's capture of this stock date")
     args = parser.parse_args(argv)
 
     from core.config.companies import WANSOFT_SUBSIDIARY_SOURCE_KEY
@@ -93,6 +136,8 @@ def main(argv=None):
     """, (args.since,))
     for row in cur.fetchall():
         print("  estado:", row)
+    if args.odoo_stock_date:
+        odoo_vs_capture(cur, args.odoo_stock_date)
     conn.close()
     print("RESULTADO:", "PASS" if failures == 0 else f"FAIL ({failures})")
     return 0 if failures == 0 else 1
