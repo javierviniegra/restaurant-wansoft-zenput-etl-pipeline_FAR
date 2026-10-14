@@ -35,13 +35,17 @@ dictionary.
     python -m scripts.match_odoo_products_by_name --apply
 """
 import argparse
+import csv
 import os
 import re
 import unicodedata
 from datetime import date
 
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill
+try:  # the workbook needs openpyxl; without it the report is written as CSV
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+except ImportError:
+    Workbook = None
 
 from core.database.mysql import get_db_connection
 
@@ -126,14 +130,27 @@ def match(products, catalog):
     return approved, review, none
 
 
+HEAD = ["Odoo id", "Producto Odoo", "Movimientos", "Movimientos que cuentan", "Código Wansoft",
+        "Producto Wansoft", "Coincidencia", "Otros candidatos / nota", "Decisión del dueño"]
+GROUPS = ("Aprobados automáticamente", "Para revisión", "Sin candidato")
+
+
 def write_workbook(approved, review, none):
     os.makedirs(REPORT_DIR, exist_ok=True)
+    if Workbook is None:
+        path = f"{REPORT_DIR}/emparejamiento_odoo_wansoft_{date.today():%Y%m%d}.csv"
+        with open(path, "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.writer(f)
+            w.writerow(["Grupo"] + HEAD)
+            for title, rows in zip(GROUPS, (approved, review, none)):
+                for r in sorted(rows, key=lambda r: -(r[3] or 0)):
+                    w.writerow([title] + list(r) + [""])
+        return path
     path = f"{REPORT_DIR}/emparejamiento_odoo_wansoft_{date.today():%Y%m%d}.xlsx"
     wb = Workbook()
-    head = ["Odoo id", "Producto Odoo", "Movimientos", "Movimientos que cuentan", "Código Wansoft",
-            "Producto Wansoft", "Coincidencia", "Otros candidatos / nota", "Decisión del dueño"]
+    head = HEAD
     fill = PatternFill("solid", fgColor="035953")
-    for title, rows in (("Aprobados automáticamente", approved), ("Para revisión", review), ("Sin candidato", none)):
+    for title, rows in zip(GROUPS, (approved, review, none)):
         ws = wb.create_sheet(title)
         ws.append(head)
         for c in ws[1]:
