@@ -645,7 +645,7 @@ Get-Content $log -Tail 25 -Encoding UTF8
 ```
 
 Good: one `OK` line per stage and `##### CYCLE DONE in N min, 0 failed`. Stages:
-**19** on a normal night (16 before 2026-10-09, 17 until 2026-10-13), **+1** on Sundays ("Product mapping backlog (weekly)"),
+**21** on a normal night (16 before 2026-10-09, 17 until 2026-10-13, 19 until the unified inventory movements went live: "Inventario Odoo - movimientos" and "Inventario - movimientos unificados", after "Inventario Odoo - foto diaria", about 6 min), **+1** on Sundays ("Product mapping backlog (weekly)"),
 **+1** every 5 days ("Compras por clasificar (cada 5 dias)": 2026-10-11, 10-16,
 10-21...). Reference times for the first week: 38.9-47.6 min in total, Analytics
 purchase about 14 min.
