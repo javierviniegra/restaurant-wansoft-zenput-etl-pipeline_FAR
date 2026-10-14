@@ -11,6 +11,18 @@ se comprobó que existen en producción todas las tablas y columnas que nombra, 
 el esquema completo de cada tabla (Apéndice A) se tomó de producción el
 2026-10-13. Versión en PDF: [data-access-guide.es.pdf](data-access-guide.es.pdf).
 
+**Versión 1.3 (2026-10-13).** Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.
+
+> **Novedades de la versión 1.3** (respecto a la 1.2 del 2026-10-07):
+>
+> - **Existencias de Odoo día por día:** nueva tabla `odoo_inventory_quant_daily`, desde el 2026-10-08 (secciones 4 y 5.4).
+> - **Existencias de Wansoft a una fecha pasada:** regla y ejemplo verificado; las salidas sin `Fecha` se fechan con `FechaReal` (5.4).
+> - **Inventario paralelo de Wansoft** de las 8 sucursales migradas a Odoo: nuevas tablas `wansoft_parallel_inputinventory_entrada` y `wansoft_parallel_outgoinginventory_salida`, solo para comparar (5.4).
+> - **Cortes de caja que llegan un día tarde** en 7 sucursales (sección 7).
+> - **Nueva sección 9:** lo que está en construcción (movimientos de inventario unificados, existencias diarias, facturas de proveedor) y el paso a Odoo de Aeropuerto y Taquería Viaducto el 2026-11-01.
+> - **Nuevo Apéndice A:** todas las columnas (tipo, nulos, llaves) de las 30 tablas que puede leer el usuario.
+> - **Acceso:** 3 tablas más concedidas (`odoo_inventory_quant_daily` y las dos `wansoft_parallel_*`); 26 tablas de `wansoft` en total.
+
 ## Índice
 
 1. [Qué hay y dónde](#1-qué-hay-y-dónde)
@@ -29,6 +41,7 @@ el esquema completo de cada tabla (Apéndice A) se tomó de producción el
 7. [Frescura y horarios](#7-frescura-y-horarios)
 8. [Acceso](#8-acceso)
 9. [Lo que falta (en construcción)](#9-lo-que-falta-en-construcción)
+10. [Historial de versiones](#10-historial-de-versiones)
 
 [Apéndice A. Esquema de las tablas](#apéndice-a-esquema-de-las-tablas)
 
@@ -585,6 +598,37 @@ Otros cambios próximos:
   Wansoft hasta que Odoo tenga su costo de venta; `costs_source_by_company`
   muestra el día del cambio (5.2).
 - **Antenas** sigue con costo de Wansoft mientras se repara su base en Odoo.
+
+---
+
+## 10. Historial de versiones
+
+La versión más reciente va primero.
+**Versión 1.3 (2026-10-13)**
+
+- **Existencias de Odoo día por día:** nueva tabla `odoo_inventory_quant_daily`, desde el 2026-10-08 (secciones 4 y 5.4).
+- **Existencias de Wansoft a una fecha pasada:** regla y ejemplo verificado; las salidas sin `Fecha` se fechan con `FechaReal` (5.4).
+- **Inventario paralelo de Wansoft** de las 8 sucursales migradas a Odoo: nuevas tablas `wansoft_parallel_inputinventory_entrada` y `wansoft_parallel_outgoinginventory_salida`, solo para comparar (5.4).
+- **Cortes de caja que llegan un día tarde** en 7 sucursales (sección 7).
+- **Nueva sección 9:** lo que está en construcción (movimientos de inventario unificados, existencias diarias, facturas de proveedor) y el paso a Odoo de Aeropuerto y Taquería Viaducto el 2026-11-01.
+- **Nuevo Apéndice A:** todas las columnas (tipo, nulos, llaves) de las 30 tablas que puede leer el usuario.
+- **Acceso:** 3 tablas más concedidas (`odoo_inventory_quant_daily` y las dos `wansoft_parallel_*`); 26 tablas de `wansoft` en total.
+
+**Versión 1.2 (2026-10-07)**
+
+- Costos: la fuente del costo de cada sucursal como dato (nueva tabla `costs_source_by_company`), el cambio automático de Wansoft a Odoo por sucursal y cómo saber si los costos recientes ya están completos (5.2).
+- Compras: las compras sin clasificar cuentan en las vistas de negocio, con la nueva columna `catalog_status`; cuándo aparece una compra (Odoo al confirmarse, Wansoft al llegar la factura) (5.3).
+- Frescura y horarios con los datos de la primera semana en producción (sección 7).
+
+**Versión 1.1 (2026-10-01)**
+
+- Puesta en producción del 2026-10-01: las sucursales migradas toman compras e inventario de Odoo desde esa fecha (sección 3).
+- Costos: cada sucursal en Odoo toma su costo de Odoo desde su fecha de arranque; histórico de costos de Puebla y CentroMyJ (5.2).
+- Advertencia: las compras de Odoo y las de Wansoft no cuadran entre sí para la misma sucursal y mes (5.3).
+
+**Versión 1.0 (2026-09-28)**
+
+- Primera edición, en español e inglés con PDF: tablas por pregunta, reglas de oro, equivalencias de sucursales, histórico disponible, dominios, tablas que no se deben usar, frescura y acceso.
 
 <!-- schema-appendix:start -->
 

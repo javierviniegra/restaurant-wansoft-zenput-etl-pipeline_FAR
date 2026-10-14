@@ -79,7 +79,7 @@ def main():
     <td style="border: none; width: 100px; padding: 0;"><img class="logo" src="{{{{ logo_path }}}}"></td>
     <td style="border: none; padding: 0;">
       <p class="titulo">Data Access Guide</p>
-      <p class="subtitulo">Analytical databases <code>wansoft</code> and <code>zenput</code> | Fonda Argentina | Version 2026-10-13</p>
+      <p class="subtitulo">Analytical databases <code>wansoft</code> and <code>zenput</code> | Fonda Argentina | Version 1.3 (2026-10-13)</p>
     </td>
   </tr>
 </table>

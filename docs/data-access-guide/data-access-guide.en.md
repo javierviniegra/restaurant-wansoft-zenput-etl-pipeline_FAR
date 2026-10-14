@@ -11,6 +11,18 @@ column it names was confirmed to exist in production on 2026-10-07, and the
 full schema of every table (Appendix A) was taken from production on
 2026-10-13. PDF version: [data-access-guide.en.pdf](data-access-guide.en.pdf).
 
+**Version 1.3 (2026-10-13).** Every change to this guide raises its version number and is recorded in Section 10.
+
+> **What is new in version 1.3** (compared with 1.2 of 2026-10-07):
+>
+> - **Odoo stock day by day:** new table `odoo_inventory_quant_daily`, from 2026-10-08 (Sections 4 and 5.4).
+> - **Wansoft stock on a past date:** rule and verified example; exits without `Fecha` are dated by `FechaReal` (5.4).
+> - **Parallel Wansoft inventory** of the 8 branches migrated to Odoo: new tables `wansoft_parallel_inputinventory_entrada` and `wansoft_parallel_outgoinginventory_salida`, for comparison only (5.4).
+> - **Cash closings that arrive one day late** in 7 branches (Section 7).
+> - **New Section 9:** what is under construction (unified inventory movements, daily stock, supplier invoices) and Aeropuerto and Taquería Viaducto moving to Odoo on 2026-11-01.
+> - **New Appendix A:** every column (type, nulls, keys) of the 30 tables the user can read.
+> - **Access:** 3 more tables granted (`odoo_inventory_quant_daily` and the two `wansoft_parallel_*`); 26 `wansoft` tables in total.
+
 ## Contents
 
 1. [What is where](#1-what-is-where)
@@ -29,6 +41,7 @@ full schema of every table (Appendix A) was taken from production on
 7. [Freshness and schedule](#7-freshness-and-schedule)
 8. [Access](#8-access)
 9. [Still missing (under construction)](#9-still-missing-under-construction)
+10. [Version history](#10-version-history)
 
 [Appendix A. Table schemas](#appendix-a-table-schemas)
 
@@ -568,6 +581,37 @@ Other upcoming changes:
   until Odoo has their cost of sales; `costs_source_by_company` shows the
   switch day (5.2).
 - **Antenas** keeps Wansoft costs while its Odoo database is repaired.
+
+---
+
+## 10. Version history
+
+The most recent version comes first.
+**Version 1.3 (2026-10-13)**
+
+- **Odoo stock day by day:** new table `odoo_inventory_quant_daily`, from 2026-10-08 (Sections 4 and 5.4).
+- **Wansoft stock on a past date:** rule and verified example; exits without `Fecha` are dated by `FechaReal` (5.4).
+- **Parallel Wansoft inventory** of the 8 branches migrated to Odoo: new tables `wansoft_parallel_inputinventory_entrada` and `wansoft_parallel_outgoinginventory_salida`, for comparison only (5.4).
+- **Cash closings that arrive one day late** in 7 branches (Section 7).
+- **New Section 9:** what is under construction (unified inventory movements, daily stock, supplier invoices) and Aeropuerto and Taquería Viaducto moving to Odoo on 2026-11-01.
+- **New Appendix A:** every column (type, nulls, keys) of the 30 tables the user can read.
+- **Access:** 3 more tables granted (`odoo_inventory_quant_daily` and the two `wansoft_parallel_*`); 26 `wansoft` tables in total.
+
+**Version 1.2 (2026-10-07)**
+
+- Costs: each branch's cost source as data (new table `costs_source_by_company`), the automatic per-branch switch from Wansoft to Odoo, and how to tell whether recent costs are complete (5.2).
+- Purchases: unclassified purchases count in the business views, with the new column `catalog_status`; when a purchase appears (Odoo when confirmed, Wansoft when the invoice arrives) (5.3).
+- Freshness and schedule with the facts of the first production week (Section 7).
+
+**Version 1.1 (2026-10-01)**
+
+- Production start on 2026-10-01: the migrated branches take purchases and inventory from Odoo from that date (Section 3).
+- Costs: each branch on Odoo takes its cost from Odoo from its start date; cost history of Puebla and CentroMyJ (5.2).
+- Warning: Odoo and Wansoft purchases do not match each other for the same branch and month (5.3).
+
+**Version 1.0 (2026-09-28)**
+
+- First edition, Spanish and English with PDF: table per question, golden rules, branch crosswalk, available history, domains, tables not to use, freshness and access.
 
 <!-- schema-appendix:start -->
 
