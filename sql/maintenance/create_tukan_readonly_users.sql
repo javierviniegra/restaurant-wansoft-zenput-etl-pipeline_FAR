@@ -91,6 +91,19 @@ GRANT SELECT ON `wansoft`.`odoo_inventory_quant_daily`                   TO 'tuk
 GRANT SELECT ON `wansoft`.`wansoft_parallel_inputinventory_entrada`      TO 'tukan_wansoft'@'%';
 GRANT SELECT ON `wansoft`.`wansoft_parallel_outgoinginventory_salida`    TO 'tukan_wansoft'@'%';
 
+-- ---------------- PART F (2026-10-16) ----------------
+-- Unified inventory movements, Wansoft + Odoo, full history (guide 1.4, 5.4),
+-- live in production since 2026-10-14. tukanmx reported on 2026-10-16 that
+-- parts C, D and E had never been applied in production (22 grants, not 26):
+-- run C, D, E and F together.
+GRANT SELECT ON `wansoft`.`analytics_inventory_movements`                TO 'tukan_wansoft'@'%';
+
+-- ---------------- PART G (2026-10-16, once the table exists) ----------------
+-- Odoo product -> Wansoft code equivalence, published nightly by the movements
+-- build (guide 1.4, 5.4). tukanmx asked which table to use for it; dim_product
+-- still carries mappings under review.
+GRANT SELECT ON `wansoft`.`analytics_odoo_product_code`                  TO 'tukan_wansoft'@'%';
+
 -- Re-running the WHOLE file is safe: CREATE USER IF NOT EXISTS leaves an
 -- existing user and its password untouched (a note, not an error), and a GRANT
 -- that already exists changes nothing. Do that when parts C/D/E are in doubt.
@@ -100,7 +113,7 @@ GRANT SELECT ON `wansoft`.`wansoft_parallel_outgoinginventory_salida`    TO 'tuk
 -- ---------------- VERIFY ----------------
 SHOW GRANTS FOR 'tukan_wansoft'@'%';
 SHOW GRANTS FOR 'tukan_zenput'@'%';
--- Expected: USAGE + 26 table grants for tukan_wansoft; USAGE + `zenput`.* for tukan_zenput.
+-- Expected: USAGE + 27 table grants for tukan_wansoft (28 once part G exists); USAGE + `zenput`.* for tukan_zenput.
 
 -- ---------------- DIAGNOSE: "Access denied ... @'localhost'" (2026-10-13) ----------------
 -- phpMyAdmin runs ON the database server, so it logs in as 'tukan_wansoft'@'localhost'.

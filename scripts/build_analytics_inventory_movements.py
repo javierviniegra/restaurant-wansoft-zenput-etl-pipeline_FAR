@@ -58,6 +58,7 @@ from core.database.mysql import get_db_connection
 TABLE = "analytics_inventory_movements"
 DEFAULT_WINDOW_DAYS = 10
 ODOO_SOURCE = "odoo_stock_move_snapshot"
+PRODUCT_CODE_TABLE = "analytics_odoo_product_code"
 # Approved mappings whose Odoo id is another product but is in use in 2026;
 # waiting for the owner's review (reports/inventory_mapping_review/
 # revision_mapeos_odoo_wansoft_20261013.xlsx). Their moves keep odoo_product_id
@@ -329,6 +330,44 @@ def create_odoo_helpers(cur):
         GROUP BY odoo_product_id
         HAVING COUNT(DISTINCT wansoft_code) = 1
     """, EXCLUDED_DICTIONARY_IDS)
+    publish_odoo_product_codes(cur)
+
+
+def publish_odoo_product_codes(cur):
+    """analytics_odoo_product_code: the Odoo product -> Wansoft code equivalence
+    the movements use, published for consumers (tukanmx asked, 2026-10-16) so
+    they never read inventory_mapping_dictionary or dim_product (dim_product
+    still carries mappings under review). Rewritten on every run."""
+    cur.execute(f"""
+        CREATE TABLE IF NOT EXISTS {PRODUCT_CODE_TABLE} (
+            odoo_product_id      INT          NOT NULL PRIMARY KEY,
+            odoo_product_name    VARCHAR(255) NULL,
+            wansoft_code         VARCHAR(50)  NOT NULL,
+            wansoft_product_name VARCHAR(255) NULL,
+            mapping_source       VARCHAR(50)  NULL,
+            updated_at           DATETIME     NOT NULL,
+            KEY idx_product_code_wansoft (wansoft_code)
+        )
+    """)
+    cur.execute(f"DELETE FROM {PRODUCT_CODE_TABLE}")
+    cur.execute(f"""
+        INSERT INTO {PRODUCT_CODE_TABLE}
+        SELECT p.odoo_product_id,
+               COALESCE(MAX(n.product_display_name), MAX(d.odoo_product_name)),
+               p.wansoft_code,
+               MAX(d.wansoft_product_name),
+               MAX(d.mapping_source),
+               NOW()
+        FROM tmp_aim_odoo_product p
+        JOIN inventory_mapping_dictionary d
+          ON d.odoo_product_id = p.odoo_product_id AND d.wansoft_code = p.wansoft_code
+         AND d.mapping_status = 'approved'
+        LEFT JOIN (SELECT odoo_product_id, MAX(product_display_name) AS product_display_name
+                   FROM {ODOO_SOURCE} GROUP BY odoo_product_id) n
+          ON n.odoo_product_id = p.odoo_product_id
+        GROUP BY p.odoo_product_id, p.wansoft_code
+    """)
+    print(f"  {PRODUCT_CODE_TABLE}: {cur.rowcount:,} equivalencias publicadas")
 
 
 def odoo_insert_sql(direction):
