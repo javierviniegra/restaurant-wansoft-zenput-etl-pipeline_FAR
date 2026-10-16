@@ -524,6 +524,8 @@ See prior reports for bugs #1-#17.
    password, meat cuts / spirits, WansoftServer disk folders).
 
 
+## Earlier NOW / NEXT (2026-10-16, Friday morning)
+
 **State at the end of 2026-10-14: `analytics_inventory_movements` is LIVE in production** (unified inventory step 3 done).
 - Initial load on the VM (12:05-14:30): 40.6 M rows, ~18.6 GB. Wansoft: entries
   1,850,540 + parallel 5,797; exits 37,499,835 (2 h 11 min) + parallel 137,014.
