@@ -150,6 +150,7 @@ WANSOFT_SOURCES = [
         "id_expr": "s.IdEntrada",
         "date_expr": "DATE(s.FechaEntrada)",
         "captured_expr": "DATE(s.FechaEntrada)",
+        "window_col": "s.FechaEntrada",  # indexed (sql/migrations/inventory_capture_date_indexes.sql)
     },
     {
         "label": "salidas",
@@ -162,6 +163,7 @@ WANSOFT_SOURCES = [
         "id_expr": "CONCAT(COALESCE(s.Fecha, ''), '|', s.IdSalida)",  # Fecha is NULL on adjustments/waste
         "date_expr": "COALESCE(NULLIF(s.Fecha, '0000-00-00'), s.FechaReal)",
         "captured_expr": "DATE(s.FechaSalida)",
+        "window_col": "s.FechaSalida",  # indexed (sql/migrations/inventory_capture_date_indexes.sql)
     },
 ]
 PARALLEL_TABLES = {
@@ -289,7 +291,8 @@ def load_wansoft(conn, window_start=None):
                     rows += cur.rowcount
                     conn.commit()
             else:
-                where = f"{src['captured_expr']} >= %s"
+                # Same rows as DATE(col) >= window_start, but able to use the index.
+                where = f"{src['window_col']} >= %s"
                 sql = wansoft_insert_sql(src, table, mode).replace("{where}", where)
                 cur.execute(sql, (window_start,))
                 rows += cur.rowcount
@@ -389,8 +392,10 @@ def load_odoo(conn):
     """Odoo side, rebuilt in full (deleted and reinserted by move-id ranges)."""
     cur = conn.cursor()
     create_odoo_helpers(cur)
+    started = time.time()
     cur.execute(f"DELETE FROM {TABLE} WHERE source_system = 'odoo'")
     conn.commit()
+    print(f"  borrado del lado Odoo: {cur.rowcount:,} filas ({time.time() - started:.0f} s)")
     cur.execute(f"SELECT MIN(odoo_move_id), MAX(odoo_move_id) FROM {ODOO_SOURCE}")
     low, high = cur.fetchone()
     for direction in ("out", "in"):
@@ -404,19 +409,27 @@ def load_odoo(conn):
     cur.close()
 
 
-def report(conn):
+def report(conn, since=None):
+    """Summary of the table. Nightly (since = window start): only the Wansoft
+    rows captured in the window plus the Odoo side, through idx_captured, so
+    it does not scan the ~40 M rows every night."""
+    started = time.time()
     cur = conn.cursor()
+    scope = "" if since is None else (
+        "WHERE (source_system = 'wansoft' AND captured_date >= %(since)s) OR source_system = 'odoo'")
+    wansoft_scope = "" if since is None else "AND captured_date >= %(since)s"
+    params = {"since": since}
     cur.execute(f"""
         SELECT source_record, final_source_status, include_in_business_views, COUNT(*), MIN(movement_date), MAX(movement_date)
-        FROM {TABLE} GROUP BY 1, 2, 3 ORDER BY 1, 2
-    """)
-    print("Resumen por origen y estado:")
+        FROM {TABLE} {scope} GROUP BY 1, 2, 3 ORDER BY 1, 2
+    """, params)
+    print("Resumen por origen y estado:" if since is None else f"Resumen (Wansoft capturado desde {since} + Odoo):")
     for row in cur.fetchall():
         print("  ", row)
     cur.execute(f"""
         SELECT source_record, source_movement_type, COUNT(*) FROM {TABLE}
-        WHERE source_system = 'wansoft' GROUP BY 1, 2
-    """)
+        WHERE source_system = 'wansoft' {wansoft_scope} GROUP BY 1, 2
+    """, params)
     catalog = {"wansoft_entrada": ENTRY_TYPES, "wansoft_salida": EXIT_TYPES}
     unknown = [row for row in cur.fetchall() if row[1] not in catalog[row[0]]]
     if unknown:
@@ -430,6 +443,7 @@ def report(conn):
     """)
     rows, products = cur.fetchone()
     print(f"Odoo final almacenable sin código Wansoft: {rows:,} filas de {products:,} productos (se ven por odoo_product_id)")
+    print(f"  resumen: {time.time() - started:.0f} s")
     cur.close()
 
 
@@ -446,6 +460,7 @@ def main(argv=None):
         branches = load_branches(cur)
         create_helper_tables(cur, branches)
         today = date.today()
+        window_start = None
         if args.full:
             print(f"Reconstrucción completa de {TABLE} (lado Wansoft)")
             cur.execute(f"DELETE FROM {TABLE} WHERE source_system = 'wansoft'")
@@ -456,13 +471,15 @@ def main(argv=None):
         else:
             window_start = today - timedelta(days=args.window_days)
             print(f"Ventana nocturna de {TABLE} (lado Wansoft): capturado desde {window_start}")
+            started = time.time()
             cur.execute(f"DELETE FROM {TABLE} WHERE source_system = 'wansoft' AND captured_date >= %s", (window_start,))
             conn.commit()
+            print(f"  borrado de la ventana Wansoft: {cur.rowcount:,} filas ({time.time() - started:.0f} s)")
             load_wansoft(conn, window_start)
             print("Reconstrucción del lado Odoo")
             load_odoo(conn)
         cur.close()
-        report(conn)
+        report(conn, None if args.full else window_start)
         return 0
     finally:
         conn.close()
