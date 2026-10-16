@@ -1,6 +1,7 @@
 # Unified inventory tables: movements and daily stock (design)
 
-Status: **design agreed with the owner on 2026-10-10; not built yet.** Build
+Status: **steps 1-3 live in production since 2026-10-14** (`analytics_inventory_movements`,
+40.6 M rows, validator PASS); step 4 next. Design agreed with the owner on 2026-10-10. Build
 starts on a working day, step by step, each step tested on dev and approved
 before it reaches production.
 
@@ -316,7 +317,14 @@ nine consistent branches it equals the forward sum.
    5,327 entries and 134,656 exits of the 8 branches, a second run changed
    nothing, the main tables got no row of them.
 3. **`analytics_inventory_movements`**: one-off backfill, then a nightly
-   window; new nightly stage.
+   window; new nightly stage. **Live 2026-10-14**: backfill 40.6 M rows in
+   about 2.5 h on the VM; stages "Inventario Odoo - movimientos" and
+   "Inventario - movimientos unificados"; capture-date indexes on the Wansoft
+   tables (`sql/migrations/inventory_capture_date_indexes.sql`, 2026-10-16).
+   The build also publishes `analytics_odoo_product_code`, the Odoo product ->
+   Wansoft code equivalence it uses (consumers' table, 2026-10-16). Next
+   improvement: an incremental Odoo side (the full nightly rebuild of 1.15 M
+   rows takes about 12 min in production).
 4. **`analytics_inventory_stock_daily`** from the movements.
 5. **`analytics_expense_invoices`** (supplier invoices; needs a crosswalk from
    Odoo accounting accounts to Wansoft's `Cuenta`).

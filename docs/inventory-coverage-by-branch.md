@@ -18,8 +18,8 @@ every gap below is something to close, not an accepted limitation.
 | Stock **on a past date**, Odoo branches | `odoo_inventory_quant_daily` | Raw Odoo stock per day, location and product, **from stock date 2026-10-08 on** (new nightly stage, Section 4). Nothing before |
 | Movements (entries, exits, waste, consumption), Wansoft | `getinputinventory_entrada`, `getoutgoinginventory_salida` | Wansoft only |
 | Purchase receipts, both systems | `canonical_purchase_receipt_snapshot`, `canonical_purchase_receipt_move_snapshot` | Entries by purchase only |
-| Movements of Odoo branches (consumption, waste, transfers) | — | **Not in the warehouse** (Section 5, part b) |
-| Inventory value in pesos, Odoo branches | — | **Not in the warehouse** (Section 5, part b) |
+| Every movement, both systems, full history | `analytics_inventory_movements` | Since 2026-10-14. Wansoft before each Odoo start, Odoo from it; `include_in_business_views = 1` for business figures (`docs/analytics-inventory-unified-design.md`) |
+| Inventory value in pesos, Odoo branches | `analytics_inventory_movements.total_cost` | Odoo valuation layers per move |
 
 ---
 
@@ -139,8 +139,8 @@ nightly window re-reads the last 5 days.
 | Gap | Branches | Period | How to close it |
 |---|---|---|---|
 | Odoo stock history | the 10 Odoo branches | Puebla/CentroMyJ: opening → 2026-10-07; the 8 migrated: 2026-10-01 → 2026-10-07 | Odoo stock moves, part b (the daily capture covers from 2026-10-08) |
-| Odoo movements (consumption, waste, transfers) | the 10 Odoo branches | since each Odoo start | part b |
-| Odoo inventory value in pesos | the 10 Odoo branches | since each Odoo start | part b (`stock.valuation.layer`) |
+| Odoo movements (consumption, waste, transfers) | the 10 Odoo branches | since each Odoo start | **closed 2026-10-14**: `analytics_inventory_movements` |
+| Odoo inventory value in pesos | the 10 Odoo branches | since each Odoo start | **closed 2026-10-14**: valuation in `analytics_inventory_movements.total_cost` |
 | Wansoft parallel capture | the 8 migrated | since 2026-10-01 | **closed 2026-10-13**: loaded into the `wansoft_parallel_*` tables (non-final) |
 
 ---

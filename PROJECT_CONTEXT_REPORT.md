@@ -473,7 +473,56 @@ See prior reports for bugs #1-#17.
 
 # 13. Identified Legacy / Consolidated Backlog
 
-## NOW / NEXT (2026-10-16, Friday) — start here
+## NOW / NEXT (2026-10-16, Friday, end of day) — start here
+
+**Done on 2026-10-16:**
+- **Nights 10-14→10-15 and 10-15→10-16: 21 and 22 stages, 0 failed**, but the cycle went
+  from ~45 to ~74 min: "Inventario - movimientos unificados" took ~30 min (1,765 / 1,809 s).
+  Cause 1: the Wansoft window filtered `DATE(FechaSalida)` with no index (EXPLAIN on
+  production: full scan of 37.5 M exits). Cause 2: the summary grouped all ~40 M rows.
+  Fixed (`79c2578`): capture-date indexes on the 4 Wansoft inventory tables
+  (`sql/migrations/inventory_capture_date_indexes.sql`, applied in production by the owner,
+  confirmed: EXPLAIN now `range` on `idx_salida_fechasalida`) and a nightly summary limited to
+  the window. A manual nightly-mode run on 10-16 still took ~20 min: the exits upsert 397 s
+  and the full Odoo rebuild (delete 314 s + insert 398 s) are now write cost on a 40 M-row
+  table. **Next improvement: incremental Odoo side** (rewrite only moves written in the window
+  and products whose Wansoft code changed; full rebuild on Sundays).
+- **tukanmx questions (e-mail of 2026-10-16), answered with the owner:**
+  1. The 4 tables they could not read: parts C, D and E of the grants file had never been
+     applied in production (22 grants). Applied on 10-16 together with part F
+     (`analytics_inventory_movements`) and part G (`analytics_odoo_product_code`): 28 `wansoft`
+     tables.
+  2. Personal data (waiters, system users, Zenput users, customer code, supplier contacts):
+     the owner accepts that tukanmx masks them **on their side** with stable pseudonyms
+     (nothing changes in our database; their users are read-only); company names of vendors
+     and branch names stay visible; asked who keeps the pseudonym dictionary and how we can
+     look a name up.
+  3. **IP restriction and TLS: approved by the owner**, to implement with the IP tukanmx
+     already shared. TLS: production MariaDB 10.4.28 is built with WolfSSL but `have_ssl =
+     DISABLED`: needs a certificate, `ssl_cert`/`ssl_key` in `my.ini`, one MySQL restart in a
+     quiet window, then `REQUIRE SSL` on the two tukan users. Scripts to prepare.
+  4. Odoo -> Wansoft code: the guide pointed at `inventory_mapping_dictionary` (not granted,
+     and in "do not use"). New table **`analytics_odoo_product_code`** (`452d810`), rewritten by
+     the movements build: the same equivalence the movements use (approved, one code per Odoo
+     product, none of the 13 under review); 567 rows in production. `dim_product` is not to be
+     used for this (it carries mappings under review).
+- **Data guide version 1.4** (es/en md, es html, PDFs): new 5.4 section on the unified
+  movements (fields, statuses, example), `analytics_odoo_product_code`, corrected section 6
+  (`odoo_inventory_quant_daily` is to be used), access 28 tables, section 9 (movements live;
+  IP + TLS next), Appendix A regenerated from production (32 tables, 833 columns).
+- README, runbook (9.4 stage fragments, 9.6 name matcher), unified-inventory design and
+  inventory coverage docs brought up to date.
+
+**Next (in this order):**
+1. Check the night 10-16→10-17: 21 stages, 0 failed, and the time of "movimientos unificados".
+2. Prepare the IP restriction (`RENAME USER ... TO 'tukan_wansoft'@'<ip>'`) and the TLS
+   scripts; owner picks the restart window.
+3. Incremental Odoo side of the movements build.
+4. Owner reviews: 269 name-match candidates and the 13 in-use wrong mappings.
+5. `analytics_inventory_stock_daily` (unified inventory step 4).
+6. Housekeeping from the 10-14 list (dev folders, dev replication leftovers, analisisbi
+   password, meat cuts / spirits, WansoftServer disk folders).
+
 
 **State at the end of 2026-10-14: `analytics_inventory_movements` is LIVE in production** (unified inventory step 3 done).
 - Initial load on the VM (12:05-14:30): 40.6 M rows, ~18.6 GB. Wansoft: entries
@@ -997,7 +1046,8 @@ Commits y documentos en inglés.
 tukanmx.com will connect to the `wansoft` and `zenput` databases, build its own ETL and deliver a question-and-answer / chatbot layer.
 
 - **Guide:** `docs/data-access-guide/data-access-guide.es.md` and `.en.md` (kept in sync), plus `data-access-guide.es.pdf` rendered from `data-access-guide.es.html` with `render_pdf.py` (xhtml2pdf, run with `ControlPresupuestos_AP\.venv\Scripts\python.exe`; same layout as that project's manuals; page-numbered contents). It covers layers, seven golden rules, the branch crosswalk (three different branch identifiers across tables; name mismatches such as Metepec = "Tollocan", Versalles = "Taquería Exhibimex", Napoles = "Polyforum", Acoxpa = "Costa Nera"; `7697` Taqueria San Fernando only in historical costs), which table answers which question, per-domain fields/joins/example SQL (all three examples run on dev), tables not to use, freshness and access.
-- **Users:** `sql/maintenance/create_tukan_readonly_users.sql` creates `tukan_wansoft` (SELECT on the documented `wansoft` tables only) and `tukan_zenput` (SELECT on `zenput`), each with `MAX_USER_CONNECTIONS 4` and `MAX_STATEMENT_TIME 1800`. Tested on dev (allowed read works; other tables, writes and cross-database access denied). **Created in production on 2026-10-01** as root in phpMyAdmin, host `'%'` (tukanmx gave no IPs yet; restrict when they do), passwords generated locally by the owner (24 alphanumeric characters), never committed or shared in chat. `SHOW GRANTS` showed the 22 table grants (parts C, D and E added later: `costs_source_by_company`, `odoo_inventory_quant_daily`, the two `wansoft_parallel_*` tables; 26 in total); tested from the tasks VM: `dim_time` readable (5,844 rows), `canonical_purchase_order_snapshot` denied (error 1142). **Pending (owner):** hand the server address (`187.251.203.223:3306`), users, passwords and the two PDFs to tukanmx through a private channel.
+- **Users:** `sql/maintenance/create_tukan_readonly_users.sql` creates `tukan_wansoft` (SELECT on the documented `wansoft` tables only) and `tukan_zenput` (SELECT on `zenput`), each with `MAX_USER_CONNECTIONS 4` and `MAX_STATEMENT_TIME 1800`. Tested on dev (allowed read works; other tables, writes and cross-database access denied). **Created in production on 2026-10-01** as root in phpMyAdmin, host `'%'` (tukanmx gave no IPs yet; restrict when they do), passwords generated locally by the owner (24 alphanumeric characters), never committed or shared in chat. `SHOW GRANTS` showed the 22 table grants; parts C, D and E (`costs_source_by_company`, `odoo_inventory_quant_daily`, the two `wansoft_parallel_*` tables) were only applied on 2026-10-16, when tukanmx reported they could not read them, together with F (`analytics_inventory_movements`) and G (`analytics_odoo_product_code`): **28 `wansoft` tables**; tested from the tasks VM: `dim_time` readable (5,844 rows), `canonical_purchase_order_snapshot` denied (error 1142). Credentials and guide handed over by the owner; tukanmx connected with both users (e-mail of 2026-10-16).
+- **2026-10-16 questions from tukanmx** (answers in Section 13, NOW/NEXT 2026-10-16): missing grants (fixed), personal data masked on their side, IP restriction + TLS approved, Odoo -> Wansoft code via `analytics_odoo_product_code`. The guide carries a version number since 1.3; **current: 1.4 (2026-10-16)**.
 - **Guide update 2026-10-01 (`82f6176`):** Section 5.3 warns that Odoo and Wansoft purchases do not match each other for the same branch and month (Odoo 7-19% above Wansoft's Costo operativo in September: Acoxpa +7.2%, Coyoacán +11.1%, Oceanía +18.5%), a source-system difference, not a load error. Spanish and English Markdown, Spanish HTML (by hand), English HTML (`build_en_html.py`, needs the `markdown` module: system `python`) and both PDFs (`render_pdf.py` with `ControlPresupuestos_AP\.venv`).
 - **History (measured in production 2026-09-28, guide Section 4.1):** sales tickets since 2021-09-01, payments per ticket only since 2025-01-01, cash closing 2022-01-01, daily cost 2021-07-31, monthly cost 2022-01-01, weekly cost 2024-01-02, butchery 2022-01-01, invoices by account 2019-02-18, inventory entries 2021-09-01, exits 2020-11-30 (1.15 M rows with an empty `0000-00-00` date), Zenput 2025-06. **Unified purchases hold the full production history (from 2021-09-01): rows and amounts match production's Wansoft invoices exactly for 2021-2025, and 2026 matches once the Odoo start-date rule is applied (104,099 vs 104,104 rows through 09-22).** Unified stock is a current snapshot by design.
 - **Sales gap accepted by the owner:** 2021-12-14..16 and 29..31 exist in the old `getallordenesbyday_venta` (4,366 tickets, $7.76 M) but not in `_new_venta`; 12-17..28 is nearly empty in both. The owner decided not to rescue it (the `_new_` history is enough).

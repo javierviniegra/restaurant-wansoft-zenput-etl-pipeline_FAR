@@ -23,6 +23,7 @@ COLUMN_WIDTHS = {
     ("Table", "Grain", "Key fields"): (42, 16, 42),
     ("What", "Table", "State", "What it solves"): (17, 25, 13, 45),
     ("Column", "Type", "Null", "Key"): (40, 40, 10, 10),
+    ("Field", "Meaning"): (32, 68),
 }
 
 # Sections that start on a new page, as in the Spanish PDF.
@@ -79,7 +80,7 @@ def main():
     <td style="border: none; width: 100px; padding: 0;"><img class="logo" src="{{{{ logo_path }}}}"></td>
     <td style="border: none; padding: 0;">
       <p class="titulo">Data Access Guide</p>
-      <p class="subtitulo">Analytical databases <code>wansoft</code> and <code>zenput</code> | Fonda Argentina | Version 1.3 (2026-10-13)</p>
+      <p class="subtitulo">Analytical databases <code>wansoft</code> and <code>zenput</code> | Fonda Argentina | Version 1.4 (2026-10-16)</p>
     </td>
   </tr>
 </table>

@@ -766,6 +766,8 @@ the stage names; `python -m scripts.run_daily_cycle --list` prints today's names
 | Odoo purchases + analytics (always together: analytics reads the canonical layer) | `"Purchases pipeline,Analytics purchase"` |
 | Odoo inventory | `"Inventory pipeline"` |
 | Odoo stock of the day (`odoo_inventory_quant_daily`) | `"foto diaria"` |
+| Odoo stock moves (`odoo_stock_move_snapshot`) | `"Odoo - movimientos"` |
+| Unified movements + `analytics_odoo_product_code` | `"movimientos unificados"` |
 | Cutover checkpoints | `"cutover"` |
 
 ```powershell
@@ -795,6 +797,15 @@ Worked examples: Step 3c (125-day purchases) and Step 3d (cost backfill of two
 branches).
 
 ### 9.6 Catalog review and the weekly mapping job
+
+**Odoo products on a temporary code (since 2026-10-14).** In `analytics_inventory_movements`
+an Odoo product without an approved Wansoft code has `product_code = ODOO-<id>`. Every Sunday,
+after the mapping job, `scripts/match_odoo_products_by_name.py --apply` approves the ones whose
+normalized name equals exactly one Wansoft product and writes the rest to
+`reports\inventory_mapping_review\emparejamiento_odoo_wansoft_<date>.xlsx` (CSV without
+openpyxl) for the owner. Run it by hand with no `--apply` for a dry run. The next night's
+Odoo rebuild puts the new codes in every row. `scripts/approve_exact_code_base_mappings.py`
+must not be run again (stale names; it produced wrong mappings, 2026-10-13).
 
 **Unclassified purchases (owner's option 1, live from the night of 2026-10-07 to
 10-08).** Purchase lines whose vendor or product is missing from `dim_vendor` /

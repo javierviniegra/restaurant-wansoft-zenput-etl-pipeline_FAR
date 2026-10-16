@@ -59,6 +59,8 @@ GROUPS = [
         ("wansoft_parallel_inputinventory_entrada", "entradas que las sucursales de Odoo siguen capturando en Wansoft, solo para comparar (5.4)", "entries the Odoo branches keep capturing in Wansoft, comparison only (5.4)"),
         ("wansoft_parallel_outgoinginventory_salida", "salidas que las sucursales de Odoo siguen capturando en Wansoft, solo para comparar (5.4)", "exits the Odoo branches keep capturing in Wansoft, comparison only (5.4)"),
         ("odoo_inventory_quant_daily", "existencias de Odoo día por día, desde 2026-10-08 (5.4)", "Odoo stock day by day, since 2026-10-08 (5.4)"),
+        ("analytics_inventory_movements", "movimientos de inventario unificados, Wansoft + Odoo (5.4)", "unified inventory movements, Wansoft + Odoo (5.4)"),
+        ("analytics_odoo_product_code", "código de Wansoft de cada producto de Odoo (5.4)", "Wansoft code of each Odoo product (5.4)"),
     ]),
     ("Gobierno y dimensiones", "Governance and dimensions", [
         ("analytics_company_domain_coverage", "fuente de cada dominio por sucursal (5.6)", "source of each domain per branch (5.6)"),

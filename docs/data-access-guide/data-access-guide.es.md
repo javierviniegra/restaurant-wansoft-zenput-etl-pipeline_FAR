@@ -6,22 +6,20 @@ Para: equipos externos que construirán su propio ETL sobre estas bases (por
 ejemplo, una capa de preguntas y respuestas / chatbot). Indica **qué tabla usar
 para cada pregunta de negocio, qué campos importan, cómo se unen las tablas y
 qué trampas evitar**. Cada regla se verificó contra el esquema y los datos
-reales el 2026-09-28; la guía está actualizada al **2026-10-13**. El 2026-10-07
+reales el 2026-09-28; la guía está actualizada al **2026-10-16**. El 2026-10-07
 se comprobó que existen en producción todas las tablas y columnas que nombra, y
 el esquema completo de cada tabla (Apéndice A) se tomó de producción el
 2026-10-13. Versión en PDF: [data-access-guide.es.pdf](data-access-guide.es.pdf).
 
-**Versión 1.3 (2026-10-13).** Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.
+**Versión 1.4 (2026-10-16).** Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.
 
-> **Novedades de la versión 1.3** (respecto a la 1.2 del 2026-10-07):
+> **Novedades de la versión 1.4** (respecto a la 1.3 del 2026-10-13):
 >
-> - **Existencias de Odoo día por día:** nueva tabla `odoo_inventory_quant_daily`, desde el 2026-10-08 (secciones 4 y 5.4).
-> - **Existencias de Wansoft a una fecha pasada:** regla y ejemplo verificado; las salidas sin `Fecha` se fechan con `FechaReal` (5.4).
-> - **Inventario paralelo de Wansoft** de las 8 sucursales migradas a Odoo: nuevas tablas `wansoft_parallel_inputinventory_entrada` y `wansoft_parallel_outgoinginventory_salida`, solo para comparar (5.4).
-> - **Cortes de caja que llegan un día tarde** en 7 sucursales (sección 7).
-> - **Nueva sección 9:** lo que está en construcción (movimientos de inventario unificados, existencias diarias, facturas de proveedor) y el paso a Odoo de Aeropuerto y Taquería Viaducto el 2026-11-01.
-> - **Nuevo Apéndice A:** todas las columnas (tipo, nulos, llaves) de las 30 tablas que puede leer el usuario.
-> - **Acceso:** 3 tablas más concedidas (`odoo_inventory_quant_daily` y las dos `wansoft_parallel_*`); 26 tablas de `wansoft` en total.
+> - **Movimientos de inventario unificados:** nueva tabla `analytics_inventory_movements`, una fila por movimiento (compra, venta, merma, consumo, producción, ajuste, traslado) de Wansoft y de Odoo, con todo el histórico, tipo normalizado, costo y un código de producto común (5.4).
+> - **Código de Wansoft de un producto de Odoo:** nueva tabla `analytics_odoo_product_code`, actualizada cada noche (5.4). Corrige la versión 1.3, que remitía a `inventory_mapping_dictionary`, una tabla no concedida.
+> - **Sección 6 corregida:** `odoo_inventory_quant_daily` sí se usa; la lista de tablas que no se deben usar ya no la incluye.
+> - **Acceso:** quedan concedidas las 4 tablas que faltaban (`costs_source_by_company`, `odoo_inventory_quant_daily` y las dos `wansoft_parallel_*`) y las 2 nuevas; 28 tablas de `wansoft` en total, todas en el Apéndice A.
+> - **Sección 9 actualizada:** los movimientos unificados ya están en producción; próximos pasos: acceso limitado a una IP fija y conexión cifrada (TLS).
 
 ## Índice
 
@@ -182,6 +180,8 @@ Notas:
 | Tareas | `zenput.zenput_tasks` | |
 | Qué fuente alimenta cada sucursal | `analytics_company_domain_coverage` | |
 | Desde qué día el costo de cada sucursal sale de Odoo | `costs_source_by_company` | `odoo_cost_start_date` NULL = Wansoft |
+| Todos los movimientos de inventario (compras, ventas, mermas, consumos, producción, ajustes, traslados), Wansoft + Odoo, todo el histórico | `analytics_inventory_movements` | `include_in_business_views = 1`; filtra siempre por sucursal y fechas (5.4) |
+| Código de Wansoft de un producto de Odoo | `analytics_odoo_product_code` | una fila por producto de Odoo (5.4) |
 
 ### 4.1 Histórico disponible
 
@@ -205,6 +205,7 @@ Fechas de inicio medidas en producción el 2026-09-28; la puesta en producción 
 | Existencias de Odoo día por día | `odoo_inventory_quant_daily` | Odoo | 2026-10-08 | Una foto cruda por noche (producto × ubicación); no hay historia de Odoo antes de esa fecha |
 | Checklists | `zenput.submissions`, `zenput.submission_answers` | Zenput | 2025-06-11 |  |
 | Tareas | `zenput.zenput_tasks` | Zenput | 2025-06-03 |  |
+| **Movimientos de inventario unificados** | `analytics_inventory_movements` | **Wansoft + Odoo** | 2020-09-29 | Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde entonces (Puebla desde el 2026-06-09); lo capturado en paralelo se conserva con `include_in_business_views = 0` |
 | Calendario | `dim_time` | — | 2020-01-01 | Hasta 2035-12-31 |
 
 ---
@@ -494,13 +495,55 @@ SELECT
   fecha de existencias 2026-10-08. Una fila por `stock_date`, ubicación y
   producto de Odoo (`odoo_product_id`, `product_name`, `location_name`,
   `location_usage` `internal` o `transit`, `quantity`, `company_source_key`),
-  sin mapeos. Para verlo en códigos Wansoft, une `odoo_product_id` con los
-  mapeos aprobados de `inventory_mapping_dictionary`. **No hay historia de
+  sin mapeos. Para verlo en códigos Wansoft, une `odoo_product_id` con
+  `analytics_odoo_product_code` (abajo). **No hay historia de
   existencias de Odoo antes del 2026-10-08.**
-- Todavía **no hay** movimientos de Odoo (consumos, mermas, transferencias)
-  **ni valuación de inventario** en dinero para las sucursales de Odoo (en
-  construcción, sección 9).
-  Cobertura detallada por sucursal: `docs/inventory-coverage-by-branch.md`
+- **Movimientos de inventario unificados (desde la versión 1.4):**
+  `analytics_inventory_movements`, una fila por movimiento de un producto en
+  una sucursal, de Wansoft y de Odoo, con todo el histórico (unos 40 millones
+  de filas). Se usa para flujos: cuánto se compró, vendió, mermó o consumió
+  de cada producto, por sucursal y día, sin importar el sistema.
+
+| Campo | Significado |
+|---|---|
+| `movement_date` | Fecha de negocio del movimiento |
+| `company_source_key` | Sucursal (clave corta) |
+| `source_system` | `wansoft` u `odoo` |
+| `direction` | `in` (entra a la sucursal) u `out` (sale) |
+| `movement_type` | Tipo normalizado: `purchase_receipt`, `sale_consumption`, `sale_cancellation`, `waste`, `theft`, `consumption`, `production_in`, `production_out`, `transfer_in`, `transfer_out`, `adjustment`, `initial_inventory`, `other` |
+| `source_movement_type` | El tipo original (`TipoEntrada`/`TipoSalida` de Wansoft; origen → destino de Odoo) |
+| `product_code`, `product_code_status` | Código de producto común: el código de Wansoft (`wansoft`) o un código temporal `ODOO-<id>` (`temporal_odoo`) mientras el producto de Odoo no tenga equivalencia; cuando la tenga, el código cambia en toda su historia |
+| `wansoft_code`, `odoo_product_id`, `product_name`, `unit_name` | Producto y unidad |
+| `quantity` | Cantidad con signo (+ entra, − sale), en la unidad del producto |
+| `unit_cost`, `total_cost` | Costo (Wansoft: costo unitario; Odoo: valuación); `total_cost` con signo |
+| `counts_in_stock` | Si el movimiento cambia las existencias (los traslados internos de Wansoft y las órdenes de compra no) |
+| `final_source_status`, `include_in_business_views` | Igual que en compras: para cifras de negocio filtra `include_in_business_views = 1`. Las sucursales migradas toman Wansoft antes de su arranque en Odoo y Odoo desde entonces; lo que se capturó en paralelo en el otro sistema queda con `include_in_business_views = 0` (`wansoft_parallel_after_odoo`, `odoo_parallel_before_start`) |
+
+```sql
+-- Merma y consumo por mes de una sucursal, ambos sistemas
+SELECT DATE_FORMAT(movement_date, '%Y-%m') AS mes, movement_type,
+       SUM(-quantity) AS cantidad, SUM(-total_cost) AS costo
+FROM analytics_inventory_movements
+WHERE company_source_key = 'Acoxpa' AND include_in_business_views = 1
+  AND movement_type IN ('waste', 'consumption')
+  AND movement_date >= '2026-01-01'
+GROUP BY mes, movement_type;
+```
+
+  Cada noche se recargan los movimientos de Wansoft capturados en los
+  últimos 10 días y todo el lado Odoo, así que los días recientes todavía
+  pueden cambiar. Para existencias usa `analytics_inventory_balance` (hoy) y
+  `odoo_inventory_quant_daily` (Odoo por día); las existencias diarias
+  unificadas están en construcción (sección 9).
+- **Código de Wansoft de un producto de Odoo:** `analytics_odoo_product_code`
+  (`odoo_product_id`, `odoo_product_name`, `wansoft_code`,
+  `wansoft_product_name`), una fila por producto de Odoo con equivalencia
+  vigente y revisada; se reescribe cada noche y es la misma que usa
+  `analytics_inventory_movements`. Úsala para leer `odoo_inventory_quant_daily`
+  en códigos Wansoft. **No uses `dim_product` para esto**: incluye
+  equivalencias que todavía están en revisión.
+- Cobertura detallada por sucursal:
+ `docs/inventory-coverage-by-branch.md`
   del repositorio.
 
 ### 5.5 Zenput (base `zenput`)
@@ -534,8 +577,8 @@ de venta.
 
 | Tablas | Por qué |
 |---|---|
-| `canonical_purchase_*`, `odoo_purchase_*`, `odoo_inventory_*` | Capas intermedias; las tablas analíticas son el resultado listo para negocio |
-| `inventory_*`, `product_catalog_mapping`, `backup_product_catalog_mapping`, `product_replacement_candidates`, `stg_*` | Mesa de trabajo de mapeos y revisiones |
+| `canonical_purchase_*`, `odoo_purchase_*`, `odoo_stock_move_snapshot` y las `odoo_inventory_*` **salvo `odoo_inventory_quant_daily`** | Capas intermedias; las tablas analíticas son el resultado listo para negocio |
+| `inventory_*`, `product_catalog_mapping`, `backup_product_catalog_mapping`, `product_replacement_candidates`, `stg_*` | Mesa de trabajo de mapeos y revisiones; para la equivalencia de productos usa `analytics_odoo_product_code` |
 | `odoo_company_migration_policy`, `odoo_cutover_validation_log` | Control del pipeline |
 | `getinventorybydepartment`, `getstockinventory_inventario`, `getinventorybyday_*` | Fotos antiguas que ya no se actualizan a diario |
 | `vw_inventory_*` | Vistas de diagnóstico |
@@ -580,12 +623,12 @@ usuario y se actualizan esta guía y el apéndice.
 
 ## 9. Lo que falta (en construcción)
 
-Estado al 2026-10-13. Ninguna de estas tablas existe todavía en producción;
-cuando entren, se concederán al usuario y se documentarán aquí.
+Estado al 2026-10-16. Los movimientos de inventario unificados ya están en
+producción (5.4). Las tablas de abajo todavía no existen; cuando entren, se
+concederán al usuario y se documentarán aquí.
 
 | Qué | Tabla | Estado | Qué resuelve |
 |---|---|---|---|
-| Movimientos de inventario unificados | `analytics_inventory_movements` | Diseñada; en construcción | Una fila por movimiento (compra, venta, merma, consumo, producción, ajuste, transferencia), Wansoft + Odoo, todo el histórico, con tipo normalizado y costo. Para las sucursales de Odoo trae sus movimientos y su valuación en pesos, que hoy no existen en la base |
 | Existencias diarias unificadas | `analytics_inventory_stock_daily` | Diseñada | Existencias por sucursal × producto × día desde el primer movimiento, ambas fuentes; reemplaza la fórmula de entradas − salidas de la sección 5.4 y cubre los huecos de Odoo antes del 2026-10-08 |
 | Facturas de proveedor unificadas | `analytics_expense_invoices` | Diseñada | Facturas por cuenta contable de Wansoft + facturas de proveedor de Odoo; hoy los gastos que no son mercancía de las sucursales de Odoo no se extraen (5.3) |
 
@@ -598,12 +641,22 @@ Otros cambios próximos:
   Wansoft hasta que Odoo tenga su costo de venta; `costs_source_by_company`
   muestra el día del cambio (5.2).
 - **Antenas** sigue con costo de Wansoft mientras se repara su base en Odoo.
+- **Seguridad del acceso:** el acceso del usuario quedará limitado a una IP fija y la conexión será cifrada (TLS); avisaremos la fecha y lo necesario para conectarse.
 
 ---
 
 ## 10. Historial de versiones
 
 La versión más reciente va primero.
+
+**Versión 1.4 (2026-10-16)**
+
+- **Movimientos de inventario unificados:** nueva tabla `analytics_inventory_movements`, una fila por movimiento (compra, venta, merma, consumo, producción, ajuste, traslado) de Wansoft y de Odoo, con todo el histórico, tipo normalizado, costo y un código de producto común (5.4).
+- **Código de Wansoft de un producto de Odoo:** nueva tabla `analytics_odoo_product_code`, actualizada cada noche (5.4). Corrige la versión 1.3, que remitía a `inventory_mapping_dictionary`, una tabla no concedida.
+- **Sección 6 corregida:** `odoo_inventory_quant_daily` sí se usa; la lista de tablas que no se deben usar ya no la incluye.
+- **Acceso:** quedan concedidas las 4 tablas que faltaban (`costs_source_by_company`, `odoo_inventory_quant_daily` y las dos `wansoft_parallel_*`) y las 2 nuevas; 28 tablas de `wansoft` en total, todas en el Apéndice A.
+- **Sección 9 actualizada:** los movimientos unificados ya están en producción; próximos pasos: acceso limitado a una IP fija y conexión cifrada (TLS).
+
 **Versión 1.3 (2026-10-13)**
 
 - **Existencias de Odoo día por día:** nueva tabla `odoo_inventory_quant_daily`, desde el 2026-10-08 (secciones 4 y 5.4).
@@ -634,7 +687,7 @@ La versión más reciente va primero.
 
 ## Apéndice A. Esquema de las tablas
 
-Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas del esquema de producción el 2026-10-13. **Nulo**: si la columna admite NULL. **Llave**: `PRI` llave primaria, `UNI` parte de una llave única, `MUL` parte de un índice. El significado de los campos importantes está en la sección indicada entre paréntesis.
+Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas del esquema de producción el 2026-10-16. **Nulo**: si la columna admite NULL. **Llave**: `PRI` llave primaria, `UNI` parte de una llave única, `MUL` parte de un índice. El significado de los campos importantes está en la sección indicada entre paréntesis.
 
 ### A.1 Ventas
 
@@ -1193,7 +1246,7 @@ Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas d
 | `CostoUnitario` | decimal(15,4) | sí |  |
 | `ProductoConIVA` | tinyint(1) | sí |  |
 | `Caducidad` | date | sí |  |
-| `FechaEntrada` | datetime | sí |  |
+| `FechaEntrada` | datetime | sí | MUL |
 | `Factura` | varchar(50) | sí |  |
 | `FechaFactura` | date | sí |  |
 | `RFCProveedor` | varchar(50) | sí |  |
@@ -1234,7 +1287,7 @@ Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas d
 | `Cantidad` | decimal(15,10) | sí |  |
 | `CostoUnitario` | decimal(15,4) | sí |  |
 | `Caducidad` | date | sí |  |
-| `FechaSalida` | datetime | sí |  |
+| `FechaSalida` | datetime | sí | MUL |
 | `IdTransferencia` | varchar(50) | sí |  |
 | `FolioTransferencia` | varchar(50) | sí |  |
 | `Orden` | varchar(50) | sí |  |
@@ -1270,7 +1323,7 @@ Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas d
 | `CostoUnitario` | decimal(15,4) | sí |  |
 | `ProductoConIVA` | tinyint(1) | sí |  |
 | `Caducidad` | date | sí |  |
-| `FechaEntrada` | datetime | sí |  |
+| `FechaEntrada` | datetime | sí | MUL |
 | `Factura` | varchar(50) | sí |  |
 | `FechaFactura` | date | sí |  |
 | `RFCProveedor` | varchar(50) | sí |  |
@@ -1311,7 +1364,7 @@ Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas d
 | `Cantidad` | decimal(15,10) | sí |  |
 | `CostoUnitario` | decimal(15,4) | sí |  |
 | `Caducidad` | date | sí |  |
-| `FechaSalida` | datetime | sí |  |
+| `FechaSalida` | datetime | sí | MUL |
 | `IdTransferencia` | varchar(50) | sí |  |
 | `FolioTransferencia` | varchar(50) | sí |  |
 | `Orden` | varchar(50) | sí |  |
@@ -1340,6 +1393,46 @@ Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas d
 | `quantity` | decimal(18,4) | no |  |
 | `reserved_quantity` | decimal(18,4) | no |  |
 | `quant_count` | int(11) | no |  |
+
+**`analytics_inventory_movements`**: movimientos de inventario unificados, Wansoft + Odoo (5.4). 24 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `movement_key` | bigint(20) | no | PRI |
+| `movement_date` | date | no |  |
+| `company_source_key` | varchar(100) | no | MUL |
+| `source_system` | varchar(10) | no | MUL |
+| `source_record` | varchar(20) | no | MUL |
+| `source_movement_id` | varchar(80) | no |  |
+| `captured_date` | date | sí |  |
+| `direction` | char(3) | no |  |
+| `movement_type` | varchar(20) | no |  |
+| `source_movement_type` | varchar(100) | sí |  |
+| `wansoft_code` | varchar(50) | sí |  |
+| `odoo_product_id` | int(11) | sí |  |
+| `product_name` | varchar(255) | sí |  |
+| `unit_name` | varchar(50) | sí |  |
+| `quantity` | decimal(18,6) | no |  |
+| `unit_cost` | decimal(18,6) | sí |  |
+| `total_cost` | decimal(18,4) | sí |  |
+| `location_name` | varchar(255) | sí |  |
+| `counts_in_stock` | tinyint(1) | no |  |
+| `final_source_status` | varchar(40) | no |  |
+| `include_in_business_views` | tinyint(1) | no |  |
+| `loaded_at` | datetime | no |  |
+| `product_code` | varchar(60) | sí | MUL |
+| `product_code_status` | varchar(15) | sí |  |
+
+**`analytics_odoo_product_code`**: código de Wansoft de cada producto de Odoo (5.4). 6 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `odoo_product_id` | int(11) | no | PRI |
+| `odoo_product_name` | varchar(255) | sí |  |
+| `wansoft_code` | varchar(50) | no | MUL |
+| `wansoft_product_name` | varchar(255) | sí |  |
+| `mapping_source` | varchar(50) | sí |  |
+| `updated_at` | datetime | no |  |
 
 ### A.5 Gobierno y dimensiones
 
