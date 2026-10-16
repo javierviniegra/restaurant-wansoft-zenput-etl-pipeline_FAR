@@ -515,8 +515,13 @@ See prior reports for bugs #1-#17.
 
 **Next (in this order):**
 1. Check the night 10-16→10-17: 21 stages, 0 failed, and the time of "movimientos unificados".
-2. Prepare the IP restriction (`RENAME USER ... TO 'tukan_wansoft'@'<ip>'`) and the TLS
-   scripts; owner picks the restart window.
+2. **Next week (agreed 2026-10-16):** IP restriction and TLS for tukanmx. Needs from the
+   owner: tukanmx's fixed IP, a MySQL restart window (~1 min; not 01:30-03:00, not the
+   Thursday 18:00 backup) and a date agreed with tukanmx. Prepare and test on dev first:
+   `RENAME USER` of both tukan users to that IP, certificate + `ssl_cert`/`ssl_key` in the
+   server's `my.ini`, `ALTER USER ... REQUIRE SSL`, and the rollback. Also pending from
+   tukanmx: confirm they see the 28 tables, their answer on the pseudonym dictionary, and
+   their technical questions.
 3. Incremental Odoo side of the movements build.
 4. Owner reviews: 269 name-match candidates and the 13 in-use wrong mappings.
 5. `analytics_inventory_stock_daily` (unified inventory step 4).
