@@ -473,7 +473,29 @@ See prior reports for bugs #1-#17.
 
 # 13. Identified Legacy / Consolidated Backlog
 
-## NOW / NEXT (2026-10-16, Friday, end of day) — start here
+## NOW / NEXT (2026-10-19, Monday) — start here
+
+**Weekend nights:** 10-17 21 stages 0 failed (66 min); 10-18 22 stages **1 failed**; 10-19 21
+stages **1 failed** (61-63 min). "Inventario - movimientos unificados" now 13.5-16.6 min (was
+~30, capture-date indexes). Sunday 10-18: the name matcher ran inside the weekly mapping job:
+64 auto-approved (29,100 of 64,509 counting Odoo rows still on a temporary code), 239
+candidates for review (workbook `emparejamiento_odoo_wansoft_20261018.xlsx` on the VM).
+
+**Cost switch incident (fixed 2026-10-19, `a2eb70b`):** "Costos - cambio automático a Odoo"
+FAILED both nights (continuity/duplicates). The two-consecutive-days rule switched **Vía
+Vallejo** (night of 10-18) and **Isabel La Católica** (10-19) to Odoo costs from 2026-10-01,
+but Odoo had invoiced only their first days (Isabel through 10-03, Vía Vallejo through
+10-11): days without Odoo invoices kept Wansoft's numbers, so October mixed both systems
+(monthly jumps of +154 k / +111 k / +183 k and drops on zero days). Owner chose **option A**:
+back to Wansoft, and a new rule — switch only after a **complete month invoiced in Odoo**
+(every day with Wansoft cost has Odoo cost, month total 0.5x-2x Wansoft's), switch date = day 1
+of the next month. `scripts/revert_cost_switch.py` (dry run by default) deleted both switch
+rows and recomputed their three cost tables from Wansoft on the VM (7.1 min, 0 failed);
+verified in production: no switch rows, all three October-wave branches `auto_switch_pending`,
+October 10-01..10-18 all Wansoft with no duplicates or drops. **Open:** ask who posts the
+customer invoices in Odoo for Isabel (none since 10-03) and Vía Vallejo (none since 10-11).
+
+## Earlier NOW / NEXT (2026-10-16, Friday, end of day)
 
 **Done on 2026-10-16:**
 - **Nights 10-14→10-15 and 10-15→10-16: 21 and 22 stages, 0 failed**, but the cycle went
