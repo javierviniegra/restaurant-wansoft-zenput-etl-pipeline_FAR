@@ -3,8 +3,9 @@ Nightly stage "Costos - cambio automático a Odoo" (owner, 2026-10-02).
 
 Runs right after the three cost stages:
 1. For each branch in COSTS_AUTO_SWITCH_TO_ODOO with no switch recorded yet,
-   applies the rule in extract/costs/cost_switch.py (two consecutive days of
-   plausible Odoo cost). On a hit it records the switch date in
+   applies the rule in extract/costs/cost_switch.py (a complete month
+   invoiced in Odoo; the switch is the first day of the next month, owner
+   2026-10-19). On a hit it records the switch date in
    costs_odoo_switch and prints an [AVISO] line in the night's log.
 2. For every branch switched tonight, recomputes its three cost tables from
    the switch date on (same as the manual backfill in runbook 3d: a child run

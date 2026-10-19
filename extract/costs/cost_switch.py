@@ -7,14 +7,22 @@ for its opening inventory balances), so their costs stay on Wansoft until
 Odoo really has data for them. Each branch switches on its own day, without
 anyone editing code.
 
-Detection rule (owner-approved):
-  - look at every day from the branch's Odoo start date through yesterday;
-  - a day "has Odoo cost" when Odoo's daily cost of sales (CostoTotal from
-    extract/costs/odoo_cost_report.get_daily_cost) is > 0 AND lies between
-    half and double the Wansoft cost stored for that day
-    (gettotalcostbydate.CostoTotalVenta), so a test entry or a stray
-    adjustment cannot trigger it;
-  - the switch date is the FIRST of two consecutive days that both qualify.
+Detection rule (owner, 2026-10-19, replaces the two-consecutive-days rule of
+2026-10-02):
+  - look at every complete calendar month from the branch's Odoo start date
+    through yesterday;
+  - a month "is invoiced in Odoo" when EVERY day with Wansoft cost
+    (gettotalcostbydate.CostoTotalVenta > 0) also has Odoo cost of sales
+    (CostoTotal from extract/costs/odoo_cost_report.get_daily_cost > 0), and
+    the month's Odoo total lies between half and double Wansoft's;
+  - the switch date is the FIRST DAY OF THE MONTH AFTER the first invoiced
+    month. A month is therefore always all-Wansoft or all-Odoo.
+Why: Odoo's cost comes from customer invoices, posted late and sometimes
+weeks behind. The old rule switched Isabel La Católica and Vía Vallejo on
+2026-10-01 after two invoiced days; the days Odoo had not invoiced yet kept
+Wansoft's numbers, so October mixed both systems (validation failed on the
+nights of 2026-10-18 and 10-19). Both were reverted to Wansoft
+(scripts/revert_cost_switch.py).
 Days before the switch date stay on Wansoft; from it on, Odoo. The switch
 never goes back by itself; to undo it, delete the branch's row from
 costs_odoo_switch (the next night recomputes the window from Wansoft).
@@ -48,7 +56,6 @@ from extract.costs.odoo_cost_report import get_daily_cost, resolve_odoo_company_
 
 MIN_RATIO = 0.5
 MAX_RATIO = 2.0
-CONSECUTIVE_DAYS = 2
 
 
 def qualifies(odoo_cost, wansoft_cost):
@@ -58,17 +65,31 @@ def qualifies(odoo_cost, wansoft_cost):
     return MIN_RATIO <= odoo_cost / wansoft_cost <= MAX_RATIO
 
 
+def _month_end(day):
+    nxt = (day.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return nxt - timedelta(days=1)
+
+
 def find_switch_date(odoo_daily, wansoft_daily, first_day, last_day):
     """
     odoo_daily / wansoft_daily: {date: cost}. Returns (switch_date, evidence)
-    or (None, None). evidence lists the qualifying days with both costs.
+    or (None, None): the first day of the month after the first complete
+    month (from first_day's month, ending by last_day) fully invoiced in
+    Odoo and plausible against Wansoft. evidence summarizes that month.
     """
-    day = first_day
-    while day + timedelta(days=CONSECUTIVE_DAYS - 1) <= last_day:
-        run = [day + timedelta(days=i) for i in range(CONSECUTIVE_DAYS)]
-        if all(qualifies(odoo_daily.get(d), wansoft_daily.get(d)) for d in run):
-            return day, [(d, odoo_daily[d], wansoft_daily[d]) for d in run]
-        day += timedelta(days=1)
+    month = first_day.replace(day=1)
+    while _month_end(month) <= last_day:
+        days = [month + timedelta(days=i) for i in range((_month_end(month) - month).days + 1)]
+        days = [d for d in days if d >= first_day]
+        sold = [d for d in days if (wansoft_daily.get(d) or 0) > 0]
+        odoo_total = sum(odoo_daily.get(d) or 0 for d in days)
+        wansoft_total = sum(wansoft_daily.get(d) or 0 for d in days)
+        missing = [d for d in sold if (odoo_daily.get(d) or 0) <= 0]
+        if sold and not missing and qualifies(odoo_total, wansoft_total):
+            switch = _month_end(month) + timedelta(days=1)
+            return switch, (f"{month:%Y-%m} invoiced in Odoo every day: odoo {odoo_total:,.2f} / "
+                            f"wansoft {wansoft_total:,.2f} ({odoo_total / wansoft_total:.2f}x)")
+        month = _month_end(month) + timedelta(days=1)
     return None, None
 
 
@@ -146,7 +167,8 @@ def load_switch_dates(conn):
 
 
 def record_switch(conn, company_key, switch_date, evidence):
-    text = "; ".join(f"{d}: odoo {o:,.2f} / wansoft {w:,.2f}" for d, o, w in evidence)[:500]
+    text = (evidence if isinstance(evidence, str)
+            else "; ".join(f"{d}: odoo {o:,.2f} / wansoft {w:,.2f}" for d, o, w in evidence))[:500]
     cur = conn.cursor()
     cur.execute(
         "INSERT INTO costs_odoo_switch (company_source_key, switch_date, detected_at, evidence) VALUES (%s, %s, NOW(), %s)",
@@ -277,7 +299,8 @@ def main(argv=None):
 
     branches = [b.strip() for b in args.branches.split(",")] if args.branches else sorted(COSTS_AUTO_SWITCH_TO_ODOO)
     odoo = get_odoo_connection()
-    print(f"Regla: {CONSECUTIVE_DAYS} días seguidos con costo de Odoo > 0 y entre {MIN_RATIO}x y {MAX_RATIO}x el de Wansoft")
+    print(f"Regla: un mes completo con costo de Odoo en cada día vendido y total del mes entre {MIN_RATIO}x y "
+          f"{MAX_RATIO}x el de Wansoft; cambio el día 1 del mes siguiente")
     for key in branches:
         if COMPANY_SOURCE.get(key) != "odoo":
             print(f"\n{key}: no es sucursal de Odoo, se ignora")
