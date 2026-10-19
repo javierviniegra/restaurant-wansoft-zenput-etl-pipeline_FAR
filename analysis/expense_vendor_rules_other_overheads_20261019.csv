@@ -1,0 +1,73 @@
+﻿odoo_partner_id,vendor_name,vendor_rfc,rule_source,tipo_de_egreso,cuenta,subcuenta,wansoft_invoices_with_this_subcuenta,lines_since_2026_06,amount_since_2026_06
+53,SIGMA FOODSERVICE COMERCIAL,CNO930113K12,owner_agreed,Costo de producción,Costo operativo,Costo de alimentos,,39,1738041.37
+14,EL BODEGON DE FITO,BDF130612GH8,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,12461/16462,31,1349203.68
+5052,INMOBILIARIA GOCOS,IGO760802431,owner_agreed,Gasto,Renta de Local,Arrendamiento PM,,1,386324.96
+4538,GERILA,GER2002106J1,owner_agreed,Gasto,Honorarios,Honorarios PM,,3,135000.0
+15,LAS EMPANADAS DE MARIA EVA,EME130207MFA,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,1312/1321,11,64380.0
+1464,TRANSPORTES BLINDADOS TAMEME,TBT8606096Q3,wansoft_vendor_history,Gasto,Fletes,Flete PM,447/488,17,55569.09
+4516,TODO LO ENCUENTRO EN MARKETPLACE,TLE161011RF9,wansoft_vendor_history,Gasto,Gastos Directos,Uniformes,8/8,1,43390.0
+75,PERALTA Y QUINTANILLA CONSULTORES,PQC0410153Y0,wansoft_vendor_history,Gasto,Suministro de Personal,Peralta y Quintanilla S,244/417,5,41453.13
+1,GRUPO HOSPITALARIO RODIVA,GHR140331IL6,wansoft_vendor_history,Gasto,Gastos Directos,Management Administrativo,826/916,1,28605.18
+1660,OPERADORA PRISSA,OPR920708QQ8,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,1297/1323,5,26792.25
+1659,DISTRIBUIDORA DE CARBÓN VEGETAL LA ÚNICA,DCV930823BCA,wansoft_vendor_history,Gasto,Gastos de venta,Carbon,663/744,2,23100.0
+1132,CORPORACION NOVAVISION,CNO960830IT7,wansoft_vendor_history,Gasto,Gastos por servicios,"Licencias, programas, Software",21/22,1,22242.24
+1069,ANGELA  ROJAS RODRIGUEZ,RORA6708243K4,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,2159/2397,5,22201.1
+4782,COMISION FEDERAL DE ELECTRICIDAD,CFE370814QI0,por_clasificar,,,,,1,21055.32
+1640,VINOS Y LICORES KANA,VLK1206297T1,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,1423/1463,3,19563.74
+224,CARLOS BARRERA AMEZCUA,BAAC600910L96,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,2664/2715,4,18628.1
+1764,EXLAV,EXL090109UCA,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,688/705,2,18181.26
+46,BB LO NATURAL,BLN191008ER6,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,3202/3341,7,17975.0
+211,PROPIMEX,PRO840423SG8,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,1270/1306,1,16160.24
+50,WITTING Y GUERRERO LUZ ALICIA,WIGL480203HG5,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,905/915,3,13508.88
+4318,LA CAVA DE JAMES,,por_clasificar,,,,,4,13310.45
+1778,COMERCIALIZADORA SCARV,CSC1609074UA,wansoft_vendor_history,Gasto,Gastos de venta,Carbon,325/355,2,12563.2
+85,NUEVA WALMART DE MEXICO,NWM9709244W4,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,1621/2667,22,10857.77
+1766,ECM DE VINOS,EVI060613AE2,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,441/446,3,10291.9
+35,DISTRIBUIDORA COMERCIAL BENNETTS,DCB100727I87,wansoft_vendor_history,Gasto,Gastos Directos,Artículos de Limpieza,472/970,3,8769.74
+1785,ALKURUM,ALK190315BJ5,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,688/705,3,8335.97
+56,MARTÍNEZ BAIGORRIA GABRIELA ALFONSINA,MABG930405JR8,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,320/454,4,8078.38
+1757,LA EUROPEA MEXICO,EME910610G1A,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,16/28,4,7966.14
+1787,ALIMENTOS BAAB,ABA131030NV2,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,294/362,2,7862.05
+1455,TELEFONOS DE MEXICO,TME840315KT6,wansoft_vendor_history,Gasto,Gastos Directos,Teléfono,199/221,6,7527.59
+1737,JOSE ANGEL HURTADO MARTINEZ,HUMA770829NL6,wansoft_vendor_history,Gasto,Gastos de venta,Hielo,825/941,3,7380.0
+2273,LA PANERA ALTA REPOSTERIA,PAR220301NA3,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,439/724,2,7240.0
+1054,AGUSTIN FIGUEROA CORELLA,FICA940317AA1,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,475/711,3,5566.0
+1185,FABIOLA  ANGELES RUSS,AERF770323U55,wansoft_vendor_history,Gasto,Gastos Directos,Papelería / Arts para Oficina,216/275,1,5400.0
+1993,PANIFICADORA BOSQUES DE ARAGÓN,PBA890313MKA,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,120/123,3,4956.0
+1730,MARIA DE LOURDES PEREZ BECERRA,PEBL5811161Y6,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,595/1069,5,4853.0
+4716,CREATIVOROS,CRE101119JE0,wansoft_vendor_history,Gasto,Gastos de venta,Eq para Salon,1/1,1,4788.0
+1777,CORPORACION SERVINOVA,CSE940118E21,wansoft_vendor_history,Gasto,Gastos de venta,Articulos de Limpieza,118/265,1,4237.5
+80,TOTAL PLAY TELECOMUNICACIONES,TPT890516JP5,wansoft_vendor_history,Gasto,Gastos Directos,Teléfono,163/190,2,4167.0
+79,SUPER GAS DE MEXICO,SME480730UA4,wansoft_vendor_history,Gasto,Gastos de venta,Gas,216/218,1,3891.03
+98,SELECCIÓN DEOTTO,SDE171018GU0,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,294/299,1,3461.16
+241,JOSE ALEJANDRO SANDOVAL VELAZQUEZ DEL VALLE,SAVA7009147T9,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,383/520,1,3255.15
+123,CRISTALERIA MONTERREY,CMO8701093Q3,wansoft_vendor_history,Gasto,Gastos de venta,Cristaleria y Loza,98/135,1,2950.0
+1716,VIÑEDOS Y BODEGAS INTERNACIONALE,VBI101117FF2,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,359/365,1,2751.72
+4371,IBEXPORT,IBE1407306TA,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,170/171,1,2664.32
+1146,DISTRIBUIDORA INTEGRAL DE ALIMENTOS ESPECIALIZADOS,DIA120503RZ8,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,209/210,1,2488.0
+1050,ADT PRIVATE SECURITY SERVICES DE MEXICO,APS080728RT5,wansoft_vendor_history,Gasto,Gastos Directos,Vigilancia y Seguridad,40/41,1,1787.0
+1658,CHEF MART,CMA020801T83,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,548/700,2,1757.6
+314,OFFICE DEPOT MEXICO,ODM950324V2A,wansoft_vendor_history,Gasto,Gastos Directos,Papelería / Arts para Oficina,45/46,1,1722.42
+243,RACSY,RAC7405172Q0,wansoft_vendor_history,Gasto,Gastos Directos,Papelería / Arts para Oficina,112/392,1,1693.0
+303,GUERREROS DEL MAIZ,GMA180704QK9,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,103/103,2,1638.0
+4244,WANSOFT,WAN061023A90,wansoft_vendor_history,Gasto,Gastos Directos,Licencias/ Programas/ Software,331/379,2,1332.0
+2173,GLOBAL CHEMICAL PRODUCTS DE MEXICO,GCP030425HK9,wansoft_vendor_history,Gasto,Gastos de venta,Material de Empaque,105/164,1,1200.0
+1718,VINOS Y MAS,VMA001114CF2,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,489/494,1,1197.78
+1751,PREMIUM BEERS GROUP,BHI151014RYA,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,82/84,1,1026.7
+1719,VINOS LA NAVAL,VNA150622SK4,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,384/389,1,971.04
+1285,JULIO CESAR CANCHOLA GUTIERREZ,CAGJ8408166KA,wansoft_vendor_history,Gasto,Gastos Directos,Papelería / Arts para Oficina,26/39,1,925.0
+1533,TIENDAS SORIANA,TSO991022PB6,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,1029/1602,15,892.62
+256,GRUPO ESLIA,GES1502067R8,wansoft_vendor_history,Gasto,Gastos Directos,Mantto. Eq. de Restaurante,24/46,1,652.71
+1774,CT PRODUCTORA DE LICORES,CPL1607224E9,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,116/120,1,535.35
+136,HOME DEPOT MEXICO,HDM001017AS1,wansoft_vendor_history,Gasto,Gastos Directos,Mantenimiento del Local,85/185,2,497.42
+1183,EXPINS,TBO1203142Q6,wansoft_vendor_history,Gasto,Fletes,Flete PM,158/245,1,-364.66
+1611,AT ELECTRONICA,AEL0908183Z7,wansoft_vendor_history,Gasto,Gastos Directos,Papelería / Arts para Oficina,14/32,2,343.1
+4878,ANTONIO GUZMAN GARCIA,GUGA000903PR0,por_clasificar,,,,,1,192.0
+60,FONDA ARGENTINA,FAR9407253N7,wansoft_vendor_history,Gasto,Sueldos y Salarios,Salón,30/232,1,103.44
+1395,REFACCIONES MERETI,RME900827LV3,por_clasificar,,,,,2,79.74
+1065,ALMACENES DE ABARROTES LA NUEVA ALPINA,AAN710406SN6,wansoft_vendor_history,Gasto,Gastos de venta,"Gastos de Salón (salsas de sobre, etc)",1/1,1,75.0
+1354,NOVABOX,NOV100126FN4,wansoft_vendor_history,Gasto,Gastos por servicios,"Licencias, programas, Software",18/18,1,72.41
+4948,JOSE ALEJANDO RODRIGUEZ GARCIA,,por_clasificar,,,,,1,0.0
+4609,Sarahi Mendez,,por_clasificar,,,,,5,0.0
+3998,COMERCIAL CITY FRESKO,CCF121101KQ4,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,51/177,3,0.0
+551,Alejandro Rodríguez,,por_clasificar,,,,,1,0.0

@@ -109,12 +109,124 @@ branch (exact), then for a migrated branch across its Odoo start month (Wansoft
 before, Odoo after), then a born-on-Odoo branch. Spot-check Odoo status changes
 over a few days.
 
+## Block 1 findings: read-only Odoo exploration (2026-10-19)
+
+Scope: `account.move` with `move_type in (in_invoice, in_refund)`, every company,
+`invoice_date >= 2026-01-01` (12,989 moves); line analysis on the 10 branch
+companies since 2026-06-01. Scripts were run from the dev PC against Odoo
+(XML-RPC, read-only) and dev MySQL; nothing was written anywhere.
+
+**Volumes (posted bills since each branch's real Odoo activity).** Born on Odoo:
+Puebla from 2026-03 (opening capex; policy start 2026-06-10), CentroMyJ from
+2026-01/03. Migrated in the June wave (Acoxpa, Antenas, Tepeyac, Oceanía,
+Coyoacán): real bills from 2026-05/06, about 200-350 per month each; Antenas has
+real bills since January. October wave (Isabel, San Jerónimo, Vía Vallejo): about
+50 bills each in **September 2026** (Isabel 1.0 MDP, San Jerónimo 0.9 MDP) before
+the 2026-10-01 start, then 90-120 in October. Routing by
+`operational_start_date` keeps Wansoft before the start date, so these September
+Odoo bills are not loaded (same rule as purchases). Other Odoo companies (Bodegón
+de Fito, Empanadas de María Eva, Grupo Hospitalario Rodiva) are internal or out of
+scope.
+
+**Status.** Posted bills: `payment_state` in `paid`, `in_payment`, `not_paid`,
+`partial`, `reversed`. `reversed` bills (≈70 since January) have a posted
+`in_refund` that cancels them: loading both (refund as negative) nets to zero.
+Cancelled bills (`state = cancel`) are a few per month per branch; drafts are rare.
+Credit notes are material for some branches (Puebla: 2.35 MDP in April, 3.1 MDP in
+August), so **`in_refund` is included as negative amounts**.
+
+**CFDI UUID and supplier reference.** `l10n_mx_edi_cfdi_uuid` is almost always
+empty (only part of Oceanía and Tepeyac). The team types the **UUID in `ref`**:
+95-100% of posted bills per branch have a UUID-shaped `ref`. The supplier's folio
+is in `payment_reference`. No CFDI XML is attached. Rule: `uuid =
+COALESCE(l10n_mx_edi_cfdi_uuid, ref if it looks like a UUID)`; `folio =
+payment_reference`. 19 UUIDs appear on more than one posted move (39 moves):
+flag them (possible duplicate capture), do not drop them silently.
+
+**Taxes.** Tax lines are only IVA 16% and withholdings (IVA and ISR retained on
+rent, professional services, freight). **There is no IEPS tax in Odoo**: IEPS,
+when present, is inside the line amount, so `ieps` is NULL for Odoo rows. New
+column needed: `retentions` (Wansoft already has `Retentions`), so that
+`total = subtotal + iva - retentions`.
+
+**Accounts on lines.** Goods lines (≈22,000 lines, 29 MDP since June) post to the
+clearing account "Goods Received - No Invoices"; resolving them through the
+product category's expense account with company context (as in
+`extract/purchases/odoo_purchase_category_totals.py`) classifies 99.98%
+(6,330 MXN unresolved): 501.01.xx (Carnes 15.7 MDP, Con Alcohol 3.0, Frutas y
+Verduras 2.0, Sin Alcohol 1.8, ...) and 504.01.xx (Gastos de Salón, Mat. de
+Empaque, Art. de Limpieza, ...). Direct-expense lines carry their own account.
+
+**Account names are not a key.** The same code has different names in different
+companies (601.84.02 = "Renta de Equipo" and "Cash Difference Loss"; 601.84.24 =
+"Soporte técnico" and "Finiquito (copia)..."; 601.56.05 = "Mantenimiento ABR" and
+"Mtto Eq. De Restaurante (copia) (copia)"). `expense_account_mapping` must be
+keyed by the **Odoo account id** (per company if needed), with name and code kept
+for review.
+
+**"Other overheads" (601.84.01), 4.3 MDP since June.** 271 lines without a
+product: food from Sigma and Bodegón de Fito, rent, legal services, CFE, armoured
+transport. The account says nothing about the expense; it cannot be mapped by
+account. Owner decision needed (vendor-based rule, or a "por clasificar" bucket).
+
+**Crosswalk proposal.** `analysis/expense_account_mapping_proposal_20261019.csv`
+(93 account names): 37 automatic name matches (27.6 MDP), 26 suggested (32.8 MDP,
+mostly the 501.01 cost accounts -> Costo operativo / Costo de alimentos or
+bebidas), 30 for the owner (15.0 MDP: capex such as Equipo de restaurante 8.4 MDP
+and Gastos de Instalación 4.7 MDP, Other overheads, Advance to national suppliers
+-3.7 MDP, bank/transfer accounts, Mantenimiento ABR, Soporte técnico, Servicios
+de Logística, ...). A Wansoft `Subcuenta` used under two `Cuenta` values is
+proposed with its most used `Cuenta` since 2025; the other uses are listed.
+
 ## Open points
 
-- Odoo field holding the CFDI UUID and supplier reference.
-- IEPS on Odoo lines (tax breakdown).
-- Whether some Odoo accounts have no Wansoft equivalent (e.g. Publicidad y
-  Propaganda, Asesorías, No deducibles) and need new buckets agreed with the owner.
-- Credit notes (`in_refund`) in Odoo: probably include as negatives.
+- Owner decisions on the crosswalk (`owner_decision` rows and every `suggested`
+  row). **Decided 2026-10-19:** every 504.01 account (Gastos de Salón, Carbón,
+  Art. de Limpieza, Mat. de Empaque, Hielo, Gas, Cristalería y Loza, Manteletas,
+  Utensilios, Equipo de Salón, Equipo de Protección) is `Gasto / Gastos de
+  venta`, also for goods bought through purchase orders (Art. de Limpieza ->
+  `Gastos de venta / Articulos de Limpieza`, not `Gastos Directos`). Rows marked
+  `owner_confirmed` in the proposal CSV. Servicios de Logística (504.01.14) is a
+  service and stays open.
+- **Owner decisions on the 30 open accounts (2026-10-19)**, applied in the
+  proposal CSV (`owner_confirmed` unless said otherwise):
+  - A. Opening investment: Equipo de restaurante, Gastos de Instalación y/o
+    remodelación, Equipo de cómputo, Mobiliario y equipo de oficina, Equipo de
+    comunicación -> new bucket `TipoDeEgreso = Inversión`, `Cuenta = Inversión
+    inicial`, `Subcuenta` = the Odoo account name (13.2 MDP since June, almost all
+    Puebla and CentroMyJ). "Dep eq de restaurante" (one 7.5 k bill, Tepeyac) ->
+    `Gastos Directos / Mantto. Eq. de Restaurante`.
+  - B. Advances: "Advance to national suppliers", "Banorte 0144" (applied April
+    advances) and "Liquidity Transfer" (the counterpart of a Nova SM advance) are
+    `excluded_advance`: advance-application lines are left out so the final bill
+    counts once. **To verify while building:** the advance bills themselves
+    (Puebla, March-May 2026, about 3.9 MDP in 4 bills) must not also be loaded as
+    expenses.
+  - C. "Other overheads" is `vendor_rule`: classified per vendor,
+    `analysis/expense_vendor_rules_other_overheads_20261019.csv`. Agreed by the
+    owner: Sigma -> Costo de alimentos, Inmobiliaria Gocos -> Arrendamiento PM,
+    Gerila -> Honorarios PM. Every other vendor takes its most used Wansoft
+    `Cuenta` / `Subcuenta` by RFC since 2025 (Bodegón de Fito -> Costo de alimentos,
+    12,461 of 16,462 invoices); vendors with no Wansoft history (CFE 21 k, La Cava
+    de James 13 k, a few at zero) stay "Por clasificar" with an alert. Known
+    imperfection: Bodegón's imported chairs (208 k) land in Costo de alimentos.
+    Accounting should be told that bills are being captured without product or
+    account.
+  - D. Mantenimiento ABR (it is the vendor ABR Servicio y Hospitalidad) and
+    Materiales para Mantenimiento -> `Gastos Directos / Mantenimiento del Local`;
+    Servicios de Logística (both spellings) -> `Fletes / Flete PM`; Soporte técnico
+    (three spellings), "Finiquito (copia)..." (Vía Vallejo, same IT vendor) and Mtto
+    Eq. de Oficina y Cómputo -> `Gastos por servicios / Otros`; Peaje, transporte,
+    taxi -> `Viáticos / Viáticos`.
+  - E. Cash Difference Loss (really refrigerated storage) -> `Gastos por servicios
+    / Otros` (Wansoft has no `Gastos Directos / Otros`); Foreign exchange loss and
+    Comisiones Bancarias -> `Gastos financieros / Otros`; the three "Recibos
+    Pendientes" bank accounts -> `por_clasificar`.
+  - F. Discounts and returns on purchases (mostly wine vendors) -> `Costo
+    operativo / Costo de bebidas` as negatives; Variaciones de Inventario and the
+    goods lines with no category -> `Costo operativo / Costo de alimentos`.
+- Still to review by the owner: the 23 `suggested` rows (mostly 501.01 cost
+  accounts to Costo de alimentos / bebidas).
+- Duplicate UUIDs: flag rule.
 - Update `docs/data-access-guide/` (both languages, PDFs) and the tukanmx grants
   when the table exists.
