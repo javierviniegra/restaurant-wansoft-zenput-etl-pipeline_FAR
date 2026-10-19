@@ -2,7 +2,7 @@
 
 Master continuity document. Generated/updated automatically at the close of major steps, on explicit request ("Generate project context report"), when the conversation gets very long, when consumed context exceeds ~70%, or when a new chat needs to be opened due to token limits. Always regenerated in full, never as an incremental patch.
 
-Last generated: 2026-10-13 (Tuesday), for a chat handoff. **Production runs the nightly cycle `Wansoft_Pipeline_Diario` at 01:30 with 19 stages (~45 min) plus `Wansoft_Cortes_Manana` at 07:30.** Since 2026-10-07: documentation brought up to date; option 1 and rules A+B for unclassified purchases; bugs #42 (cutover checkpoints), #43 (Odoo inventory mapping scrambled), #44 (purchases load emptied by duplicate approvals) found and fixed; Odoo stock day by day (`odoo_inventory_quant_daily`); November wave (Aeropuerto and Taquería Viaducto as Odoo branches on 2026-11-01) prepared with a nightly detector, checklist and a scheduled session on 10-26; late cash closings closed as known behavior. **Unified inventory (owner's goal: one source-agnostic table per domain with all history): step 1 (Odoo stock moves + valuation, validated 9 of 10 branches) built, not wired; step 2 (parallel Wansoft inventory) in production. NEXT: step 3 block 3a (owner to confirm the movement-type catalog, open point "Venta cancelada"), check database-server disk, block 3b (`analytics_inventory_movements`).** Read Section 13 "NOW / NEXT" first, then `docs/analytics-inventory-unified-design.md`, `docs/inventory-coverage-by-branch.md` and Section 0 (machines).
+Last generated: 2026-10-19 (Monday), for a chat handoff. **Production runs the nightly cycle `Wansoft_Pipeline_Diario` at 01:30 with 21 stages (~60-65 min) plus `Wansoft_Cortes_Manana` at 07:30.** Since 2026-10-13: **unified inventory movements live** (`analytics_inventory_movements`, 40.6 M rows, Wansoft + Odoo, full history, validator PASS; `analytics_odoo_product_code`; weekly name matcher for Odoo products on a temporary `ODOO-<id>` code); dev MySQL corruption root-caused (`innodb_use_native_aio=0`) and fixed; 69 wrong Odoo mappings rejected; tukanmx: 28 granted tables, data guide **1.5**, IP + TLS approved for this week; **cost switch rule replaced** (complete month invoiced in Odoo; Isabel and Vía Vallejo reverted to Wansoft). **NEXT: expenses domain (`analytics_expense_invoices`, design `docs/analytics-expense-invoices-design.md`), block 1 = read-only exploration of Odoo vendor bills.** Read Section 13 "NOW / NEXT" first, then Section 0 (machines).
 
 ---
 
@@ -473,7 +473,33 @@ See prior reports for bugs #1-#17.
 
 # 13. Identified Legacy / Consolidated Backlog
 
-## NOW / NEXT (2026-10-19, Monday) — start here
+## NOW / NEXT (2026-10-19, Monday, handoff) — start here
+
+**Next chat (Paso 29): expenses domain, `analytics_expense_invoices`** (last domain of the
+owner's goal "one source-agnostic table per domain with all history"). Design agreed on
+2026-09-28: `docs/analytics-expense-invoices-design.md`. Work in blocks, each tested on dev
+and approved before production:
+1. Read-only exploration of Odoo vendor bills (`account.move` `in_invoice`, posted) per
+   branch since each Odoo start: volumes, accounts used, where Odoo keeps the CFDI UUID and
+   supplier reference, IEPS on lines, credit notes (`in_refund`), payment_state.
+2. `expense_account_mapping` (Odoo account -> Wansoft `Cuenta` / `Subcuenta` /
+   `TipoDeEgreso`), seeded by normalized name; unmatched accounts for the owner.
+3. Odoo vendor-bill extraction (incremental by `write_date`, periodic full pass).
+4. Wansoft payment status from `GetPendingExpenses_Xml` (read-only; never call
+   `MarkExpenseAsPaid_*` / `UpdateExpensesDownloadStatus_*`).
+5. `analytics_expense_invoices` + validation against the owner's Power BI "Compras
+   Mensuales" by Cuenta (one Wansoft, one migrated, one born-on-Odoo branch).
+6. Nightly stage, tukanmx grant, data guide 1.6.
+
+**Also this week:** check the night 10-19 -> 10-20 (cost stage must pass); tukanmx IP + TLS
+(owner gives the IP, a restart window and the date; scripts tested on dev first); send guide
+1.5 to tukanmx; November wave (Aeropuerto, Taquería Viaducto on 2026-11-01; session scheduled
+2026-10-26): include them in Odoo's sales automation from day 1. Later: incremental Odoo side
+of the movements build (~14 min -> 1-2), `analytics_inventory_stock_daily`, owner reviews (239
+name-match candidates, 13 in-use wrong mappings), housekeeping (dev folders ~18 GB, dev
+replication leftovers, analisisbi password, WansoftServer disk folders).
+
+## Earlier NOW / NEXT (2026-10-19, Monday)
 
 **Weekend nights:** 10-17 21 stages 0 failed (66 min); 10-18 22 stages **1 failed**; 10-19 21
 stages **1 failed** (61-63 min). "Inventario - movimientos unificados" now 13.5-16.6 min (was
@@ -1030,49 +1056,48 @@ Also on cutover day: the data guide gained the Odoo-vs-Wansoft 7-19% warning (`8
 
 # 18. Next Steps — HANDOFF PROMPT
 
-**Paste this as the first message of the new chat (from Wednesday 2026-10-14):**
+**Paste this as the first message of the new chat (from 2026-10-19):**
 
 ```
 Continúo el proyecto Wansoft + Odoo + Zenput Data Warehouse & ETL Pipeline
-(producción con el pipeline nuevo desde el 1-oct-2026; corrida nocturna de 19
+(producción con el pipeline nuevo desde el 1-oct-2026; corrida nocturna de 21
 etapas a la 01:30 y pasada de cortes a las 7:30). Lee completo
 PROJECT_CONTEXT_REPORT.md en la raíz del repositorio, empezando por la
-Sección 13 "NOW / NEXT" (entrada del 2026-10-13), luego la Sección 0
-(máquinas), docs/analytics-inventory-unified-design.md y
-docs/inventory-coverage-by-branch.md.
+Sección 13 "NOW / NEXT" (entrada del 2026-10-19, handoff), luego la Sección 0
+(máquinas) y docs/analytics-expense-invoices-design.md.
 
 Objetivo: una tabla por tema (existencias, ventas, compras, facturas de
 proveedor, movimientos de inventario) que junte Wansoft y Odoo con todo su
-histórico. Ventas y compras ya cumplen. Inventario: paso 1 (movimientos de
-Odoo con valuación) construido y validado pero sin conectar a la noche;
-paso 2 (inventario paralelo de Wansoft de las 8 migradas) en producción.
+histórico. Ventas, compras y movimientos de inventario ya cumplen
+(analytics_inventory_movements en producción desde el 14-oct). Falta el
+dominio de gastos: analytics_expense_invoices.
 
-Hoy seguimos con:
-1. Revisar la noche (log daily_cycle_<fecha>.log, 19 etapas, 0 failed).
-2. Cerrar el bloque 3a: el catálogo de tipos de movimiento (pendiente mi
-   respuesta sobre "Venta cancelada": hoy resta existencias).
-3. Medir el espacio en disco del servidor de base (WansoftServer); la tabla
-   de movimientos pesará ~10 GB (~40 M filas) y el disco de desarrollo está
-   al 95%.
-4. Bloque 3b: construir analytics_inventory_movements y probarla en
-   desarrollo.
-Si sobra tiempo: cortes de carne crudos vs limpios y los 19 destilados
-(decisiones mías), y cambiar la contraseña de analisisbi y volver a
-registrar las tareas de la VM.
+Hoy empezamos el dominio de gastos, por bloques:
+1. Revisar la noche (21 etapas, 0 failed; la etapa de costos ya no debe
+   fallar tras regresar Isabel y Vía Vallejo a Wansoft).
+2. Bloque 1 de gastos: explorar en Odoo, solo lectura, las facturas de
+   proveedor de cada sucursal desde su arranque (volúmenes, cuentas, UUID del
+   CFDI, IEPS, notas de crédito, estado de pago).
+3. Proponer la tabla de equivalencias de cuentas de Odoo a Cuenta/Subcuenta
+   de Wansoft; las que no coincidan las decido yo.
+Pendiente de esta semana: IP fija y TLS para tukan (te doy la IP y la
+ventana), mandarles la guía 1.5, y la ola de noviembre (Aeropuerto y
+Taquería Viaducto en Odoo el 1-nov).
 
 Reglas: la VM de tareas (Analisis_BI / DESKTOP-1HTRVT4, usuario analisisbi)
 NO tiene MySQL y su .env APUNTA A PRODUCCIÓN: cualquier corrida manual
 escribe en las bases reales. La base está en WansoftServer (192.168.100.183);
 el anfitrión Hyper-V es SVR-HIKCENTER; las tareas de ControlPresupuestos_AP
 y Central de Reportes no se tocan. Desde el PC de desarrollo se consulta
-producción solo en lectura. Me gusta ir paso a paso, un comando por bloque,
+producción solo en lectura. MySQL de desarrollo debe quedarse con
+innodb_use_native_aio=1. Me gusta ir paso a paso, un comando por bloque,
 probar en desarrollo antes de producción, y que todo quede documentado.
 Commits y documentos en inglés.
 ```
 
-**Suggested title for the new chat**: `FONDA (Wansoft): Paso 28: Inventario unificado – tabla de movimientos`
+**Suggested title for the new chat**: `FONDA (Wansoft): Paso 29: Dominio de gastos – facturas de proveedor unificadas`
 
-(Paso 27 = the chat of 2026-10-07..10-13: documentation, unclassified purchases, bugs #42-#44, Odoo stock history, November wave, unified-inventory steps 1-2.)
+(Paso 28 = the chat of 2026-10-13..10-19: unified inventory movements live, dev MySQL root cause, Odoo product mapping review and name matcher, tukanmx guide 1.3-1.5 and grants, cost switch rule replaced.)
 
 ---
 
