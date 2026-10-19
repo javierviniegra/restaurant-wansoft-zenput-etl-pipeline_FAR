@@ -87,8 +87,8 @@ All routing lives in [`core/config/companies.py`](core/config/companies.py) and 
   2026-10-01; their earlier months come from Wansoft, where they captured in parallel.
 - **October wave** (Isabel, San Jerónimo, Vía Vallejo) went live on Odoo on 2026-10-01 as a
   fresh start. Their costs stay on Wansoft until Odoo has cost of sales for them; the nightly
-  stage "Costos - cambio automático a Odoo" then switches each one by itself (first of two
-  consecutive days with Odoo cost > 0 and within 0.5x-2x of Wansoft), records it in
+  stage "Costos - cambio automático a Odoo" then switches each one by itself (since 2026-10-19:
+  once Odoo has a complete month invoiced, from day 1 of the next month), records it in
   `costs_odoo_switch`, backfills and validates. Nobody edits code.
 - **Nápoles** is a franchise and will never operate on Odoo.
 - **Internal providers** `EL BODEGON DE FITO` and `LAS EMPANADAS DE MARIA EVA` are suppliers,
@@ -122,7 +122,7 @@ in order, **continues after a failed stage**, and exits 1 if any stage failed. T
 | 9 | Compras - facturas/gastos | Wansoft invoices/expenses (`getexpenses_factura`) |
 | 10 | Costos - tablajería | butchery report (Wansoft branches only; being phased out) |
 | 11 | Costos - costo total por fecha | daily cost (`gettotalcostbydate`) |
-| 12 | Costos - cambio automático a Odoo | automatic cost switch, publishes `costs_source_by_company`, validates duplicates and continuity of every Odoo-costed branch |
+| 12 | Costos - cambio automático a Odoo | automatic cost switch (complete month invoiced in Odoo, from day 1 of the next month), publishes `costs_source_by_company`, validates duplicates and continuity of every Odoo-costed branch |
 | 13 | Zenput - forms | checklists and answers |
 | 14 | Zenput - tasks | tasks |
 | 15 | Inventory pipeline | Odoo inventory snapshot (mapped to Wansoft codes), scope, `analytics_inventory_balance`, validation |
@@ -241,6 +241,13 @@ workbench tables, `vw_inventory_*`) are not for consumers.
   Wansoft-only columns are NULL on Odoo rows. Courtesies and cancellations come from the cash
   closing (sale value) for every branch. Month/week-to-date stay whole across a mid-period
   switch (Wansoft days + Odoo days, each day once).
+- **How sales reach Odoo (owner, 2026-10-19):** sales are always recorded in Wansoft; an Odoo
+  automation turns each ticket into a sales order and customer invoice (which carries the cost
+  of sales) **only when every ingredient of its recipe is in stock**, so the cost is real and
+  branches must record production, receive purchases and manage inventory. Days with pending
+  tickets have no Odoo cost yet: not a load error. Hence the cost-switch rule: an October-wave
+  branch moves to Odoo costs only after a complete month invoiced in Odoo, from day 1 of the
+  next month (`extract/costs/cost_switch.py`; Isabel and Vía Vallejo were reverted on 10-19).
 - **Recent costs are incomplete for a while:** Odoo's cost follows customer invoicing (40-70%
   at +1 day, all by the month-end closing). Wansoft can keep inventory deductions pending
   (`CostoIdealDeProductosPendientesDeRebaja`) and recalculates days later. Both are rewritten

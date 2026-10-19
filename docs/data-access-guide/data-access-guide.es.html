@@ -47,7 +47,7 @@
     <td style="border: none; width: 100px; padding: 0;"><img class="logo" src="{{ logo_path }}"></td>
     <td style="border: none; padding: 0;">
       <p class="titulo">Guía de acceso a datos</p>
-      <p class="subtitulo">Bases analíticas <code>wansoft</code> y <code>zenput</code> | Fonda Argentina | Versión 1.4 (2026-10-16)</p>
+      <p class="subtitulo">Bases analíticas <code>wansoft</code> y <code>zenput</code> | Fonda Argentina | Versión 1.5 (2026-10-19)</p>
     </td>
   </tr>
 </table>
@@ -57,20 +57,17 @@ Para equipos externos que construirán su propio ETL sobre estas bases (por
 ejemplo, una capa de preguntas y respuestas / chatbot). Indica <b>qué tabla
 usar para cada pregunta de negocio, qué campos importan, cómo se unen las
 tablas y qué trampas evitar</b>. Cada regla se verificó contra el esquema y los
-datos reales el 28 de septiembre de 2026; la guía está actualizada al <b>16 de
+datos reales el 28 de septiembre de 2026; la guía está actualizada al <b>19 de
 octubre de 2026</b>. El 7 de octubre se comprobó que existen en producción todas
 las tablas y columnas que nombra, y el esquema completo de cada tabla
 (Apéndice A) se tomó de producción el 13 de octubre.
 </p>
-<p><b>Versión 1.4 (16 de octubre de 2026).</b> Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.</p>
+<p><b>Versión 1.5 (19 de octubre de 2026).</b> Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.</p>
 <table style="border: none; margin: 6px 0 14px;"><tr style="border: none;"><td style="border: none; background-color: #f0e9d8; padding: 8px 12px; font-size: 9pt;">
-<span class="nota-titulo">Novedades de la versión 1.4</span> (respecto a la 1.3 del 13 de octubre de 2026):
+<span class="nota-titulo">Novedades de la versión 1.5</span> (respecto a la 1.4 del 16 de octubre de 2026):
 <ul>
-  <li><b>Movimientos de inventario unificados:</b> nueva tabla <code>analytics_inventory_movements</code>, una fila por movimiento (compra, venta, merma, consumo, producción, ajuste, traslado) de Wansoft y de Odoo, con todo el histórico, tipo normalizado, costo y un código de producto común (5.4).</li>
-  <li><b>Código de Wansoft de un producto de Odoo:</b> nueva tabla <code>analytics_odoo_product_code</code>, actualizada cada noche (5.4). Corrige la versión 1.3, que remitía a <code>inventory_mapping_dictionary</code>, una tabla no concedida.</li>
-  <li><b>Sección 6 corregida:</b> <code>odoo_inventory_quant_daily</code> sí se usa; la lista de tablas que no se deben usar ya no la incluye.</li>
-  <li><b>Acceso:</b> quedan concedidas las 4 tablas que faltaban (<code>costs_source_by_company</code>, <code>odoo_inventory_quant_daily</code> y las dos <code>wansoft_parallel_*</code>) y las 2 nuevas; 28 tablas de <code>wansoft</code> en total, todas en el Apéndice A.</li>
-  <li><b>Sección 9 actualizada:</b> los movimientos unificados ya están en producción; próximos pasos: acceso limitado a una IP fija y conexión cifrada (TLS).</li>
+  <li><b>Cómo entran las ventas a Odoo y por qué su costo puede ir atrasado:</b> la automatización de Odoo solo procesa un ticket cuando hay inventario de todos los insumos de su receta; mientras falte alguno, ese día no tiene costo en Odoo (5.2).</li>
+  <li><b>Regla del cambio de costo a Odoo:</b> las sucursales de la ola de octubre pasan a costo de Odoo solo cuando Odoo tiene un mes completo facturado, y desde el día 1 del mes siguiente; un mes nunca mezcla los dos sistemas (secciones 3, 5.2 y 9).</li>
 </ul>
 </td></tr></table>
 
@@ -193,9 +190,9 @@ las tablas y columnas que nombra, y el esquema completo de cada tabla
   costo de Odoo <b>a partir de su fecha de arranque</b>, y de Wansoft antes de esa
   fecha. <b>Excepción temporal: Antenas</b> sigue con costo de Wansoft mientras se
   repara su base de datos en Odoo (fue el prototipo). <b>Isabel La Católica, San
-  Jeronimo y Vía Vallejo</b> siguen con costo de Wansoft hasta que Odoo tenga su
-  costo de venta (esperan sus saldos iniciales de inventario); cada una cambia
-  sola a Odoo el primer día en que Odoo ya tiene datos. Ver sección 5.2.</li>
+  Jeronimo y Vía Vallejo</b> siguen con costo de Wansoft hasta que Odoo tenga **un mes completo
+  facturado**; entonces cambian solas a Odoo desde el día 1 del mes siguiente.
+  Ver sección 5.2.</li>
   <li>Los proveedores internos <b>El Bodegón de Fito</b> y <b>Las Empanadas de
   María Eva</b> (cocinas centrales) se excluyen como empresa compradora en las
   vistas de negocio.</li>
@@ -319,7 +316,7 @@ montos son <b>valor de venta</b>. Úsalo para cuadrar los totales del día.</p>
   <tr><th style="width: 38%;">Tipo de sucursal</th><th>Fuente del costo hoy</th></tr>
   <tr><td>Solo Wansoft</td><td>Reporte de costos de Wansoft</td></tr>
   <tr><td>Migrada a Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán)</td><td>Wansoft hasta el 30 de septiembre de 2026; Odoo desde el 1 de octubre</td></tr>
-  <tr><td><b>Ola de octubre (Isabel La Católica, San Jeronimo, Vía Vallejo)</b></td><td>Wansoft hasta que Odoo tenga su costo de venta; desde ese día (distinto para cada una), Odoo. Hasta entonces, en las filas de octubre de Wansoft la merma y el consumo vienen en 0 porque ya no se capturan ahí</td></tr>
+  <tr><td><b>Ola de octubre (Isabel La Católica, San Jeronimo, Vía Vallejo)</b></td><td>Wansoft hasta que Odoo tenga un mes completo facturado (cada día con venta tiene costo en Odoo y el total del mes es razonable frente a Wansoft); desde el día 1 del mes siguiente, Odoo. Un mes nunca mezcla los dos sistemas. Mientras tanto, en las filas de Wansoft la merma y el consumo vienen en 0 porque ya no se capturan ahí</td></tr>
   <tr><td>Nueva, nacida en Odoo (Puebla, CentroMyJ y las que abran después)</td><td>Odoo desde su apertura. Odoo no tiene costo de venta de CentroMyJ antes de julio de 2026 ni de Puebla antes del 27 de julio de 2026: esos días valen 0</td></tr>
   <tr><td><b>Antenas (excepción temporal)</b></td><td>Wansoft, mientras se repara su base de datos en Odoo</td></tr>
 </table>
@@ -362,6 +359,14 @@ lo indica de forma distinta:</p>
   facturado en Odoo con la venta neta de Wansoft de ese día. El pipeline vuelve a
   leer de Odoo el mes en curso (y el anterior hasta el día 10), así que al cierre de
   mes las tablas quedan completas.</li>
+  <li><b>Cómo entran las ventas a Odoo:</b> la venta siempre se registra en Wansoft. Una
+  automatización en Odoo la convierte en orden de venta y factura de cliente, de
+  la que sale el costo de venta. **Solo procesa un ticket cuando hay inventario
+  de todos los insumos de su receta**; si falta alguno, la venta queda pendiente
+  hasta que haya existencias. Así el costo es el real y se obliga a las
+  sucursales a registrar sus producciones, recibir sus compras y administrar su
+  inventario. En consecuencia, los días con ventas pendientes todavía no tienen
+  costo en Odoo: no es un error de carga.</li>
 </ul>
 <p>Si necesitas un costo de días recientes, márcalo como estimado o espera a que el
 periodo esté completo.</p>
@@ -746,7 +751,7 @@ entren, se concederán al usuario y se documentarán aquí.</p>
   compras, inventario y costos saldrán de Odoo, con la misma regla de la
   sección 3; las ventas siguen en Wansoft.</li>
   <li><b>Isabel La Católica, San Jerónimo y Vía Vallejo</b> siguen con costo de
-  Wansoft hasta que Odoo tenga su costo de venta;
+  Wansoft hasta que Odoo tenga un mes completo facturado;
   <code>costs_source_by_company</code> muestra el día del cambio (5.2).</li>
   <li><b>Antenas</b> sigue con costo de Wansoft mientras se repara su base en
   Odoo.</li>
@@ -755,6 +760,11 @@ entren, se concederán al usuario y se documentarán aquí.</p>
 
 <h1>10. Historial de versiones</h1>
 <p>La versión más reciente va primero.</p>
+<p><b>Versión 1.5 (2026-10-19)</b></p>
+<ul>
+  <li><b>Cómo entran las ventas a Odoo y por qué su costo puede ir atrasado:</b> la automatización de Odoo solo procesa un ticket cuando hay inventario de todos los insumos de su receta; mientras falte alguno, ese día no tiene costo en Odoo (5.2).</li>
+  <li><b>Regla del cambio de costo a Odoo:</b> las sucursales de la ola de octubre pasan a costo de Odoo solo cuando Odoo tiene un mes completo facturado, y desde el día 1 del mes siguiente; un mes nunca mezcla los dos sistemas (secciones 3, 5.2 y 9).</li>
+</ul>
 <p><b>Versión 1.4 (2026-10-16)</b></p>
 <ul>
   <li><b>Movimientos de inventario unificados:</b> nueva tabla <code>analytics_inventory_movements</code>, una fila por movimiento (compra, venta, merma, consumo, producción, ajuste, traslado) de Wansoft y de Odoo, con todo el histórico, tipo normalizado, costo y un código de producto común (5.4).</li>

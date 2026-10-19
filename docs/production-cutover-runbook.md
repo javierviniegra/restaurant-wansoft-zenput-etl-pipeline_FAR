@@ -522,8 +522,13 @@ consumo at 0). They are in `COSTS_AUTO_SWITCH_TO_ODOO`: the nightly stage
 **"Costos - cambio automático a Odoo"** (after "costo total por fecha")
 switches each one to Odoo by itself, nobody edits code:
 
-- rule (`extract/costs/cost_switch.py`): the first of two consecutive days
-  with Odoo daily cost > 0 and within 0.5x-2x of Wansoft's stored daily cost;
+- rule (`extract/costs/cost_switch.py`, since 2026-10-19): a complete month
+  in which every day with Wansoft cost also has Odoo cost and the month total
+  is 0.5x-2x Wansoft's; the switch is day 1 of the next month (the old
+  two-consecutive-days rule mixed systems inside October for Isabel and Vía
+  Vallejo; both reverted with `scripts/revert_cost_switch.py`). Odoo lags
+  because its sales automation only processes a ticket when every ingredient
+  is in stock;
 - the date goes to the table `costs_odoo_switch` (with the evidence) and an
   `[AVISO] <branch> cambió a costos de Odoo desde <date>` line goes to the
   night's log; days before stay on Wansoft;

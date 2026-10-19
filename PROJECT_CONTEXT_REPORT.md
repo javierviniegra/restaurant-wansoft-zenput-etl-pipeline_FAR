@@ -313,7 +313,7 @@ Lookbacks remain `.env`-driven (`SALES 10 / WANSOFT 5 / PURCHASES 35`; `COSTS_LO
 | Warn in the data guide that Odoo and Wansoft purchases do not match each other (7-19%) | External readers would otherwise compare them and report it as a load error | `docs/data-access-guide/` (`82f6176`) |
 | Unregister `Wansoft_Restore_Ensayo` | One-shot rehearsal task, done; avoids an accidental manual run | Tasks VM |
 | October wave costs stay on Wansoft until Odoo has data, then switch automatically per branch (owner, 2026-10-02) | They cannot post cost in Odoo before their opening balances; the owner does not want to ask for a code change when it happens, and each branch may start on a different day | `COSTS_AUTO_SWITCH_TO_ODOO`, `extract/costs/cost_switch.py`, `pipelines/jobs/costs_switch_job.py`, `costs_odoo_switch` |
-| Switch rule: first of 2 consecutive days with Odoo cost > 0 and within 0.5x-2x of Wansoft; Odoo from that day, Wansoft before; never switches back by itself | A test entry or stray adjustment must not trigger it (Antenas' pilot data); taking Odoo from 10-01 would leave the pre-balance days at 0 | Same |
+| Switch rule: first of 2 consecutive days with Odoo cost > 0 and within 0.5x-2x of Wansoft; Odoo from that day, Wansoft before; never switches back by itself (**replaced 2026-10-19**: complete month invoiced in Odoo, switch on day 1 of the next month) | A test entry or stray adjustment must not trigger it (Antenas' pilot data); taking Odoo from 10-01 would leave the pre-balance days at 0 | Same |
 | Month/week-to-date continuous across a mid-period switch ("D1", owner: "they are part of the cost") | Otherwise the first month after a mid-month switch loses the Wansoft days (about 450,000 for Isabel if it switched on the 10th) | `wansoft_period_base` in the monthly and weekly cost scripts |
 | Nightly validation of duplicates and accumulation continuity for every Odoo-costed branch, failing the stage on problems (owner asked to validate no duplicates) | Proves each day counts exactly once; found bug #35 on its first run | `check_cost_continuity` |
 | Odoo cost rows clear the Wansoft-only columns when they overwrite a Wansoft row | Power BI subtracts `CostoDeConsumo` from `CostoTotal`; a stale Wansoft consumo would distort an Odoo row | Monthly and weekly cost scripts |
@@ -492,8 +492,14 @@ back to Wansoft, and a new rule — switch only after a **complete month invoice
 of the next month. `scripts/revert_cost_switch.py` (dry run by default) deleted both switch
 rows and recomputed their three cost tables from Wansoft on the VM (7.1 min, 0 failed);
 verified in production: no switch rows, all three October-wave branches `auto_switch_pending`,
-October 10-01..10-18 all Wansoft with no duplicates or drops. **Open:** ask who posts the
-customer invoices in Odoo for Isabel (none since 10-03) and Vía Vallejo (none since 10-11).
+October 10-01..10-18 all Wansoft with no duplicates or drops. **Why Odoo lags (owner, 2026-10-19):** sales
+reach Odoo through an Odoo automation (sales orders + customer invoices, created under the
+owner's user; other names = a user forced the load). It **only processes a ticket when every
+ingredient of its recipe is in stock**, on purpose: the cost is real and branches must record
+production, receive purchases and manage inventory. Odoo on 10-19: Isabel processed through
+10-03 (sales loaded, waiting for stock), Vía Vallejo through 10-11, San Jerónimo none in October;
+the 7 earlier branches through 10-18. Documented in data guide **1.5** (5.2, sections 3 and 9),
+README and `cost_switch.py`. Not a load error; costs stay on Wansoft until a month is complete.
 
 ## Earlier NOW / NEXT (2026-10-16, Friday, end of day)
 

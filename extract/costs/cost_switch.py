@@ -18,7 +18,9 @@ Detection rule (owner, 2026-10-19, replaces the two-consecutive-days rule of
   - the switch date is the FIRST DAY OF THE MONTH AFTER the first invoiced
     month. A month is therefore always all-Wansoft or all-Odoo.
 Why: Odoo's cost comes from customer invoices, posted late and sometimes
-weeks behind. The old rule switched Isabel La Católica and Vía Vallejo on
+weeks behind: Odoo's sales automation only processes a ticket when every
+ingredient of its recipe is in stock (owner, 2026-10-19), so a branch that
+does not record production, receipts and inventory keeps tickets pending. The old rule switched Isabel La Católica and Vía Vallejo on
 2026-10-01 after two invoiced days; the days Odoo had not invoiced yet kept
 Wansoft's numbers, so October mixed both systems (validation failed on the
 nights of 2026-10-18 and 10-19). Both were reverted to Wansoft

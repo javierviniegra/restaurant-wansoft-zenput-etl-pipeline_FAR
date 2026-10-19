@@ -6,20 +6,17 @@ Audience: external teams building their own ETL on top of these databases (for
 example, a question-and-answer / chatbot layer). It tells you **which table to
 use for each business question, which fields matter, how tables join, and the
 traps to avoid**. Every rule here was checked against the live schema and data
-on 2026-09-28; the guide is current as of **2026-10-16**. Every table and
+on 2026-09-28; the guide is current as of **2026-10-19**. Every table and
 column it names was confirmed to exist in production on 2026-10-07, and the
 full schema of every table (Appendix A) was taken from production on
 2026-10-13. PDF version: [data-access-guide.en.pdf](data-access-guide.en.pdf).
 
-**Version 1.4 (2026-10-16).** Every change to this guide raises its version number and is recorded in Section 10.
+**Version 1.5 (2026-10-19).** Every change to this guide raises its version number and is recorded in Section 10.
 
-> **What is new in version 1.4** (compared with 1.3 of 2026-10-13):
+> **What is new in version 1.5** (compared with 1.4 of 2026-10-16):
 >
-> - **Unified inventory movements:** new table `analytics_inventory_movements`, one row per movement (purchase, sale, waste, consumption, production, adjustment, transfer) of Wansoft and Odoo, with full history, a normalized type, cost and a common product code (5.4).
-> - **Wansoft code of an Odoo product:** new table `analytics_odoo_product_code`, refreshed every night (5.4). Corrects version 1.3, which pointed at `inventory_mapping_dictionary`, a table that is not granted.
-> - **Section 6 corrected:** `odoo_inventory_quant_daily` is to be used; the list of tables not to use no longer includes it.
-> - **Access:** the 4 tables that were missing are now granted (`costs_source_by_company`, `odoo_inventory_quant_daily` and the two `wansoft_parallel_*`) plus the 2 new ones; 28 `wansoft` tables in total, all in Appendix A.
-> - **Section 9 updated:** the unified movements are live; next steps: access limited to a fixed IP and an encrypted connection (TLS).
+> - **How sales reach Odoo and why its cost can lag:** Odoo's automation only processes a ticket when every ingredient of its recipe is in stock; while one is missing, that day has no cost in Odoo (5.2).
+> - **Rule for switching costs to Odoo:** the October-wave branches switch to Odoo costs only once Odoo has a complete month invoiced, from the first day of the next month; a month never mixes both systems (Sections 3, 5.2 and 9).
 
 ## Contents
 
@@ -142,9 +139,8 @@ Notes:
   from Odoo **from its start date on**, and from Wansoft before that date.
   **Temporary exception: Antenas** keeps Wansoft costs while its Odoo database
   is repaired (it was the prototype). **Isabel La Católica, San Jeronimo and
-  Vía Vallejo** keep Wansoft costs until Odoo has their cost of sales (they
-  wait for their opening inventory balances); each one switches to Odoo by
-  itself on the first day Odoo has data. See Section 5.2.
+  Vía Vallejo** keep Wansoft costs until Odoo has **a complete month invoiced**; then each
+  switches to Odoo by itself from the first day of the next month. See Section 5.2.
 - Internal providers **El Bodegón de Fito** and **Las Empanadas de María Eva**
   (central kitchens) are excluded as buying companies from business views.
 - The same information, as data: `dim_company_analytical` and
@@ -261,7 +257,7 @@ Where each branch's cost comes from:
 |---|---|
 | Wansoft only | Wansoft cost report |
 | Migrated to Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán) | Wansoft through 2026-09-30; Odoo from 2026-10-01 |
-| **October wave (Isabel La Católica, San Jeronimo, Vía Vallejo)** | Wansoft until Odoo has their cost of sales; from that day (different for each), Odoo. Until then their October Wansoft rows carry merma and consumo as 0, since these are no longer captured there |
+| **October wave (Isabel La Católica, San Jeronimo, Vía Vallejo)** | Wansoft until Odoo has a complete month invoiced (every day with sales has Odoo cost and the month total is plausible against Wansoft); Odoo from the first day of the next month. A month never mixes both systems. Until then their Wansoft rows carry merma and consumo as 0, since these are no longer captured there |
 | New, born on Odoo (Puebla, CentroMyJ and any branch opened later) | Odoo since it opened. Odoo has no cost of sales for CentroMyJ before July 2026 nor for Puebla before 2026-07-27: those days are 0 |
 | **Antenas (temporary exception)** | Wansoft, while its Odoo database is repaired |
 
@@ -298,6 +294,13 @@ differently:
   compare Odoo's invoiced amount with Wansoft's net sales for that day. The
   pipeline re-reads Odoo for the current month (and the previous one until the
   10th), so after the closing the tables are complete.
+- **How sales reach Odoo:** a sale is always recorded in Wansoft. An automation
+  in Odoo turns it into a sales order and a customer invoice, which carries the
+  cost of sales. **It only processes a ticket when every ingredient of its
+  recipe is in stock**; if one is missing, the sale waits until there is stock.
+  This keeps the cost real and makes branches record their production, receive
+  their purchases and manage their inventory. As a result, days with pending
+  sales have no cost in Odoo yet: this is not a load error.
 
 If you need a cost for recent days, mark it as an estimate or wait until the
 period is complete.
@@ -619,7 +622,7 @@ Other upcoming changes:
   purchases, inventory and costs come from Odoo, with the same rule as
   Section 3; sales stay in Wansoft.
 - **Isabel La Católica, San Jerónimo and Vía Vallejo** keep Wansoft costs
-  until Odoo has their cost of sales; `costs_source_by_company` shows the
+  until Odoo has a complete month invoiced; `costs_source_by_company` shows the
   switch day (5.2).
 - **Antenas** keeps Wansoft costs while its Odoo database is repaired.
 - **Access security:** the user's access will be limited to a fixed IP and the connection will be encrypted (TLS); we will announce the date and what is needed to connect.
@@ -629,6 +632,11 @@ Other upcoming changes:
 ## 10. Version history
 
 The most recent version comes first.
+
+**Version 1.5 (2026-10-19)**
+
+- **How sales reach Odoo and why its cost can lag:** Odoo's automation only processes a ticket when every ingredient of its recipe is in stock; while one is missing, that day has no cost in Odoo (5.2).
+- **Rule for switching costs to Odoo:** the October-wave branches switch to Odoo costs only once Odoo has a complete month invoiced, from the first day of the next month; a month never mixes both systems (Sections 3, 5.2 and 9).
 
 **Version 1.4 (2026-10-16)**
 
