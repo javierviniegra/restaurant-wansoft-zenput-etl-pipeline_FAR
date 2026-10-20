@@ -202,6 +202,22 @@ proposed with its most used `Cuenta` since 2025; the other uses are listed.
     counts once. **To verify while building:** the advance bills themselves
     (Puebla, March-May 2026, about 3.9 MDP in 4 bills) must not also be loaded as
     expenses.
+    **Verified 2026-10-20 (Puebla, all dates):** an advance is a bill on the
+    advance account (Amigo del Chef 2.29 MDP in March-May and July, Bodegón 1.44
+    MDP in April, Situsmex 2.35 MDP in March, Nova SM, Wansoft) that is later
+    cancelled by a credit note on the same account (July-August); the final
+    supplier bill carries the full amount on its real account. Over all dates the
+    advance account nets to 71 k (small items posted there and never reversed:
+    lodging, Bodega Prissa, a cancelled Brownie bill). The -3.7 MDP seen since June
+    is only the credit notes falling inside the window while their advance bills
+    were earlier. So excluding **every line on the advance account, bills and
+    credit notes alike**, is correct: the final bill counts once.
+    "Liquidity Transfer" is **not** an advance: it is Nova SM's final oven bill
+    (2026-06-15, 57,536, the same day its advance was cancelled) posted to a wrong
+    account; excluding it would lose the oven. Owner, 2026-10-20: map it to
+    `Inversión inicial / Equipo de restaurante`, the account where the opening
+    ovens, ranges, dishwashers, fryers, griddles and fridges are booked. Only
+    "Advance to national suppliers" and "Banorte 0144" stay `excluded_advance`.
   - C. "Other overheads" is `vendor_rule`: classified per vendor,
     `analysis/expense_vendor_rules_other_overheads_20261019.csv`. Agreed by the
     owner: Sigma -> Costo de alimentos, Inmobiliaria Gocos -> Arrendamiento PM,
@@ -225,8 +241,15 @@ proposed with its most used `Cuenta` since 2025; the other uses are listed.
   - F. Discounts and returns on purchases (mostly wine vendors) -> `Costo
     operativo / Costo de bebidas` as negatives; Variaciones de Inventario and the
     goods lines with no category -> `Costo operativo / Costo de alimentos`.
-- Still to review by the owner: the 23 `suggested` rows (mostly 501.01 cost
-  accounts to Costo de alimentos / bebidas).
+- **2026-10-20:** the owner approved the 23 `suggested` rows and the automatic
+  name matches; every mapped row is now `owner_confirmed`. "Other taxes and
+  duties" (301 k at CentroMyJ) was checked: two payments to the Mexico City
+  government, so `Otros Impuestos o Derechos` is right.
+- **Mappings stay adjustable (owner, 2026-10-20).** Decisions live in the
+  `expense_account_mapping` table (and the vendor-rule table), not in code; an
+  edited row reclassifies the whole history at the next build of
+  `analytics_expense_invoices`. Automatic runs only add new accounts as pending
+  and never overwrite a human decision.
 - Duplicate UUIDs: flag rule.
 - Update `docs/data-access-guide/` (both languages, PDFs) and the tukanmx grants
   when the table exists.

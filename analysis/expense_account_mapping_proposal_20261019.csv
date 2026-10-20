@@ -7,7 +7,7 @@
 504.01.14,Servicios de Logistica,owner_confirmed,Gasto,Fletes,Flete PM,,166,163090.38,0.0,8
 601.84.24,Soporte técnico,owner_confirmed,Gasto,Gastos por servicios,Otros,,26,94645.44,0.0,7
 156.01.01,Equipo de computo,owner_confirmed,Inversión,Inversión inicial,Equipo de cómputo,,5,72787.24,0.0,2
-102.01.03,Liquidity Transfer,excluded_advance,,,,,1,57536.0,0.0,1
+102.01.03,Liquidity Transfer,owner_confirmed,Inversión,Inversión inicial,Equipo de restaurante,,1,57536.0,0.0,1
 601.56.04,Materiales para Mantenimiento,owner_confirmed,Gasto,Gastos Directos,Mantenimiento del Local,,22,38034.28,0.0,6
 155.01.01,Mobiliario y equipo de oficina,owner_confirmed,Inversión,Inversión inicial,Mobiliario y equipo de oficina,,5,36505.93,0.0,2
 102.01.05R,Recibos Pendientes Banco Dos,por_clasificar,,,,,3,34720.81,0.0,1
@@ -29,66 +29,66 @@
 165.01.01,Equipo de comunicación,owner_confirmed,Inversión,Inversión inicial,Equipo de comunicación,,1,2150.0,0.0,1
 504.01.14,Servicios de Logisica,owner_confirmed,Gasto,Fletes,Flete PM,,10,1944.83,0.0,1
 503.01.01,"Returns, discounts or bonuses over purchases",owner_confirmed,Costo de producción,Costo operativo,Costo de bebidas,,10,-1523.75,0.0,1
-501.01.03,Carnes,suggested,Costo de producción,Costo operativo,Costo de alimentos,,2171,15724818.95,15728945.29,10
-601.46.01,Arrendamiento PM,auto_name_match,Gasto,Renta de Local,Arrendamiento PM,,26,7861930.18,0.0,6
-601.84.16,Management Administrativo,auto_name_match,Gasto,Gastos Directos,Management Administrativo,Gastos administrativos/Management administrativo (18),124,4900758.92,0.0,10
-501.01.12,Con Alcohol,suggested,Costo de producción,Costo operativo,Costo de bebidas,,3519,3111508.37,3017170.92,10
-601.56.01,Mtto del Local,auto_name_match,Gasto,Gastos Directos,Mantenimiento del Local,Gastos por servicios/Mtto del Local (28),60,2935528.12,0.0,8
-601.84.05,Asesorias,auto_name_match,Gasto,Gastos Directos,Asesorías,,39,2187724.4,0.0,6
-501.01.02,Frutas y Verduras,suggested,Costo de producción,Costo operativo,Costo de alimentos,,6730,2018311.43,2017501.46,10
-501.01.13,Sin Alcohol,suggested,Costo de producción,Costo operativo,Costo de bebidas,,2564,1902172.25,1819184.99,10
-601.61.01,Publicidad y Propaganda,auto_name_match,Gasto,Gastos Directos,Publicidad y Propaganda,Gastos de venta/Publicidad y propaganda (40),60,1634911.89,0.0,8
-601.45.01,Arrendamiento PF,auto_name_match,Gasto,Renta de Local,Arrendamiento PF,,19,1576618.39,0.0,3
-501.01.09,Empanadas,suggested,Costo de producción,Costo operativo,Costo de alimentos,,1373,1561794.88,1562374.5,10
+501.01.03,Carnes,owner_confirmed,Costo de producción,Costo operativo,Costo de alimentos,,2171,15724818.95,15728945.29,10
+601.46.01,Arrendamiento PM,owner_confirmed,Gasto,Renta de Local,Arrendamiento PM,,26,7861930.18,0.0,6
+601.84.16,Management Administrativo,owner_confirmed,Gasto,Gastos Directos,Management Administrativo,Gastos administrativos/Management administrativo (18),124,4900758.92,0.0,10
+501.01.12,Con Alcohol,owner_confirmed,Costo de producción,Costo operativo,Costo de bebidas,,3519,3111508.37,3017170.92,10
+601.56.01,Mtto del Local,owner_confirmed,Gasto,Gastos Directos,Mantenimiento del Local,Gastos por servicios/Mtto del Local (28),60,2935528.12,0.0,8
+601.84.05,Asesorias,owner_confirmed,Gasto,Gastos Directos,Asesorías,,39,2187724.4,0.0,6
+501.01.02,Frutas y Verduras,owner_confirmed,Costo de producción,Costo operativo,Costo de alimentos,,6730,2018311.43,2017501.46,10
+501.01.13,Sin Alcohol,owner_confirmed,Costo de producción,Costo operativo,Costo de bebidas,,2564,1902172.25,1819184.99,10
+601.61.01,Publicidad y Propaganda,owner_confirmed,Gasto,Gastos Directos,Publicidad y Propaganda,Gastos de venta/Publicidad y propaganda (40),60,1634911.89,0.0,8
+601.45.01,Arrendamiento PF,owner_confirmed,Gasto,Renta de Local,Arrendamiento PF,,19,1576618.39,0.0,3
+501.01.09,Empanadas,owner_confirmed,Costo de producción,Costo operativo,Costo de alimentos,,1373,1561794.88,1562374.5,10
 504.01.12,"Gastos de Salon (Salsas, Aderezos, Catsup, etc)",owner_confirmed,Gasto,Gastos de venta,"Gastos de Salón (salsas de sobre, etc)",,2571,1382724.75,347962.36,10
-501.01.10,Postres,suggested,Costo de producción,Costo operativo,Costo de alimentos,,1550,1133742.96,1126798.35,10
-501.01.06,Abarrotes,suggested,Costo de producción,Costo operativo,Costo de alimentos,,1621,1094333.42,822247.31,10
-501.01.05,Quesos y Lacteos,suggested,Costo de producción,Costo operativo,Costo de alimentos,,1141,994805.12,995322.94,10
-501.01.04,Embutidos,suggested,Costo de producción,Costo operativo,Costo de alimentos,,590,947880.85,947880.85,10
+501.01.10,Postres,owner_confirmed,Costo de producción,Costo operativo,Costo de alimentos,,1550,1133742.96,1126798.35,10
+501.01.06,Abarrotes,owner_confirmed,Costo de producción,Costo operativo,Costo de alimentos,,1621,1094333.42,822247.31,10
+501.01.05,Quesos y Lacteos,owner_confirmed,Costo de producción,Costo operativo,Costo de alimentos,,1141,994805.12,995322.94,10
+501.01.04,Embutidos,owner_confirmed,Costo de producción,Costo operativo,Costo de alimentos,,590,947880.85,947880.85,10
 504.01.05,Carbon,owner_confirmed,Gasto,Gastos de venta,Carbon,,121,866000.12,0.0,10
-601.84.13,Suministro de Personal,suggested,Gasto,Suministro de Personal,Peralta y Quintanilla S,,115,863328.82,0.0,8
+601.84.13,Suministro de Personal,owner_confirmed,Gasto,Suministro de Personal,Peralta y Quintanilla S,,115,863328.82,0.0,8
 504.01.08,Art. de Limpieza,owner_confirmed,Gasto,Gastos de venta,Articulos de Limpieza,Gastos Directos/Artículos de Limpieza (1053),1077,777058.59,48834.17,10
 504.01.04,Mat. De Empaque,owner_confirmed,Gasto,Gastos de venta,Material de Empaque,,1012,757491.89,112249.06,10
-601.52.01,Energia Electrica,auto_name_match,Gasto,Gastos Directos,Energía Eléctrica,,20,608314.56,0.0,7
-601.83.01,No deducibles,auto_name_match,Gasto,Gastos Directos,No deducibles,,167,420448.34,0.0,7
-601.34.01,Honorarios PF,auto_name_match,Gasto,Honorarios,Honorarios PF,,12,383311.24,0.0,7
-601.51.01,Suministro de Agua,auto_name_match,Gasto,Gastos Directos,Suministro de Agua,,24,368163.83,0.0,7
-601.55.01,Papeleria y Art. de Oficina,suggested,Gasto,Gastos Directos,Papelería / Arts para Oficina,,262,353688.64,6340.0,10
-601.84.11,Atencion al Cliente,suggested,Gasto,Gastos Directos,Atención a Clientes,,161,321562.91,55016.5,9
-601.77.01,Uniformes,auto_name_match,Gasto,Gastos Directos,Uniformes,Gastos administrativos/Uniformes (7),46,308279.1,0.0,5
-601.58.01,Other taxes and duties,suggested,Gasto,Gastos Directos,Otros Impuestos o Derechos,,12,308008.72,0.0,2
-601.56.03,Mtto Eq. De Restaurante,auto_name_match,Gasto,Gastos Directos,Mantto. Eq. de Restaurante,,45,283313.54,0.0,8
-601.62.01,Cursos y Capacitaciones,suggested,Gasto,Gastos Directos,Cursos y Capacitación,,11,220139.92,0.0,8
+601.52.01,Energia Electrica,owner_confirmed,Gasto,Gastos Directos,Energía Eléctrica,,20,608314.56,0.0,7
+601.83.01,No deducibles,owner_confirmed,Gasto,Gastos Directos,No deducibles,,167,420448.34,0.0,7
+601.34.01,Honorarios PF,owner_confirmed,Gasto,Honorarios,Honorarios PF,,12,383311.24,0.0,7
+601.51.01,Suministro de Agua,owner_confirmed,Gasto,Gastos Directos,Suministro de Agua,,24,368163.83,0.0,7
+601.55.01,Papeleria y Art. de Oficina,owner_confirmed,Gasto,Gastos Directos,Papelería / Arts para Oficina,,262,353688.64,6340.0,10
+601.84.11,Atencion al Cliente,owner_confirmed,Gasto,Gastos Directos,Atención a Clientes,,161,321562.91,55016.5,9
+601.77.01,Uniformes,owner_confirmed,Gasto,Gastos Directos,Uniformes,Gastos administrativos/Uniformes (7),46,308279.1,0.0,5
+601.58.01,Other taxes and duties,owner_confirmed,Gasto,Gastos Directos,Otros Impuestos o Derechos,,12,308008.72,0.0,2
+601.56.03,Mtto Eq. De Restaurante,owner_confirmed,Gasto,Gastos Directos,Mantto. Eq. de Restaurante,,45,283313.54,0.0,8
+601.62.01,Cursos y Capacitaciones,owner_confirmed,Gasto,Gastos Directos,Cursos y Capacitación,,11,220139.92,0.0,8
 504.01.10,Hielo,owner_confirmed,Gasto,Gastos de venta,Hielo,,240,193201.85,0.0,10
-501.01.07,Pan,suggested,Costo de producción,Costo operativo,Costo de alimentos,,335,184097.53,183891.53,10
+501.01.07,Pan,owner_confirmed,Costo de producción,Costo operativo,Costo de alimentos,,335,184097.53,183891.53,10
 504.01.06,Gas,owner_confirmed,Gasto,Gastos de venta,Gas,,40,165352.27,0.0,10
 504.01.02,Cristaleria y Loza,owner_confirmed,Gasto,Gastos de venta,Cristaleria y Loza,,43,164486.37,94684.0,6
-501.01.08,Tortilla,suggested,Costo de producción,Costo operativo,Costo de alimentos,,200,159684.4,20520.75,7
-601.84.10,Equipo Menor,auto_name_match,Gasto,Gastos Directos,Equipo Menor,,25,156975.16,0.0,8
-601.84.27,Arrendamiento de Auto,suggested,Gasto,Gastos Directos,Arrendamiento Auto,,2,124477.44,0.0,1
+501.01.08,Tortilla,owner_confirmed,Costo de producción,Costo operativo,Costo de alimentos,,200,159684.4,20520.75,7
+601.84.10,Equipo Menor,owner_confirmed,Gasto,Gastos Directos,Equipo Menor,,25,156975.16,0.0,8
+601.84.27,Arrendamiento de Auto,owner_confirmed,Gasto,Gastos Directos,Arrendamiento Auto,,2,124477.44,0.0,1
 504.01.09,Manteletas,owner_confirmed,Gasto,Gastos de venta,Manteletas,,10,119100.0,0.0,5
-601.50.01,Telefono,auto_name_match,Gasto,Gastos Directos,Teléfono,Gastos por servicios/Teléfono (18),103,108924.18,0.0,8
-601.84.04,"Licencias, Programas y Software",suggested,Gasto,Gastos Directos,Licencias/ Programas/ Software,"Gastos por servicios/Licencias, programas, Software (92)",91,106360.0,0.0,10
-601.84.03,Fumigaciones,auto_name_match,Gasto,Gastos Directos,Fumigaciones,Gastos administrativos/Fumigaciones (51),43,106250.0,0.0,10
+601.50.01,Telefono,owner_confirmed,Gasto,Gastos Directos,Teléfono,Gastos por servicios/Teléfono (18),103,108924.18,0.0,8
+601.84.04,"Licencias, Programas y Software",owner_confirmed,Gasto,Gastos Directos,Licencias/ Programas/ Software,"Gastos por servicios/Licencias, programas, Software (92)",91,106360.0,0.0,10
+601.84.03,Fumigaciones,owner_confirmed,Gasto,Gastos Directos,Fumigaciones,Gastos administrativos/Fumigaciones (51),43,106250.0,0.0,10
 504.01.03,Utensilios de Cocina,owner_confirmed,Gasto,Gastos de venta,Utensilios de Cocina,,13,103400.6,12779.0,3
-601.60.01,Cuotas y Suscripciones,auto_name_match,Gasto,Gastos Directos,Cuotas y Suscripciones,,30,97242.72,0.0,7
-601.38.01,Honorarios PM,auto_name_match,Gasto,Honorarios,Honorarios PM,,5,91479.04,0.0,4
-601.49.01,Viaticos y Gastos de Viaje,suggested,Gasto,Viáticos,Viáticos,,31,86775.67,0.0,1
-601.84.25,Comida personal,auto_name_match,Gasto,Otros gastos operativos,Comida Personal,,57,83602.79,0.0,3
-601.84.07,Servicios de Valet Parking,suggested,Gasto,Gastos administrativos,Servicios De Valet Parkin,,5,75000.0,0.0,1
-601.84.02,Renta de Equipo,auto_name_match,Gasto,Gastos Directos,Renta de Equipo,,26,58625.1,0.0,7
-601.84.15,Vales de despensa,auto_name_match,Gasto,Sueldos y Salarios,Vales de Despensa,,3,56500.0,0.0,1
-601.57.01,Seguros,auto_name_match,Gasto,Gastos Directos,Seguros,,7,53461.03,0.0,2
-601.23.01,Previsión social,auto_name_match,Gasto,Sueldos y Salarios,Previsión Social,,259,49353.5,0.0,1
-601.84.06,Recoleccion de basura,auto_name_match,Gasto,Gastos Directos,Recolección de Basura,,14,44016.35,0.0,5
-601.72.02,Fletes PM,suggested,Gasto,Fletes,Flete PM,,29,35590.41,0.0,3
-601.84.08,Casetas y Estacionamiento,suggested,Gasto,Gastos Directos,Casetas y Estacionamientos,,12,32042.25,0.0,6
+601.60.01,Cuotas y Suscripciones,owner_confirmed,Gasto,Gastos Directos,Cuotas y Suscripciones,,30,97242.72,0.0,7
+601.38.01,Honorarios PM,owner_confirmed,Gasto,Honorarios,Honorarios PM,,5,91479.04,0.0,4
+601.49.01,Viaticos y Gastos de Viaje,owner_confirmed,Gasto,Viáticos,Viáticos,,31,86775.67,0.0,1
+601.84.25,Comida personal,owner_confirmed,Gasto,Otros gastos operativos,Comida Personal,,57,83602.79,0.0,3
+601.84.07,Servicios de Valet Parking,owner_confirmed,Gasto,Gastos administrativos,Servicios De Valet Parkin,,5,75000.0,0.0,1
+601.84.02,Renta de Equipo,owner_confirmed,Gasto,Gastos Directos,Renta de Equipo,,26,58625.1,0.0,7
+601.84.15,Vales de despensa,owner_confirmed,Gasto,Sueldos y Salarios,Vales de Despensa,,3,56500.0,0.0,1
+601.57.01,Seguros,owner_confirmed,Gasto,Gastos Directos,Seguros,,7,53461.03,0.0,2
+601.23.01,Previsión social,owner_confirmed,Gasto,Sueldos y Salarios,Previsión Social,,259,49353.5,0.0,1
+601.84.06,Recoleccion de basura,owner_confirmed,Gasto,Gastos Directos,Recolección de Basura,,14,44016.35,0.0,5
+601.72.02,Fletes PM,owner_confirmed,Gasto,Fletes,Flete PM,,29,35590.41,0.0,3
+601.84.08,Casetas y Estacionamiento,owner_confirmed,Gasto,Gastos Directos,Casetas y Estacionamientos,,12,32042.25,0.0,6
 504.01.11,Equipo de Salon,owner_confirmed,Gasto,Gastos de venta,Eq para Salon,,3,31000.0,31000.0,2
 504.01.03,Utencilios de Cocina,owner_confirmed,Gasto,Gastos de venta,Utensilios de Cocina,,15,18565.06,11275.0,3
-601.84.09,Botiquin,auto_name_match,Gasto,Gastos Directos,Botiquín,,34,15206.73,0.0,7
-601.56.05,Mtto Eq. De Restaurante (copia) (copia),auto_name_match,Gasto,Gastos Directos,Mantto. Eq. de Restaurante,,1,9723.01,0.0,1
-213.04.01,Impuesto sobre nómina,auto_name_match,Gasto,Gastos Directos,Impuesto sobre nómina,,1,9588.0,0.0,1
+601.84.09,Botiquin,owner_confirmed,Gasto,Gastos Directos,Botiquín,,34,15206.73,0.0,7
+601.56.05,Mtto Eq. De Restaurante (copia) (copia),owner_confirmed,Gasto,Gastos Directos,Mantto. Eq. de Restaurante,,1,9723.01,0.0,1
+213.04.01,Impuesto sobre nómina,owner_confirmed,Gasto,Gastos Directos,Impuesto sobre nómina,,1,9588.0,0.0,1
 504.01.15,Equipo de Proteccion,owner_confirmed,Gasto,Gastos de venta,Eq Protección,,14,8928.0,0.0,1
-601.53.01,Vigilancia y Seguridad,auto_name_match,Gasto,Gastos Directos,Vigilancia y Seguridad,Gastos administrativos/Vigilancia y Seguridad (23),4,7181.76,0.0,2
-601.48.01,Combustibles y Lubricantes,auto_name_match,Gasto,Gastos Directos,Combustibles y Lubricantes,,8,6599.75,0.0,1
-601.58.01,Otros Impuestos y Derechos,suggested,Gasto,Gastos Directos,Otros Impuestos o Derechos,,4,4369.04,0.0,2
+601.53.01,Vigilancia y Seguridad,owner_confirmed,Gasto,Gastos Directos,Vigilancia y Seguridad,Gastos administrativos/Vigilancia y Seguridad (23),4,7181.76,0.0,2
+601.48.01,Combustibles y Lubricantes,owner_confirmed,Gasto,Gastos Directos,Combustibles y Lubricantes,,8,6599.75,0.0,1
+601.58.01,Otros Impuestos y Derechos,owner_confirmed,Gasto,Gastos Directos,Otros Impuestos o Derechos,,4,4369.04,0.0,2

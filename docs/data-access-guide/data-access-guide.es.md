@@ -6,15 +6,16 @@ Para: equipos externos que construirán su propio ETL sobre estas bases (por
 ejemplo, una capa de preguntas y respuestas / chatbot). Indica **qué tabla usar
 para cada pregunta de negocio, qué campos importan, cómo se unen las tablas y
 qué trampas evitar**. Cada regla se verificó contra el esquema y los datos
-reales el 2026-09-28; la guía está actualizada al **2026-10-19**. El 2026-10-07
+reales el 2026-09-28; la guía está actualizada al **2026-10-20**. El 2026-10-07
 se comprobó que existen en producción todas las tablas y columnas que nombra, y
 el esquema completo de cada tabla (Apéndice A) se tomó de producción el
 2026-10-13. Versión en PDF: [data-access-guide.es.pdf](data-access-guide.es.pdf).
 
-**Versión 1.5 (2026-10-19).** Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.
+**Versión 1.6 (2026-10-20).** Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.
 
-> **Novedades de la versión 1.5** (respecto a la 1.4 del 2026-10-16):
+> **Novedades de la versión 1.6** (respecto a la 1.4 del 2026-10-16, la última entregada; incluye la 1.5):
 >
+> - **Acceso restringido a la tabla de gastos:** cuando entre `analytics_expense_invoices`, tukanmx deberá restringirla a los usuarios que Fonda Argentina autorice y, de preferencia, segmentar la vista por tipo de gasto (secciones 8 y 9).
 > - **Cómo entran las ventas a Odoo y por qué su costo puede ir atrasado:** la automatización de Odoo solo procesa un ticket cuando hay inventario de todos los insumos de su receta; mientras falte alguno, ese día no tiene costo en Odoo (5.2).
 > - **Regla del cambio de costo a Odoo:** las sucursales de la ola de octubre pasan a costo de Odoo solo cuando Odoo tiene un mes completo facturado, y desde el día 1 del mes siguiente; un mes nunca mezcla los dos sistemas (secciones 3, 5.2 y 9).
 
@@ -622,13 +623,14 @@ máximo de 4 conexiones simultáneas y 30 minutos por consulta.
 
 Las tablas que el usuario puede leer son exactamente las del Apéndice A, con
 todas sus columnas. Cuando se agrega una tabla nueva (sección 9), se concede al
-usuario y se actualizan esta guía y el apéndice.
+usuario y se actualizan esta guía y el apéndice. Excepción: la tabla de gastos
+deberá tener además acceso restringido en la plataforma de tukanmx (sección 9).
 
 ---
 
 ## 9. Lo que falta (en construcción)
 
-Estado al 2026-10-16. Los movimientos de inventario unificados ya están en
+Estado al 2026-10-20. Los movimientos de inventario unificados ya están en
 producción (5.4). Las tablas de abajo todavía no existen; cuando entren, se
 concederán al usuario y se documentarán aquí.
 
@@ -646,6 +648,7 @@ Otros cambios próximos:
   Wansoft hasta que Odoo tenga un mes completo facturado; `costs_source_by_company`
   muestra el día del cambio (5.2).
 - **Antenas** sigue con costo de Wansoft mientras se repara su base en Odoo.
+- **Requisito para tukanmx: acceso restringido a la tabla de gastos.** La tabla de facturas de proveedor (`analytics_expense_invoices`) tendrá información sensible: rentas, honorarios, sueldos y gastos administrativos, con el proveedor de cada uno. En su plataforma, tukanmx debe restringirla para todos los usuarios: solo la podrán consultar los usuarios que Fonda Argentina autorice. De preferencia, la vista debe segmentarse por tipo de gasto (cada factura traerá su tipo de egreso, cuenta y subcuenta), para que, por ejemplo, un usuario de operación vea el costo de mercancía y los gastos de venta, pero no las rentas, los honorarios ni los sueldos. Pedimos a tukanmx que nos confirme cómo lo hará antes de que se le conceda la tabla.
 - **Seguridad del acceso:** el acceso del usuario quedará limitado a una IP fija y la conexión será cifrada (TLS); avisaremos la fecha y lo necesario para conectarse.
 
 ---
@@ -653,6 +656,10 @@ Otros cambios próximos:
 ## 10. Historial de versiones
 
 La versión más reciente va primero.
+
+**Versión 1.6 (2026-10-20)**
+
+- **Acceso restringido a la tabla de gastos:** cuando entre `analytics_expense_invoices`, tukanmx deberá restringirla a los usuarios que Fonda Argentina autorice y, de preferencia, segmentar la vista por tipo de gasto (secciones 8 y 9).
 
 **Versión 1.5 (2026-10-19)**
 

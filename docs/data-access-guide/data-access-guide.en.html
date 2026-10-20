@@ -47,7 +47,7 @@
     <td style="border: none; width: 100px; padding: 0;"><img class="logo" src="{{ logo_path }}"></td>
     <td style="border: none; padding: 0;">
       <p class="titulo">Data Access Guide</p>
-      <p class="subtitulo">Analytical databases <code>wansoft</code> and <code>zenput</code> | Fonda Argentina | Version 1.5 (2026-10-19)</p>
+      <p class="subtitulo">Analytical databases <code>wansoft</code> and <code>zenput</code> | Fonda Argentina | Version 1.6 (2026-10-20)</p>
     </td>
   </tr>
 </table>
@@ -61,14 +61,15 @@
 example, a question-and-answer / chatbot layer). It tells you <strong>which table to
 use for each business question, which fields matter, how tables join, and the
 traps to avoid</strong>. Every rule here was checked against the live schema and data
-on 2026-09-28; the guide is current as of <strong>2026-10-19</strong>. Every table and
+on 2026-09-28; the guide is current as of <strong>2026-10-20</strong>. Every table and
 column it names was confirmed to exist in production on 2026-10-07, and the
 full schema of every table (Appendix A) was taken from production on
 2026-10-13. PDF version: <a href="data-access-guide.en.pdf">data-access-guide.en.pdf</a>.</p>
-<p><strong>Version 1.5 (2026-10-19).</strong> Every change to this guide raises its version number and is recorded in Section 10.</p>
+<p><strong>Version 1.6 (2026-10-20).</strong> Every change to this guide raises its version number and is recorded in Section 10.</p>
 <blockquote>
-<p><strong>What is new in version 1.5</strong> (compared with 1.4 of 2026-10-16):</p>
+<p><strong>What is new in version 1.6</strong> (compared with 1.4 of 2026-10-16, the last one delivered; includes 1.5):</p>
 <ul>
+<li><strong>Restricted access to the expenses table:</strong> when <code>analytics_expense_invoices</code> arrives, tukanmx must restrict it to the users Fonda Argentina authorises and, preferably, segment visibility by expense type (Sections 8 and 9).</li>
 <li><strong>How sales reach Odoo and why its cost can lag:</strong> Odoo's automation only processes a ticket when every ingredient of its recipe is in stock; while one is missing, that day has no cost in Odoo (5.2).</li>
 <li><strong>Rule for switching costs to Odoo:</strong> the October-wave branches switch to Odoo costs only once Odoo has a complete month invoiced, from the first day of the next month; a month never mixes both systems (Sections 3, 5.2 and 9).</li>
 </ul>
@@ -1209,10 +1210,11 @@ date filters: they hold tens of millions of rows. Each user is limited to 4
 simultaneous connections and 30 minutes per query.</p>
 <p>The tables the user can read are exactly those of Appendix A, with all their
 columns. When a new table is added (Section 9), it is granted to the user and
-this guide and the appendix are updated.</p>
+this guide and the appendix are updated. Exception: the expenses table will
+also need restricted access on tukanmx's platform (Section 9).</p>
 
 <h1>9. Still missing (under construction)</h1>
-<p>State on 2026-10-16. The unified inventory movements are live (5.4). The
+<p>State on 2026-10-20. The unified inventory movements are live (5.4). The
 tables below do not exist yet; when they do, they will be granted to the
 user and documented here.</p>
 <table class="compacta">
@@ -1249,11 +1251,16 @@ user and documented here.</p>
   until Odoo has a complete month invoiced; <code>costs_source_by_company</code> shows the
   switch day (5.2).</li>
 <li><strong>Antenas</strong> keeps Wansoft costs while its Odoo database is repaired.</li>
+<li><strong>Requirement for tukanmx: restricted access to the expenses table.</strong> The supplier invoices table (<code>analytics_expense_invoices</code>) will hold sensitive information: rent, professional fees, salaries and administrative expenses, with the vendor of each. On its platform, tukanmx must restrict it for all users: only the users Fonda Argentina authorises may query it. Preferably, visibility should be segmented by expense type (every invoice will carry its expense type, account and sub-account), so that, for example, an operations user sees the cost of goods and selling expenses but not rent, fees or salaries. We ask tukanmx to confirm how it will do this before the table is granted.</li>
 <li><strong>Access security:</strong> the user's access will be limited to a fixed IP and the connection will be encrypted (TLS); we will announce the date and what is needed to connect.</li>
 </ul>
 
 <h1>10. Version history</h1>
 <p>The most recent version comes first.</p>
+<p><strong>Version 1.6 (2026-10-20)</strong></p>
+<ul>
+<li><strong>Restricted access to the expenses table:</strong> when <code>analytics_expense_invoices</code> arrives, tukanmx must restrict it to the users Fonda Argentina authorises and, preferably, segment visibility by expense type (Sections 8 and 9).</li>
+</ul>
 <p><strong>Version 1.5 (2026-10-19)</strong></p>
 <ul>
 <li><strong>How sales reach Odoo and why its cost can lag:</strong> Odoo's automation only processes a ticket when every ingredient of its recipe is in stock; while one is missing, that day has no cost in Odoo (5.2).</li>
