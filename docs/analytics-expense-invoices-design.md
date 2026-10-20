@@ -341,6 +341,82 @@ tukanmx to use `IdDocumento`. `analytics_expense_invoices` will carry its own st
 document id from the start (`<source_system>:<document id>`) plus a row id,
 since an Odoo bill can split into several Cuenta rows.
 
+## Block 5: `analytics_expense_invoices` (built on dev 2026-10-20)
+
+`scripts/build_analytics_expense_invoices.py`, full rebuild into
+`analytics_expense_invoices_new`, then `RENAME TABLE` swap (readers never see an
+empty table). Dev: **193,190 rows in about 35 s**.
+
+**Rows.**
+- Wansoft: one row per `getexpenses_factura` invoice, Cuenta / Subcuenta /
+  TipoDeEgreso as captured; status = live `estatus` from
+  `wansoft_expense_live_status` when listed, else the stored `Estatus`
+  (`status_from_live`). Branch from `Sucursal` through `WANSOFT_BRANCH_NAMES`
+  (long name -> `company_source_key`, compared on letters and digits only, so
+  accents and production's damaged `Canc??n` / `Ocean??a` resolve); an unknown
+  name stops the build. The closed "Taqueria San Fernando" (2023-07..2025-04,
+  2,799 invoices) is kept under that key.
+- Odoo: posted and cancelled bills and credit notes (drafts skipped). Product
+  lines are classified (account mapping; goods through their category account;
+  goods line without product -> Costo operativo / Costo de alimentos; vendor rule
+  for "Other overheads"; excluded accounts -> `exclude_reason = advance`); one row
+  per bill x bucket, IVA / IEPS / retentions spread over the buckets in
+  proportion to their subtotal (remainder on the largest), credit notes negative.
+  Status: Pagada / En pago / Pago parcial / Por pagar / Revertida / Cancelada;
+  raw `state/payment_state` in `source_status`.
+
+**Routing** (as purchases): a branch with an active policy takes Wansoft before
+`operational_start_date` and Odoo from it; **owner, 2026-10-20: a branch born on
+Odoo (`include_odoo_history = 1`: Puebla, CentroMyJ) takes all its Odoo bills**,
+so its opening investment is in (CentroMyJ before 2026-06-01: Inversión inicial
+9.17 MDP, Gastos Directos 1.26, Renta 0.52, Gastos de venta 0.13; Puebla before
+2026-06-10: Inversión inicial 5.25 MDP plus small items). Other branches: Wansoft
+only. Rows of the other system's period stay with `include_in_business_views = 0`.
+
+**Columns:** `expense_row_key` (PK), `expense_document_id`
+(`wansoft:<IdDocumento>` / `odoo:<move id>`), `source_system`,
+`source_document_id`, `document_type` (invoice / credit_note),
+`company_source_key`, `source_company_name`, `invoice_date`, `due_date`, `folio`,
+`uuid`, `uuid_document_count`, vendor name / RFC / key, `tipo_de_egreso`,
+`cuenta`, `subcuenta`, `is_costo_operativo`, `classification_status`
+(source / empty_cuenta / account_mapping / vendor_rule / goods_without_product /
+unclassified / unmapped_account / excluded / no_lines), `source_account_name`,
+`subtotal`, `discount`, `iva`, `ieps` (Odoo: from IEPS tax lines), `retentions`
+(positive, withheld), `total` (= subtotal + iva + ieps - discount - retentions,
+as Wansoft), `status`, `source_status`, `status_from_live`, `payment_date`
+(Odoo), `payment_terms`, `purchase_order_ref`, `include_in_business_views`,
+`exclude_reason`, `built_at`.
+
+**Dev result (business rows):** Wansoft 170,579 rows, 1,250.8 MDP; Odoo 3,314
+rows, 52.2 MDP. Excluded: Wansoft rejected 1,660 (11.4 MDP); Odoo internal
+providers / holdings 9,740 (199.5 MDP), before start (migrated branches' parallel
+capture) 7,462 (55.7 MDP), cancelled 400 (2.1 MDP), advance lines 35 (0.77 MDP).
+
+**Checks (dev):**
+- Wansoft subtotal = `getexpenses_factura` to the cent (1,262,143,776.31), 172,239
+  rows = 172,239 invoices.
+- Every posted Odoo bill: its rows' totals = the bill's `amount_total`,
+  **0 differences** (tax spreading exact).
+- Odoo business rows by classification: account_mapping 35.75 MDP (before the
+  born-on-Odoo change), vendor_rule 60 k, unclassified 6 k.
+- Repeated CFDI UUIDs among business rows: none across systems; Wansoft 213 UUIDs
+  on 436 invoices (same CFDI captured twice, sometimes in Cancún and Playa del
+  Carmen, or a mistyped UUID; about 1.23 MDP of same-amount repeats over the
+  whole history). Kept as in the source, flagged by `uuid_document_count`.
+- Acoxpa across its start month: Wansoft July-September, Odoo from October;
+  **coverage changes at the switch**: Wansoft never carried Acoxpa's rent,
+  staffing or services, Odoo does (October: Renta de Local 387 k), so its expense
+  series steps up from October for that reason. To state in the data guide.
+- An Oceanía Odoo bill is dated 2026-10-30 (future date typed in Odoo).
+
+**For accounting, not a build rule:** CentroMyJ has 692 k of advances to Salvador
+Ramos Tapia (March-June 2026) that were paid but never applied by a credit note;
+they stay excluded as advances until the final bills arrive (or accounting
+reclassifies them).
+
+Pending: validation against the owner's Power BI "Compras Mensuales" by Cuenta
+(needs the owner's figures), then block 6 (nightly stages, tukanmx grant, guide).
+
 ## Open points
 
 - Owner decisions on the crosswalk (`owner_decision` rows and every `suggested`
