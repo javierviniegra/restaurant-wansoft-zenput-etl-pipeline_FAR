@@ -178,6 +178,51 @@ and Gastos de Instalación 4.7 MDP, Other overheads, Advance to national supplie
 de Logística, ...). A Wansoft `Subcuenta` used under two `Cuenta` values is
 proposed with its most used `Cuenta` since 2025; the other uses are listed.
 
+## Block 2: classification tables (built on dev 2026-10-20)
+
+`scripts/seed_expense_mappings.py` (dry run by default, `--apply` writes) creates
+and fills two governed tables from `seeds/expense_account_mapping_seed.csv` (93
+account names decided by the owner) and `seeds/expense_vendor_rule_seed.csv` (72
+vendors). The `analysis/*_20261019.csv` files are the review worksheets they came
+from.
+
+- **`expense_account_mapping`**, one row per Odoo account (`odoo_account_id`
+  unique). Odoo keeps one account per company: Carnes is 16 accounts with 16 ids.
+  Odoo **branches have no chart of their own**: Aeropuerto and Taquería Viaducto
+  post to FONDA ARGENTINA AEROPUERTO's 305 accounts (same for Parroquia /
+  Exhibimex under PERALTA Y LEON and Cancún under LA PARRILLADA ORIGINAL DEL SUR).
+  So the seed reads the chart of each branch's root company; `company_source_key`
+  is NULL for a shared holding chart, and the branch of a line comes from its
+  bill's company. The November wave is classified from day 1.
+- `mapping_status`: `approved` (cuenta / subcuenta / tipo_de_egreso),
+  `product_category` (the goods clearing account: classify each line through its
+  product category's expense account, company context), `vendor_rule` (use
+  `expense_vendor_rule`), `excluded` (`exclude_reason`, here `advance`),
+  `unclassified` (owner decided "Por clasificar"), `pending_review` (added
+  automatically, waiting for the owner).
+- **`expense_vendor_rule`**, one row per Odoo partner (`odoo_partner_id`
+  unique), with RFC, `rule_status` (`approved` / `unclassified` /
+  `pending_review`), `rule_source` (`owner_agreed` / `wansoft_vendor_history`) and
+  the evidence.
+- **Governance:** a re-run inserts new rows and updates only rows still in
+  `pending_review`; owner decisions are never overwritten (second run on dev:
+  0 inserted, 1,105 + 72 kept).
+
+Dev result: 16 charts read, 4,982 accounts, **1,105 rows** matching all 93
+decided names (approved 1,052, excluded 17, product_category 16, vendor_rule 16,
+unclassified 4); 72 vendor rules (65 approved, 7 unclassified).
+
+**Coverage check** (every posted bill line of the 10 operating branches since
+2026-06-01, goods resolved through their category): approved 75.93 MDP,
+vendor_rule 4.32 MDP, excluded -3.60 MDP (advance credit notes), unclassified
+45 k; **not in the table: 6,330 MXN**, goods lines with no product. The owner
+decided those are Costo de alimentos (block 1, F); that is a build rule for
+block 5 ("goods line without product -> Costo operativo / Costo de alimentos"),
+not an account row.
+
+Production: not applied yet. Running the script on the tasks VM writes to the
+live `wansoft` database (it creates the two tables; Odoo is only read).
+
 ## Open points
 
 - Owner decisions on the crosswalk (`owner_decision` rows and every `suggested`
