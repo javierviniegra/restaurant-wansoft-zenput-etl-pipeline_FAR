@@ -322,7 +322,17 @@ read-only):** `id` is always 0 (172,771 rows), there is no index or key,
 **`IdDocumento`** (Wansoft's global document id) is always filled and unique,
 except 90 Coyoacán documents of February 2026 stored twice, under the old branch
 name "La Esquina Coyoacán" (Por pagar) and the current "Fonda Argentina -
-Coyoacan" (Rechazada). `analytics_expense_invoices` will carry its own stable
+Coyoacan" (Rechazada). Owner, 2026-10-20: remove the old-name copies and make
+`IdDocumento` unique: `scripts/dedupe_getexpenses_factura.py` (dry run by
+default; `--apply` copies the 90 stale rows to
+`getexpenses_factura_dedupe_backup_20261020`, deletes them and adds
+`uq_getexpenses_factura_iddocumento`; the current-name copies match Wansoft's
+live status in all 90 cases, 18 old copies had a wrong status and 31 an older
+folio). Tested on dev (172,239 rows = 172,239 ids, lookups by `IdDocumento` use
+the key; a second run changes nothing). On dev the ALTER waited 10 minutes for an
+orphan query on the table, and a waiting ALTER blocks every new read of it, so
+the script now gives up after 60 s (`lock_wait_timeout`). Data guide 1.7 tells
+tukanmx to use `IdDocumento`. `analytics_expense_invoices` will carry its own stable
 document id from the start (`<source_system>:<document id>`) plus a row id,
 since an Odoo bill can split into several Cuenta rows.
 

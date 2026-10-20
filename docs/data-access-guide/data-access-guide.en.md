@@ -11,10 +11,11 @@ column it names was confirmed to exist in production on 2026-10-07, and the
 full schema of every table (Appendix A) was taken from production on
 2026-10-13. PDF version: [data-access-guide.en.pdf](data-access-guide.en.pdf).
 
-**Version 1.6 (2026-10-20).** Every change to this guide raises its version number and is recorded in Section 10.
+**Version 1.7 (2026-10-20).** Every change to this guide raises its version number and is recorded in Section 10.
 
-> **What is new in version 1.6** (compared with 1.4 of 2026-10-16, the last one delivered; includes 1.5):
+> **What is new in version 1.7** (compared with 1.4 of 2026-10-16, the last one delivered; includes 1.5 and 1.6):
 >
+> - **How to identify a Wansoft invoice:** use `getexpenses_factura.IdDocumento`, which is unique; the `id` column is useless. 90 duplicated Coyoacán invoices were removed (5.3).
 > - **Restricted access to the expenses table:** when `analytics_expense_invoices` arrives, tukanmx must restrict it to the users Fonda Argentina authorises and, preferably, segment visibility by expense type (Sections 8 and 9).
 > - **How sales reach Odoo and why its cost can lag:** Odoo's automation only processes a ticket when every ingredient of its recipe is in stock; while one is missing, that day has no cost in Odoo (5.2).
 > - **Rule for switching costs to Odoo:** the October-wave branches switch to Odoo costs only once Odoo has a complete month invoiced, from the first day of the next month; a month never mixes both systems (Sections 3, 5.2 and 9).
@@ -434,6 +435,8 @@ are text. **`Estatus = 'Por pagar'` does not mean unpaid:** invoices are rarely
 marked paid in Wansoft (payment is recorded elsewhere), so do not use that field
 for accounts payable.
 
+**How to identify an invoice:** use `IdDocumento`, the document's id in Wansoft, unique across the table. The `id` column is useless (it is 0 on every row), `Factura_Id` and `Egresos_Id` are empty and `UUID` is missing on more than half of the invoices. Until 2026-10-20, 90 Coyoacán invoices of 2026-01-28 to 2026-02-09 were stored twice: under the branch's old name (`La Esquina Coyoacán`) and under the current one (`Fonda Argentina - Coyoacan`). The old-name copies, which had outdated statuses and folios, were removed, and since then the table has a unique key on `IdDocumento`.
+
 ### 5.4 Inventory
 
 - **Today's stock, all 19 branches:** `analytics_inventory_balance`, one row
@@ -635,6 +638,10 @@ Other upcoming changes:
 ## 10. Version history
 
 The most recent version comes first.
+
+**Version 1.7 (2026-10-20)**
+
+- **How to identify a Wansoft invoice:** use `getexpenses_factura.IdDocumento`, which is unique; the `id` column is useless. 90 duplicated Coyoacán invoices were removed (5.3).
 
 **Version 1.6 (2026-10-20)**
 

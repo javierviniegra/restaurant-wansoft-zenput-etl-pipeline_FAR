@@ -47,7 +47,7 @@
     <td style="border: none; width: 100px; padding: 0;"><img class="logo" src="{{ logo_path }}"></td>
     <td style="border: none; padding: 0;">
       <p class="titulo">Data Access Guide</p>
-      <p class="subtitulo">Analytical databases <code>wansoft</code> and <code>zenput</code> | Fonda Argentina | Version 1.6 (2026-10-20)</p>
+      <p class="subtitulo">Analytical databases <code>wansoft</code> and <code>zenput</code> | Fonda Argentina | Version 1.7 (2026-10-20)</p>
     </td>
   </tr>
 </table>
@@ -65,10 +65,11 @@ on 2026-09-28; the guide is current as of <strong>2026-10-20</strong>. Every tab
 column it names was confirmed to exist in production on 2026-10-07, and the
 full schema of every table (Appendix A) was taken from production on
 2026-10-13. PDF version: <a href="data-access-guide.en.pdf">data-access-guide.en.pdf</a>.</p>
-<p><strong>Version 1.6 (2026-10-20).</strong> Every change to this guide raises its version number and is recorded in Section 10.</p>
+<p><strong>Version 1.7 (2026-10-20).</strong> Every change to this guide raises its version number and is recorded in Section 10.</p>
 <blockquote>
-<p><strong>What is new in version 1.6</strong> (compared with 1.4 of 2026-10-16, the last one delivered; includes 1.5):</p>
+<p><strong>What is new in version 1.7</strong> (compared with 1.4 of 2026-10-16, the last one delivered; includes 1.5 and 1.6):</p>
 <ul>
+<li><strong>How to identify a Wansoft invoice:</strong> use <code>getexpenses_factura.IdDocumento</code>, which is unique; the <code>id</code> column is useless. 90 duplicated Coyoacán invoices were removed (5.3).</li>
 <li><strong>Restricted access to the expenses table:</strong> when <code>analytics_expense_invoices</code> arrives, tukanmx must restrict it to the users Fonda Argentina authorises and, preferably, segment visibility by expense type (Sections 8 and 9).</li>
 <li><strong>How sales reach Odoo and why its cost can lag:</strong> Odoo's automation only processes a ticket when every ingredient of its recipe is in stock; while one is missing, that day has no cost in Odoo (5.2).</li>
 <li><strong>Rule for switching costs to Odoo:</strong> the October-wave branches switch to Odoo costs only once Odoo has a complete month invoiced, from the first day of the next month; a month never mixes both systems (Sections 3, 5.2 and 9).</li>
@@ -961,6 +962,7 @@ and payroll that are not goods. Odoo purchase orders only cover goods. So:</p>
 are text. <strong><code>Estatus = 'Por pagar'</code> does not mean unpaid:</strong> invoices are rarely
 marked paid in Wansoft (payment is recorded elsewhere), so do not use that field
 for accounts payable.</p>
+<p><strong>How to identify an invoice:</strong> use <code>IdDocumento</code>, the document's id in Wansoft, unique across the table. The <code>id</code> column is useless (it is 0 on every row), <code>Factura_Id</code> and <code>Egresos_Id</code> are empty and <code>UUID</code> is missing on more than half of the invoices. Until 2026-10-20, 90 Coyoacán invoices of 2026-01-28 to 2026-02-09 were stored twice: under the branch's old name (<code>La Esquina Coyoacán</code>) and under the current one (<code>Fonda Argentina - Coyoacan</code>). The old-name copies, which had outdated statuses and folios, were removed, and since then the table has a unique key on <code>IdDocumento</code>.</p>
 <h2>5.4 Inventory</h2>
 <ul>
 <li><strong>Today's stock, all 19 branches:</strong> <code>analytics_inventory_balance</code>, one row
@@ -1257,6 +1259,10 @@ user and documented here.</p>
 
 <h1>10. Version history</h1>
 <p>The most recent version comes first.</p>
+<p><strong>Version 1.7 (2026-10-20)</strong></p>
+<ul>
+<li><strong>How to identify a Wansoft invoice:</strong> use <code>getexpenses_factura.IdDocumento</code>, which is unique; the <code>id</code> column is useless. 90 duplicated Coyoacán invoices were removed (5.3).</li>
+</ul>
 <p><strong>Version 1.6 (2026-10-20)</strong></p>
 <ul>
 <li><strong>Restricted access to the expenses table:</strong> when <code>analytics_expense_invoices</code> arrives, tukanmx must restrict it to the users Fonda Argentina authorises and, preferably, segment visibility by expense type (Sections 8 and 9).</li>

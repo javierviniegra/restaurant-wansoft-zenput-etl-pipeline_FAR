@@ -11,10 +11,11 @@ se comprobó que existen en producción todas las tablas y columnas que nombra, 
 el esquema completo de cada tabla (Apéndice A) se tomó de producción el
 2026-10-13. Versión en PDF: [data-access-guide.es.pdf](data-access-guide.es.pdf).
 
-**Versión 1.6 (2026-10-20).** Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.
+**Versión 1.7 (2026-10-20).** Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.
 
-> **Novedades de la versión 1.6** (respecto a la 1.4 del 2026-10-16, la última entregada; incluye la 1.5):
+> **Novedades de la versión 1.7** (respecto a la 1.4 del 2026-10-16, la última entregada; incluye la 1.5 y la 1.6):
 >
+> - **Cómo identificar una factura de Wansoft:** usa `getexpenses_factura.IdDocumento`, que es único; la columna `id` no sirve. Se quitaron 90 facturas de Coyoacán que estaban duplicadas (5.3).
 > - **Acceso restringido a la tabla de gastos:** cuando entre `analytics_expense_invoices`, tukanmx deberá restringirla a los usuarios que Fonda Argentina autorice y, de preferencia, segmentar la vista por tipo de gasto (secciones 8 y 9).
 > - **Cómo entran las ventas a Odoo y por qué su costo puede ir atrasado:** la automatización de Odoo solo procesa un ticket cuando hay inventario de todos los insumos de su receta; mientras falte alguno, ese día no tiene costo en Odoo (5.2).
 > - **Regla del cambio de costo a Odoo:** las sucursales de la ola de octubre pasan a costo de Odoo solo cuando Odoo tiene un mes completo facturado, y desde el día 1 del mes siguiente; un mes nunca mezcla los dos sistemas (secciones 3, 5.2 y 9).
@@ -448,6 +449,8 @@ fechas son texto. **`Estatus = 'Por pagar'` no significa que no se haya
 pagado:** en Wansoft las facturas casi nunca se marcan como pagadas (el pago se
 registra en otro lado), así que no uses ese campo para cuentas por pagar.
 
+**Cómo identificar una factura:** usa `IdDocumento`, el id del documento en Wansoft, único en toda la tabla. La columna `id` no sirve (vale 0 en todas las filas), `Factura_Id` y `Egresos_Id` vienen vacías y `UUID` falta en más de la mitad de las facturas. Hasta el 20 de octubre de 2026, 90 facturas de Coyoacán del 28 de enero al 9 de febrero de 2026 estaban dos veces: con el nombre viejo de la sucursal (`La Esquina Coyoacán`) y con el actual (`Fonda Argentina - Coyoacan`). Se quitaron las copias con el nombre viejo, que tenían estatus y folios atrasados, y desde entonces la tabla tiene una llave única sobre `IdDocumento`.
+
 ### 5.4 Inventario
 
 - **Existencias de hoy, las 19 sucursales:** `analytics_inventory_balance`,
@@ -656,6 +659,10 @@ Otros cambios próximos:
 ## 10. Historial de versiones
 
 La versión más reciente va primero.
+
+**Versión 1.7 (2026-10-20)**
+
+- **Cómo identificar una factura de Wansoft:** usa `getexpenses_factura.IdDocumento`, que es único; la columna `id` no sirve. Se quitaron 90 facturas de Coyoacán que estaban duplicadas (5.3).
 
 **Versión 1.6 (2026-10-20)**
 

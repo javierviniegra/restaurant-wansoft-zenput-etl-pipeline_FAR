@@ -47,7 +47,7 @@
     <td style="border: none; width: 100px; padding: 0;"><img class="logo" src="{{ logo_path }}"></td>
     <td style="border: none; padding: 0;">
       <p class="titulo">Guía de acceso a datos</p>
-      <p class="subtitulo">Bases analíticas <code>wansoft</code> y <code>zenput</code> | Fonda Argentina | Versión 1.6 (2026-10-20)</p>
+      <p class="subtitulo">Bases analíticas <code>wansoft</code> y <code>zenput</code> | Fonda Argentina | Versión 1.7 (2026-10-20)</p>
     </td>
   </tr>
 </table>
@@ -62,10 +62,11 @@ octubre de 2026</b>. El 7 de octubre se comprobó que existen en producción tod
 las tablas y columnas que nombra, y el esquema completo de cada tabla
 (Apéndice A) se tomó de producción el 13 de octubre.
 </p>
-<p><b>Versión 1.6 (20 de octubre de 2026).</b> Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.</p>
+<p><b>Versión 1.7 (20 de octubre de 2026).</b> Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.</p>
 <table style="border: none; margin: 6px 0 14px;"><tr style="border: none;"><td style="border: none; background-color: #f0e9d8; padding: 8px 12px; font-size: 9pt;">
-<span class="nota-titulo">Novedades de la versión 1.6</span> (respecto a la 1.4 del 16 de octubre de 2026, la última entregada; incluye la 1.5):
+<span class="nota-titulo">Novedades de la versión 1.7</span> (respecto a la 1.4 del 16 de octubre de 2026, la última entregada; incluye la 1.5 y la 1.6):
 <ul>
+  <li><b>Cómo identificar una factura de Wansoft:</b> usa <code>getexpenses_factura.IdDocumento</code>, que es único; la columna <code>id</code> no sirve. Se quitaron 90 facturas de Coyoacán que estaban duplicadas (5.3).</li>
   <li><b>Acceso restringido a la tabla de gastos:</b> cuando entre <code>analytics_expense_invoices</code>, tukanmx deberá restringirla a los usuarios que Fonda Argentina autorice y, de preferencia, segmentar la vista por tipo de gasto (secciones 8 y 9).</li>
   <li><b>Cómo entran las ventas a Odoo y por qué su costo puede ir atrasado:</b> la automatización de Odoo solo procesa un ticket cuando hay inventario de todos los insumos de su receta; mientras falte alguno, ese día no tiene costo en Odoo (5.2).</li>
   <li><b>Regla del cambio de costo a Odoo:</b> las sucursales de la ola de octubre pasan a costo de Odoo solo cuando Odoo tiene un mes completo facturado, y desde el día 1 del mes siguiente; un mes nunca mezcla los dos sistemas (secciones 3, 5.2 y 9).</li>
@@ -514,6 +515,8 @@ Algunas facturas de Wansoft traen <code>Cuenta</code> vacía. En esta tabla mont
 y fechas son texto. <b><code>Estatus = 'Por pagar'</code> no significa que no se haya
 pagado:</b> en Wansoft las facturas casi nunca se marcan como pagadas (el pago se
 registra en otro lado), así que no uses ese campo para cuentas por pagar.
+<br><br>
+<b>Cómo identificar una factura:</b> usa <code>IdDocumento</code>, el id del documento en Wansoft, único en toda la tabla. La columna <code>id</code> no sirve (vale 0 en todas las filas), <code>Factura_Id</code> y <code>Egresos_Id</code> vienen vacías y <code>UUID</code> falta en más de la mitad de las facturas. Hasta el 20 de octubre de 2026, 90 facturas de Coyoacán del 28 de enero al 9 de febrero de 2026 estaban dos veces: con el nombre viejo de la sucursal (<code>La Esquina Coyoacán</code>) y con el actual (<code>Fonda Argentina - Coyoacan</code>). Se quitaron las copias con el nombre viejo, que tenían estatus y folios atrasados, y desde entonces la tabla tiene una llave única sobre <code>IdDocumento</code>.
 </td></tr></table>
 
 <h2>5.4 Inventario</h2>
@@ -763,6 +766,10 @@ entren, se concederán al usuario y se documentarán aquí.</p>
 
 <h1>10. Historial de versiones</h1>
 <p>La versión más reciente va primero.</p>
+<p><b>Versión 1.7 (2026-10-20)</b></p>
+<ul>
+  <li><b>Cómo identificar una factura de Wansoft:</b> usa <code>getexpenses_factura.IdDocumento</code>, que es único; la columna <code>id</code> no sirve. Se quitaron 90 facturas de Coyoacán que estaban duplicadas (5.3).</li>
+</ul>
 <p><b>Versión 1.6 (2026-10-20)</b></p>
 <ul>
   <li><b>Acceso restringido a la tabla de gastos:</b> cuando entre <code>analytics_expense_invoices</code>, tukanmx deberá restringirla a los usuarios que Fonda Argentina autorice y, de preferencia, segmentar la vista por tipo de gasto (secciones 8 y 9).</li>
