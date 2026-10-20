@@ -97,8 +97,10 @@ human decision).
 Status refresh:
 - Odoo: daily incremental read of bills with recent `write_date` (catches bills
   paid later), plus a periodic full pass.
-- Wansoft: daily `GetPendingExpenses_Xml` per Wansoft branch; stored "Por pagar"
-  rows no longer in the pending list become "Pagada". About 10 MB per branch.
+- Wansoft: daily `GetPendingExpenses_Xml` per branch. *Superseded by block 4:*
+  the list is not "unpaid invoices", it is every invoice never acknowledged as
+  downloaded (about three years), each with its current `Estatus`; the
+  "missing from the list = paid" rule was wrong. See block 4.
   **Never call** `MarkExpenseAsPaid_*` or `UpdateExpensesDownloadStatus_*`: they
   write to Wansoft.
 
@@ -267,6 +269,62 @@ Dev results: full load **19,180 bills, 81,434 lines in 69 s**; incremental
   analytics table excludes them as buying companies.
 
 Not in production yet; it becomes a nightly stage in block 6.
+
+## Block 4: Wansoft live invoice status (built on dev 2026-10-20)
+
+**What `GetPendingExpenses_Xml` really returns.** Not the unpaid invoices: it
+lists every document whose download was never acknowledged (we never call
+`UpdateExpensesDownloadStatus_*`, on purpose), so it holds about three years of
+each branch's invoices (from mid-2023), each `Factura` with its **current**
+`Estatus` and `TotalDeudor`, plus `OrdenDeCompra` folios and a few
+`NotaDeCredito` (Id, Folio, date, total). Nápoles: 9,873 Pagada, 298 Rechazada,
+57 Por pagar. A document missing from the list is not "paid"; the earlier rule
+was wrong.
+
+**Why it matters.** `getexpenses_factura` is written by legacy `getExpenses.py`,
+which only re-reads invoices issued in the last 5 days, so a later change of
+status never reaches it. Stored vs live on dev, all branches:
+
+| Stored -> live | Invoices | Subtotal |
+|---|---|---|
+| Pagada -> Pagada | 98,097 | 717.1 MDP |
+| Por pagar -> Por pagar | 38,635 | 287.0 MDP |
+| **Por pagar -> Pagada** | **12,845** | **113.5 MDP** |
+| Rechazada -> Rechazada | 1,444 | 9.8 MDP |
+| **Por pagar -> Rechazada** | **18** | 0.04 MDP |
+
+Stored invoices not in the list are older (2023 and before, plus 1,640 of 2024
+and 114 of 2025): they keep their stored status. Still "Por pagar" live
+(38,635, some from 2023) confirms that Wansoft is rarely marked paid: the guide
+keeps saying "Por pagar" in Wansoft does not mean unpaid.
+
+**Build.** `extract/expenses/wansoft_expense_status.py` (`--only <branch>` for a
+subset) reads the list for every subsidiary in `CUENTAS_SUCURSALES` and upserts
+`wansoft_expense_live_status` (key `id_documento` + `subsidiary_id`; estatus,
+total_deudor, subtotal, total, issue date, cuenta, subcuenta, tipo, uuid,
+`first_seen_at`, `last_seen_at`). Read-only against Wansoft; `getexpenses_factura`
+is not touched. Dev: 19 subsidiaries in **78 s**, 152,564 documents, 0 failures
+(CentroMyJ and Puebla return none: born on Odoo). Passwords are read at call
+time (`CUENTAS_SUCURSALES` reads them at import, possibly before the `.env` is
+loaded: the first run got 0 rows for every branch); an empty answer counts as a
+failure.
+
+**Rule for block 5:** status = live `estatus` when the document is in
+`wansoft_expense_live_status`, else the stored `Estatus`; `Rechazada` is
+excluded either way.
+
+Not covered: Wansoft credit notes (`NotaDeCredito`, 37 at Nápoles) are not in
+`getexpenses_factura` today either; left out, to revisit with the owner.
+
+**`getexpenses_factura` identifiers (tukanmx question, 2026-10-20, production
+read-only):** `id` is always 0 (172,771 rows), there is no index or key,
+`Factura_Id` and `Egresos_Id` are never filled, `UUID` is empty in 56%.
+**`IdDocumento`** (Wansoft's global document id) is always filled and unique,
+except 90 Coyoacán documents of February 2026 stored twice, under the old branch
+name "La Esquina Coyoacán" (Por pagar) and the current "Fonda Argentina -
+Coyoacan" (Rechazada). `analytics_expense_invoices` will carry its own stable
+document id from the start (`<source_system>:<document id>`) plus a row id,
+since an Odoo bill can split into several Cuenta rows.
 
 ## Open points
 
