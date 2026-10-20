@@ -331,7 +331,12 @@ live status in all 90 cases, 18 old copies had a wrong status and 31 an older
 folio). Tested on dev (172,239 rows = 172,239 ids, lookups by `IdDocumento` use
 the key; a second run changes nothing). On dev the ALTER waited 10 minutes for an
 orphan query on the table, and a waiting ALTER blocks every new read of it, so
-the script now gives up after 60 s (`lock_wait_timeout`). Data guide 1.7 tells
+the script now gives up after 60 s (`lock_wait_timeout`). **Applied in production
+on 2026-10-20 ~11:40 by the owner from the tasks VM** (dry run first): 90 rows
+deleted and backed up, unique key added; verified read-only from dev: 172,681 rows
+= 172,681 distinct `IdDocumento`, no "La Esquina Coyoacán" rows left, lookups use
+the key. Next night: the stage "Compras - facturas/gastos" (legacy getExpenses.py)
+must stay OK with the key in place. Data guide 1.7 tells
 tukanmx to use `IdDocumento`. `analytics_expense_invoices` will carry its own stable
 document id from the start (`<source_system>:<document id>`) plus a row id,
 since an Odoo bill can split into several Cuenta rows.
