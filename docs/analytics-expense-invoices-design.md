@@ -223,6 +223,51 @@ not an account row.
 Production: not applied yet. Running the script on the tasks VM writes to the
 live `wansoft` database (it creates the two tables; Odoo is only read).
 
+## Block 3: Odoo vendor-bill extraction (built on dev 2026-10-20)
+
+`extract/expenses/odoo_vendor_bills.py` (incremental by default, `--full` reads
+everything again), same pattern as `extract/inventory/odoo_stock_moves.py`.
+Companies: the group's (branches and internal providers, `group_companies`);
+whole history, any state. Two raw tables:
+
+- **`odoo_vendor_bill_snapshot`**, one row per `in_invoice` / `in_refund`
+  (`odoo_move_id`): state, payment_state, `cfdi_uuid` + `cfdi_uuid_source`
+  (`edi_field` / `ref`), `ref`, `payment_reference` (supplier folio), dates,
+  vendor (commercial partner) name and RFC, amounts in company currency and
+  **expense sign** (bills positive, credit notes negative), payment term,
+  `reversed_entry_id`, `payment_count` and `last_payment_date` (from
+  `matched_payment_ids`).
+- **`odoo_vendor_bill_line_snapshot`**, its `product` and `tax` lines
+  (`odoo_line_id`): account, product, product category and the category's
+  expense account (company context), label, quantity, price, `amount` = balance
+  (expense sign; IVA positive, withholdings negative), tax name / rate / group.
+
+Incremental: bills written since the last load minus 3 days, **plus every
+stored posted bill not settled yet** (`not_paid` / `partial` / `in_payment`),
+because a payment does not always move the bill's `write_date`. A bill's lines
+are deleted and rewritten each time it is read. `--full` also removes stored
+bills that no longer exist in Odoo.
+
+Dev results: full load **19,180 bills, 81,434 lines in 69 s**; incremental
+2,681 bills (2,530 of them stored open bills) in 18 s. Checks:
+- Acoxpa, September 2026, posted: 288 bills 4,110,155.44 and 4 credit notes
+  -9,573.79, identical to the block 1 exploration.
+- Every posted bill: product lines = `amount_untaxed` and tax lines =
+  `amount_tax`, **0 differences**.
+- Posted bills: UUID from `ref` 17,141, from the EDI field 434, none 841; 473
+  without vendor RFC.
+- Goods lines with no category account: 82 lines, all **without product**
+  (the block 5 rule "Costo de alimentos"); most are Bodegón de Fito (internal
+  provider, excluded) or Antenas in December 2025 (before its Odoo start).
+- `last_payment_date` is missing on part of the paid bills (10,959 of 15,737):
+  bills settled without an `account.payment` (statement reconciliation,
+  compensation). `payment_state` stays the status signal; the date is
+  informative.
+- 9,307 bills belong to internal providers (`company_source_key` NULL); the
+  analytics table excludes them as buying companies.
+
+Not in production yet; it becomes a nightly stage in block 6.
+
 ## Open points
 
 - Owner decisions on the crosswalk (`owner_decision` rows and every `suggested`
