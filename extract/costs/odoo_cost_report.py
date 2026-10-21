@@ -237,3 +237,106 @@ def get_daily_cost(
     result["CostoDeMerma"] = result["CostoDeMerma"].fillna(0.0)
 
     return result.sort_values("fecha").reset_index(drop=True)
+
+
+# =====================================================
+# ONE ODOO READ PER NIGHT, SHARED BY THE THREE COST STAGES
+# =====================================================
+# The weekly (costeomensual_semanapyq), monthly (costeomensual) and daily
+# (gettotalcostbydate) cost stages used to read Odoo each on its own, minutes
+# apart. On 2026-10-21 a user processed Coyoacán's pending tickets of
+# 10-11..10-17 in Odoo between 01:36 and 03:55, while those stages ran: the
+# monthly read (~01:42) missed invoices the daily read (~01:49) saw, so the
+# month-to-date stopped matching the sum of the days (17,361 MXN short) and
+# "Costos - cambio automático a Odoo" failed its continuity check.
+#
+# get_daily_cost_shared reads Odoo once and keeps the result in
+# odoo_daily_cost_snapshot; while that reading is younger than
+# ODOO_COST_SNAPSHOT_MAX_AGE_MINUTES and covers the requested dates, the
+# other stages reuse it, so the three tables are built from the same picture
+# of Odoo. Invoices created after the reading arrive the next night, as
+# before. The weekly stage runs first and asks for the widest range (from 7
+# days before the window). A manual re-run at another time reads Odoo again:
+# re-run the three cost stages together.
+import os
+from datetime import datetime, timedelta
+
+SNAPSHOT_TABLE = "odoo_daily_cost_snapshot"
+SNAPSHOT_READS_TABLE = "odoo_daily_cost_snapshot_read"
+SNAPSHOT_MAX_AGE_MINUTES = int(os.getenv("ODOO_COST_SNAPSHOT_MAX_AGE_MINUTES", "180"))
+_COST_COLUMNS = ["fecha", "CostoTotal", "CostoDeProductosVendidos", "CostoDeMerma"]
+
+
+def _ensure_snapshot_tables(cursor) -> None:
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS {SNAPSHOT_TABLE} (
+            odoo_company_id INT NOT NULL,
+            cost_date DATE NOT NULL,
+            CostoTotal DECIMAL(18,4) NOT NULL,
+            CostoDeProductosVendidos DECIMAL(18,4) NOT NULL,
+            CostoDeMerma DECIMAL(18,4) NOT NULL,
+            read_at DATETIME NOT NULL,
+            PRIMARY KEY (odoo_company_id, cost_date)
+        )
+    """)
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS {SNAPSHOT_READS_TABLE} (
+            odoo_company_id INT NOT NULL PRIMARY KEY,
+            date_from DATE NOT NULL,
+            date_to DATE NOT NULL,
+            read_at DATETIME NOT NULL
+        )
+    """)
+
+
+def get_daily_cost_shared(
+    models: Any,
+    uid: int,
+    db: str,
+    password: str,
+    odoo_company_id: int,
+    date_from: str,
+    date_to: str,
+) -> pd.DataFrame:
+    """get_daily_cost, but read from Odoo once per night and shared (see above). Same result shape."""
+    from core.database.mysql import get_db_connection
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        _ensure_snapshot_tables(cursor)
+        cursor.execute(f"SELECT date_from, date_to, read_at FROM {SNAPSHOT_READS_TABLE} WHERE odoo_company_id = %s",
+                       (odoo_company_id,))
+        last = cursor.fetchone()
+        now = datetime.now().replace(microsecond=0)
+        fresh = (
+            last is not None
+            and now - last[2] <= timedelta(minutes=SNAPSHOT_MAX_AGE_MINUTES)
+            and str(last[0]) <= date_from
+            and str(last[1]) >= date_to
+        )
+        if fresh:
+            print(f"[Odoo costo] lectura compartida de las {last[2]:%H:%M} (compañía {odoo_company_id}, "
+                  f"{date_from} a {date_to})")
+            cursor.execute(
+                f"SELECT DATE_FORMAT(cost_date, '%Y-%m-%d'), CostoTotal, CostoDeProductosVendidos, CostoDeMerma "
+                f"FROM {SNAPSHOT_TABLE} WHERE odoo_company_id = %s AND cost_date BETWEEN %s AND %s "
+                f"ORDER BY cost_date", (odoo_company_id, date_from, date_to))
+            rows = [(d, float(t), float(p), float(m)) for d, t, p, m in cursor.fetchall()]
+            return pd.DataFrame(rows, columns=_COST_COLUMNS)
+
+        result = get_daily_cost(models, uid, db, password, odoo_company_id, date_from, date_to)
+        cursor.execute(f"DELETE FROM {SNAPSHOT_TABLE} WHERE odoo_company_id = %s", (odoo_company_id,))
+        cursor.executemany(
+            f"INSERT INTO {SNAPSHOT_TABLE} (odoo_company_id, cost_date, CostoTotal, CostoDeProductosVendidos, "
+            f"CostoDeMerma, read_at) VALUES (%s, %s, %s, %s, %s, %s)",
+            [(odoo_company_id, r.fecha, float(r.CostoTotal), float(r.CostoDeProductosVendidos),
+              float(r.CostoDeMerma), now) for r in result.itertuples()])
+        cursor.execute(
+            f"REPLACE INTO {SNAPSHOT_READS_TABLE} (odoo_company_id, date_from, date_to, read_at) "
+            f"VALUES (%s, %s, %s, %s)", (odoo_company_id, date_from, date_to, now))
+        conn.commit()
+        print(f"[Odoo costo] leído de Odoo a las {now:%H:%M} (compañía {odoo_company_id}, {date_from} a {date_to})")
+        return result
+    finally:
+        conn.close()

@@ -289,7 +289,7 @@ for subsidiary in wansoft_subsidiaries:
 if odoo_subsidiaries:
     import pandas as pd
     from core.database.odoo import get_odoo_connection
-    from extract.costs.odoo_cost_report import resolve_odoo_company_id, get_daily_cost
+    from extract.costs.odoo_cost_report import resolve_odoo_company_id, get_daily_cost_shared as get_daily_cost
     from extract.costs.cost_switch import wansoft_period_base
     from extract.costs.cost_routing import odoo_costs_window_start
 

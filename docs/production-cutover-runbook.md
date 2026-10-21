@@ -538,6 +538,22 @@ switches each one to Odoo by itself, nobody edits code:
 - it never switches back; to undo, delete the branch's row from
   `costs_odoo_switch` and let the next night (or a 3d run) recompute.
 
+**One Odoo cost read per night (since 2026-10-21).** The three cost stages
+used to read Odoo each on its own, minutes apart. On 2026-10-21 a user processed
+Coyoacán's pending tickets of 10-11..10-17 in Odoo between 01:36 and 03:55 (the
+scheduled sales automation runs at 02:00, after the cost stages; manual loads by
+users can happen at any hour), so the monthly read (~01:42) missed invoices the
+daily read (~01:49) saw: the month-to-date ended 17,361 MXN below the sum of the
+days and this stage failed on continuity. Now `get_daily_cost_shared`
+(`extract/costs/odoo_cost_report.py`) reads Odoo once, in "semana PyQ" (the first
+cost stage and the widest range), keeps it in `odoo_daily_cost_snapshot` (+
+`odoo_daily_cost_snapshot_read`: range and time of the read per Odoo company),
+and "descarga Wansoft" and "costo total por fecha" reuse it while it is younger
+than `ODOO_COST_SNAPSHOT_MAX_AGE_MINUTES` (default 180) and covers their dates.
+Invoices created after the read arrive the next night, as before. **A manual
+re-run at another time reads Odoo again: re-run the three cost stages together**
+(`-Only "semana PyQ,descarga Wansoft,costo total por fecha"`), in that order.
+
 Dry run of the rule, read-only, from the dev PC or the VM:
 `python -m extract.costs.cost_switch --prod` (dev PC) or
 `python -m extract.costs.cost_switch` (VM).

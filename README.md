@@ -116,7 +116,7 @@ in order, **continues after a failed stage**, and exits 1 if any stage failed. T
 | 3 | Inventario - salidas | Wansoft inventory exits |
 | 4 | Inventario paralelo Wansoft - entradas | the Wansoft entries the Odoo branches keep capturing in parallel, into `wansoft_parallel_inputinventory_entrada` (never in business totals; since 2026-10-01) |
 | 5 | Inventario paralelo Wansoft - salidas | the same for exits, into `wansoft_parallel_outgoinginventory_salida` |
-| 6 | Costos - semana PyQ | week-to-date costs (`costeomensual_semanapyq`), Wansoft or Odoo per routing |
+| 6 | Costos - semana PyQ | week-to-date costs (`costeomensual_semanapyq`), Wansoft or Odoo per routing; for Odoo branches it makes the night's **only** Odoo cost read, kept in `odoo_daily_cost_snapshot`, which stages 7 and 11 reuse (since 2026-10-21) |
 | 7 | Costos - descarga Wansoft | month-to-date costs (`costeomensual`) |
 | 8 | Costos - cierre global de caja | cash closings (`getglobalcashclosing`) |
 | 9 | Compras - facturas/gastos | Wansoft invoices/expenses (`getexpenses_factura`) |
