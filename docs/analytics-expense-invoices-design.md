@@ -414,8 +414,26 @@ Ramos Tapia (March-June 2026) that were paid but never applied by a credit note;
 they stay excluded as advances until the final bills arrive (or accounting
 reclassifies them).
 
-Pending: validation against the owner's Power BI "Compras Mensuales" by Cuenta
-(needs the owner's figures), then block 6 (nightly stages, tukanmx grant, guide).
+**Validation against the source systems' own reports (2026-10-21).** The owner
+could no longer use Power BI, so the comparison was made against exports from
+Wansoft and Odoo themselves (files in `analysis/validacion_gastos/`, not in git),
+after refreshing the dev Odoo snapshot and rebuilding the table:
+
+| Case | Source export | Result |
+|---|---|---|
+| Wansoft branch: Aeropuerto, September 2026 | Wansoft "Reporte de compras", sheet "Facturas por proveedor" | 302 invoices = 302 rows, matched one by one on vendor key + folio + subtotal + IVA; subtotal 3,411,524.33 and IVA 266,096.33 on both sides |
+| Migrated branch: Acoxpa (FONDA COSTA NERA), invoice date 2026-10-01..18 | Odoo vendor bills + credit notes, posted | 153 documents, all found, untaxed and total identical to the cent; table business subtotal 2,027,433.38 + excluded advance credit note -393.97 = export 2,027,039.41; 2 bills changed payment state after the export (paid since) |
+| Born on Odoo: Puebla, September 2026 | Odoo vendor bills, posted | 257 bills identical in amounts and payment state; table 1,976,955.07 + excluded advance lines 12,643.00 = export 1,989,598.07. One credit note dated 2026-09-09 (-116.76, created in October) is posted but was not in the export |
+| Both Odoo cases, by account | Odoo journal items, journal "Compras", grouped by account, balance | every expense account equal, except account names in another language (English names in the API vs Spanish in the screen) and three small **price-difference adjustments** (-39.22, -80.99, -11.75): when a bill's price differs from the receipt valuation, Odoo moves the difference between the goods clearing account and the category account. The table classifies the whole invoiced amount, which is what "Compras" compares; per-bill totals are identical |
+
+Notes: Wansoft's report dates by "Fecha Compra"; the table uses the issue date
+(`FechaDeExpedicion`, as `getexpenses_factura` and the owner's monthly report);
+64 of the 302 differ in day, none in month for this case. Every Aeropuerto
+September invoice is still "Por pagar" in Wansoft (live status), the known
+Wansoft limitation. Product lines labelled "IEPS" posted on the Con Alcohol
+account (Puebla) are part of the goods cost and land in Costo de bebidas.
+
+Next: block 6 (nightly stages, production tables, tukanmx grant, data guide).
 
 ## Open points
 
