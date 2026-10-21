@@ -435,6 +435,27 @@ account (Puebla) are part of the goods cost and land in Costo de bebidas.
 
 Next: block 6 (nightly stages, production tables, tukanmx grant, data guide).
 
+## Data guide 1.8 (to deliver with the table; owner, 2026-10-21: no 1.7 alone)
+
+tukanmx meeting of 2026-10-21 (Javier's e-mail), items to include:
+- `analytics_expense_invoices`: new section (grain, ids, routing, statuses,
+  classification, `include_in_business_views`), access requirement already in
+  1.6, and **replacement of `getexpenses_factura`** as the table to use for
+  supplier invoices (getexpenses_factura stays as Wansoft's raw table).
+- **Taquería San Fernando (Wansoft 7697)** belonged to the group until
+  **2025-02-28** (owner, 2026-10-21); everything after that date in any table
+  (sales, cash closings, costs, invoices) does not belong to the group and must
+  not be summed. Production evidence: cash closings almost daily until
+  2025-07-22 (March-July 2025 about 3.3 MDP), supplier invoices until 2025-04-29,
+  ticket sales only until 2024-12-31, cost rows of zero from May 2025 to
+  September 2026 written by the old tasks. Config: `BRANCH_LAST_GROUP_DAY` in
+  `core/config/companies.py`; the expense table excludes its 87 later invoices
+  (`exclude_reason = 'branch_left_group'`).
+- Grants: confirmed 2026-10-21 by the owner (`SHOW GRANTS`, 29 rows = USAGE + 28
+  tables, the 6 tables tukanmx listed included).
+- Appendix A regenerated from production (unique key on
+  `getexpenses_factura.IdDocumento`, the new table).
+
 ## Open points
 
 - Owner decisions on the crosswalk (`owner_decision` rows and every `suggested`

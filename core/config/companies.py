@@ -295,6 +295,25 @@ ODOO_OUT_OF_SCOPE_COMPANIES = {
 }
 
 
+# =====================================================
+# BRANCHES THAT LEFT THE GROUP: LAST DAY THAT BELONGS TO IT
+# =====================================================
+# Owner, 2026-10-21 (tukanmx question): Taquería San Fernando (Wansoft
+# subsidiary 7697) closed for the group in February 2025; everything its
+# Wansoft account recorded after 2025-02-28 does not belong to the group and
+# must be ignored, never summed. Production still has activity on that
+# account after it (cash closings almost daily until 2025-07-22, 90 supplier
+# invoices in March-April 2025, zero cost rows written until 2026-09 by the
+# old tasks). Raw Wansoft tables keep it as it came; analytics tables flag it
+# (include_in_business_views = 0, exclude_reason = 'branch_left_group').
+# Keys are company_source_key values.
+from datetime import date as _date
+
+BRANCH_LAST_GROUP_DAY = {
+    "Taqueria San Fernando": _date(2025, 2, 28),
+}
+
+
 
 def normalize_company_name(value):
     """

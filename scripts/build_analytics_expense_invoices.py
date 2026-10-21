@@ -25,8 +25,9 @@ bills from that date on; a branch born on Odoo (include_odoo_history = 1)
 takes all its Odoo bills, opening investment included; every other branch is
 Wansoft only. Rows of the other
 system's period are kept with include_in_business_views = 0 and an
-exclude_reason, like Wansoft "Rechazada", cancelled Odoo bills, advance lines
-and internal-provider companies. Business figures: include_in_business_views = 1.
+exclude_reason, like Wansoft "Rechazada", cancelled Odoo bills, advance lines,
+internal-provider companies and a branch's documents after it left the group
+(BRANCH_LAST_GROUP_DAY: Taquería San Fernando after 2025-02-28). Business figures: include_in_business_views = 1.
 
 Ids: expense_document_id = '<source_system>:<document id>' (Wansoft
 IdDocumento, Odoo account.move id) identifies the invoice; expense_row_key is
@@ -44,7 +45,7 @@ from collections import defaultdict
 from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
 
-from core.config.companies import get_company_source_key
+from core.config.companies import BRANCH_LAST_GROUP_DAY, get_company_source_key
 from core.database.mysql import get_db_connection
 
 TABLE = "analytics_expense_invoices"
@@ -210,8 +211,11 @@ def wansoft_rows(cur, starts, built_at):
         status = blank(live_status) or blank(estatus)
         cuenta, subcuenta, tipo = blank(cuenta), blank(subcuenta), blank(tipo)
         start = starts.get(key, (None, False))[0]
+        last_day = BRANCH_LAST_GROUP_DAY.get(key)
         if status == "Rechazada":
             reason = "rejected"
+        elif last_day and (invoice_date is None or invoice_date > last_day):
+            reason = "branch_left_group"
         elif start and invoice_date and invoice_date >= start:
             reason = "after_odoo_start"
         else:
@@ -311,8 +315,11 @@ def odoo_rows(cur, starts, built_at):
             FROM odoo_vendor_bill_snapshot WHERE state IN ('posted', 'cancel')"""):
         doc_date = invoice_date or accounting_date
         start, all_history = starts.get(key, (None, False))
+        last_day = BRANCH_LAST_GROUP_DAY.get(key)
         if key is None:
             bill_reason = "internal_provider_or_holding"
+        elif last_day and (doc_date is None or doc_date > last_day):
+            bill_reason = "branch_left_group"
         elif state == "cancel":
             bill_reason = "cancelled"
         elif not start:
