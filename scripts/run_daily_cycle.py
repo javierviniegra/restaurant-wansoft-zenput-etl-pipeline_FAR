@@ -19,12 +19,22 @@ from pipelines.jobs.purchases_pipeline_job import run_purchases_pipeline_job
 from pipelines.jobs.analytics_purchase_pipeline_job import run_analytics_purchase_pipeline_job
 from pipelines.jobs.odoo_cutover_validation_job import run_odoo_cutover_validation_job
 from pipelines.jobs.product_mapping_backlog_job import run_product_mapping_backlog_job
+from pipelines.jobs.expenses_unified_job import (
+    run_expense_invoices_job,
+    run_odoo_vendor_bills_job,
+    run_wansoft_expense_status_job,
+)
 from pipelines.jobs.purchase_catalog_review_job import is_due as catalog_review_due, run_purchase_catalog_review_job
 
 
 def build_stages(today=None):
     today = today or datetime.now()
     stages = list(DAILY_LEGACY_CHAIN_STEPS) + [
+        # Unified supplier invoices, Wansoft + Odoo (owner, 2026-10-21); after the
+        # legacy chain, which refreshes getexpenses_factura.
+        ("Gastos - facturas de proveedor Odoo", lambda: run_odoo_vendor_bills_job(today)),
+        ("Gastos - estatus Wansoft", run_wansoft_expense_status_job),
+        ("Gastos - tabla unificada", run_expense_invoices_job),
         ("Inventory pipeline", run_inventory_pipeline_job),
         # Day-by-day history of Odoo stock (owner, 2026-10-08).
         ("Inventario Odoo - foto diaria", run_odoo_inventory_daily_job),

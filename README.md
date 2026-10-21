@@ -9,7 +9,7 @@ which system a branch uses, when it migrated, or which source produced each row.
 Odoo is read-only for this project: nothing here writes to Odoo.
 
 > **Current state (2026-10-16):** in production since **2026-10-01**. The nightly task
-> `Wansoft_Pipeline_Diario` runs at **01:30** on the tasks VM, **21 stages, about 60-75 minutes**,
+> `Wansoft_Pipeline_Diario` runs at **01:30** on the tasks VM, **24 stages (21 until 2026-10-21; the three "Gastos" stages add ~3 min), about 60-80 minutes**,
 > writing to the live `wansoft` and `zenput` databases. The legacy `FondaCroned_*` tasks are
 > disabled. Full history, decisions and the open backlog are in
 > [`PROJECT_CONTEXT_REPORT.md`](PROJECT_CONTEXT_REPORT.md) (start with Section 13 "NOW / NEXT").
@@ -125,13 +125,16 @@ in order, **continues after a failed stage**, and exits 1 if any stage failed. T
 | 12 | Costos - cambio automático a Odoo | automatic cost switch (complete month invoiced in Odoo, from day 1 of the next month), publishes `costs_source_by_company`, validates duplicates and continuity of every Odoo-costed branch |
 | 13 | Zenput - forms | checklists and answers |
 | 14 | Zenput - tasks | tasks |
-| 15 | Inventory pipeline | Odoo inventory snapshot (mapped to Wansoft codes), scope, `analytics_inventory_balance`, validation |
-| 16 | Inventario Odoo - foto diaria | raw Odoo stock of the day (internal and transit locations, every company) into `odoo_inventory_quant_daily`: the Odoo branches' day-by-day stock history (since 2026-10-08) |
-| 17 | Inventario Odoo - movimientos | done Odoo stock moves with valuation into `odoo_stock_move_snapshot`, incremental by `write_date` |
-| 18 | Inventario - movimientos unificados | `analytics_inventory_movements` (Wansoft captured in the last 10 days + the Odoo side rebuilt) and `analytics_odoo_product_code` (Odoo product -> Wansoft code) |
-| 19 | Purchases pipeline | Odoo snapshots (confirmed orders, receipts), canonical layer merging Wansoft history and Odoo, rollout validation |
-| 20 | Analytics purchase pipeline | rebuilds `dim_vendor` / `dim_product`, then the `analytics_purchase_*` tables and their validators |
-| 21 | Odoo cutover validation | T+7 / T+30 checkpoints of every branch's Odoo start (confirmed orders only; a FAIL fails the stage) |
+| 15 | Gastos - facturas de proveedor Odoo | Odoo vendor bills and credit notes into `odoo_vendor_bill_snapshot` / `_line_snapshot`, incremental by `write_date` plus every open bill; full pass on Sundays (since 2026-10-22) |
+| 16 | Gastos - estatus Wansoft | current Estatus of Wansoft invoices still listed by `GetPendingExpenses_Xml` into `wansoft_expense_live_status` (read-only against Wansoft) |
+| 17 | Gastos - tabla unificada | tops up `expense_account_mapping` / `expense_vendor_rule` (never overwriting a decision), then rebuilds `analytics_expense_invoices` (Wansoft + Odoo supplier invoices by Cuenta); `[AVISO]` lines for business rows it could not classify |
+| 18 | Inventory pipeline | Odoo inventory snapshot (mapped to Wansoft codes), scope, `analytics_inventory_balance`, validation |
+| 19 | Inventario Odoo - foto diaria | raw Odoo stock of the day (internal and transit locations, every company) into `odoo_inventory_quant_daily`: the Odoo branches' day-by-day stock history (since 2026-10-08) |
+| 20 | Inventario Odoo - movimientos | done Odoo stock moves with valuation into `odoo_stock_move_snapshot`, incremental by `write_date` |
+| 21 | Inventario - movimientos unificados | `analytics_inventory_movements` (Wansoft captured in the last 10 days + the Odoo side rebuilt) and `analytics_odoo_product_code` (Odoo product -> Wansoft code) |
+| 22 | Purchases pipeline | Odoo snapshots (confirmed orders, receipts), canonical layer merging Wansoft history and Odoo, rollout validation |
+| 23 | Analytics purchase pipeline | rebuilds `dim_vendor` / `dim_product`, then the `analytics_purchase_*` tables and their validators |
+| 24 | Odoo cutover validation | T+7 / T+30 checkpoints of every branch's Odoo start (confirmed orders only; a FAIL fails the stage) |
 
 Conditional stages, appended at the end:
 - **Sundays:** "Product mapping backlog (weekly)" (product mapping dictionary), then the name

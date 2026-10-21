@@ -435,6 +435,27 @@ account (Puebla) are part of the goods cost and land in Costo de bebidas.
 
 Next: block 6 (nightly stages, production tables, tukanmx grant, data guide).
 
+## Block 6: nightly stages (built and tested on dev 2026-10-21, not pushed)
+
+`pipelines/jobs/expenses_unified_job.py`, three stages right after the legacy
+chain (which refreshes `getexpenses_factura`):
+"Gastos - facturas de proveedor Odoo" (incremental; `--full` on Sundays),
+"Gastos - estatus Wansoft", "Gastos - tabla unificada" (`seed_expense_mappings
+--apply`, which only adds accounts of decided names that appear in an Odoo chart
+and never overwrites a decision, then the build). The build prints `[AVISO]` lines
+for business rows of the last 60 days it could not classify (new Odoo account,
+"Por clasificar", vendor without rule, bill without lines); never a failure.
+Dev run with the cycle runner (`--only "Gastos -"`): 13 s + 75 s + 43 s = 2.2
+min, 0 failed; 193,408 rows; one `[AVISO]` (Tepeyac, 629.31 on Other overheads
+from a vendor without rule).
+
+Production plan (owner, 2026-10-21: after reviewing the night of 10-21 to
+10-22, which brings the shared Odoo cost read): push; on the VM `update_repo.ps1`,
+`seed_expense_mappings` dry run then `--apply`, then the three stages with
+`run_daily_cycle.ps1 -Only "Gastos -"` (first Odoo load is full, ~70 s); verify
+from dev read-only; grant `SELECT` on `analytics_expense_invoices` to
+`tukan_wansoft` (root); data guide 1.8.
+
 ## Data guide 1.8 (to deliver with the table; owner, 2026-10-21: no 1.7 alone)
 
 tukanmx meeting of 2026-10-21 (Javier's e-mail), items to include:

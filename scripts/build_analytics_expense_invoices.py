@@ -407,6 +407,19 @@ def main():
                 SELECT source_system, include_in_business_views, COALESCE(exclude_reason, '-'), COUNT(*), SUM(subtotal)
                 FROM {TABLE} GROUP BY 1, 2, 3 ORDER BY 1, 2 DESC, 4 DESC"""):
             print(f"  {source:<8} include={included} {reason:<28} {n:>8} rows {amount:>18,.2f}")
+        # Business rows the classification could not place: a new Odoo account
+        # (not in expense_account_mapping), a "Por clasificar" decision or a vendor
+        # of "Other overheads" without a rule. A reminder, never a failure.
+        for key, status, account, n, amount in fetch(cur, f"""
+                SELECT COALESCE(company_source_key, '-'), classification_status, COALESCE(source_account_name, '-'),
+                       COUNT(*), SUM(subtotal)
+                FROM {TABLE}
+                WHERE include_in_business_views = 1
+                  AND classification_status IN ('unmapped_account', 'unclassified', 'no_lines')
+                  AND invoice_date >= CURDATE() - INTERVAL 60 DAY
+                GROUP BY 1, 2, 3 ORDER BY ABS(SUM(subtotal)) DESC LIMIT 15"""):
+            print(f"[AVISO] gastos sin clasificar (últimos 60 días): {key} | {status} | {account} | "
+                  f"{n} renglones | {amount:,.2f}")
     finally:
         conn.close()
 
