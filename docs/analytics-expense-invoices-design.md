@@ -441,7 +441,14 @@ tukanmx meeting of 2026-10-21 (Javier's e-mail), items to include:
 - `analytics_expense_invoices`: new section (grain, ids, routing, statuses,
   classification, `include_in_business_views`), access requirement already in
   1.6, and **replacement of `getexpenses_factura`** as the table to use for
-  supplier invoices (getexpenses_factura stays as Wansoft's raw table).
+  supplier invoices (getexpenses_factura stays as Wansoft's raw table), with
+  the column equivalence (IdDocumento -> source_document_id, Sucursal ->
+  company_source_key, FechaDeExpedicion -> invoice_date, text amounts ->
+  numbers, Estatus -> status refreshed from Wansoft live) and the rule
+  `include_in_business_views = 1`. **Owner, 2026-10-21, option B:** tukanmx keeps
+  both grants, and the restricted-access requirement of 1.6 (only authorised
+  users, ideally segmented by expense type) is extended to `getexpenses_factura`,
+  which already carries the same sensitive data.
 - **Taquería San Fernando (Wansoft 7697)** belonged to the group until
   **2025-02-28** (owner, 2026-10-21); everything after that date in any table
   (sales, cash closings, costs, invoices) does not belong to the group and must
@@ -451,6 +458,12 @@ tukanmx meeting of 2026-10-21 (Javier's e-mail), items to include:
   September 2026 written by the old tasks. Config: `BRANCH_LAST_GROUP_DAY` in
   `core/config/companies.py`; the expense table excludes its 87 later invoices
   (`exclude_reason = 'branch_left_group'`).
+- **Expense access levels for tukanmx's users (owner, 2026-10-21):** Ninguno
+  (no supplier invoices), **Operativo** (Cuentas `Costo operativo`, `Gastos de
+  venta` and `Gastos Directos`), Completo (every Cuenta: rent, salaries, fees,
+  opening investment...). Applies to both expense tables. The initial user list
+  (name, e-mail, role, branches, domains, expense level) goes to tukanmx on the
+  template `reports/tukan/lista_usuarios_tukan_plantilla.xlsx` (not in git).
 - Grants: confirmed 2026-10-21 by the owner (`SHOW GRANTS`, 29 rows = USAGE + 28
   tables, the 6 tables tukanmx listed included).
 - Appendix A regenerated from production (unique key on
