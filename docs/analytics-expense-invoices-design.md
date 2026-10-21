@@ -459,6 +459,19 @@ from dev read-only; grant `SELECT` on `analytics_expense_invoices` to
 ## Data guide 1.8 (to deliver with the table; owner, 2026-10-21: no 1.7 alone)
 
 tukanmx meeting of 2026-10-21 (Javier's e-mail), items to include:
+- **At the top of the guide (owner, 2026-10-21):** how to compute inventory
+  for now. tukanmx found a table with little history: it is
+  `odoo_inventory_quant_daily` (raw Odoo stock, only since 2026-10-08);
+  `analytics_inventory_movements` has the full history. Interim method
+  (**option A**): stock of a branch x product at a date = sum of `quantity` in
+  `analytics_inventory_movements` with `counts_in_stock = 1` and
+  `include_in_business_views = 1` up to that date (both systems, full history;
+  for Odoo it equals Odoo's own stock in 9 of 10 branches, not Antenas, whose
+  Odoo data is internally inconsistent). The daily-stock table
+  `analytics_inventory_stock_daily` comes in **guide 1.9** (dev Fri 2026-10-23,
+  production Mon 10-26 or Tue 10-27).
+- Correct section 4.1: in `analytics_inventory_movements` Puebla starts on
+  2026-07-20 and CentroMyJ on 2026-06-09 (the guide says Puebla 2026-06-09).
 - `analytics_expense_invoices`: new section (grain, ids, routing, statuses,
   classification, `include_in_business_views`), access requirement already in
   1.6, and **replacement of `getexpenses_factura`** as the table to use for
