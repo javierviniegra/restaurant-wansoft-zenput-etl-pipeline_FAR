@@ -6,17 +6,30 @@ Para: equipos externos que construirán su propio ETL sobre estas bases (por
 ejemplo, una capa de preguntas y respuestas / chatbot). Indica **qué tabla usar
 para cada pregunta de negocio, qué campos importan, cómo se unen las tablas y
 qué trampas evitar**. Cada regla se verificó contra el esquema y los datos
-reales el 2026-09-28; la guía está actualizada al **2026-10-20**. El 2026-10-07
+reales el 2026-09-28; la guía está actualizada al **2026-10-22**. El 2026-10-07
 se comprobó que existen en producción todas las tablas y columnas que nombra, y
 el esquema completo de cada tabla (Apéndice A) se tomó de producción el
 2026-10-13. Versión en PDF: [data-access-guide.es.pdf](data-access-guide.es.pdf).
 
-**Versión 1.7 (2026-10-20).** Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.
+**Versión 1.8 (2026-10-22).** Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.
 
-> **Novedades de la versión 1.7** (respecto a la 1.4 del 2026-10-16, la última entregada; incluye la 1.5 y la 1.6):
+> **Cómo calcular el inventario (por ahora).** Las existencias de una sucursal × producto a una fecha son la suma de `quantity` en `analytics_inventory_movements`, con `counts_in_stock = 1` e `include_in_business_views = 1`, hasta esa fecha: Wansoft y Odoo, con todo el histórico (sección 5.4). Verificado en producción el 2026-10-22: para Nápoles da exactamente las existencias de hoy en los 862 productos. `odoo_inventory_quant_daily` es solo la foto cruda de Odoo y solo desde el 2026-10-08. En Antenas, las existencias que muestra Odoo no son la suma de sus propios movimientos (inconsistencia interna de Odoo). **La tabla de existencias por día con todo el histórico (`analytics_inventory_stock_daily`) llega en la versión 1.9 de esta guía** y reemplazará este cálculo.
+
+> ```sql
+> SELECT company_source_key, product_code, product_name, SUM(quantity) AS existencias
+> FROM analytics_inventory_movements
+> WHERE counts_in_stock = 1 AND include_in_business_views = 1
+>   AND movement_date <= '2026-09-30'
+> GROUP BY company_source_key, product_code, product_name;
+> ```
+
+> **Novedades de la versión 1.8** (respecto a la 1.4 del 2026-10-16, la última entregada; incluye la 1.5, la 1.6 y la 1.7):
 >
+> - **Nueva tabla de facturas de proveedor, Wansoft + Odoo:** `analytics_expense_invoices`, todas las sucursales con todo su histórico, clasificadas por Cuenta / Subcuenta de Wansoft; sustituye a `getexpenses_factura` para gastos (sección 5.7).
+> - **Cómo calcular el inventario por ahora** (nota al inicio de la guía); las existencias diarias llegan en la 1.9.
+> - **Taquería San Fernando (7697)** perteneció al grupo hasta el 2025-02-28; lo posterior no se suma (sección 3).
+> - **Acceso restringido a los gastos:** `analytics_expense_invoices` y `getexpenses_factura`, por nivel Ninguno / Operativo / Completo (sección 8). Acceso: 29 tablas de `wansoft`.
 > - **Cómo identificar una factura de Wansoft:** usa `getexpenses_factura.IdDocumento`, que es único; la columna `id` no sirve. Se quitaron 90 facturas de Coyoacán que estaban duplicadas (5.3).
-> - **Acceso restringido a la tabla de gastos:** cuando entre `analytics_expense_invoices`, tukanmx deberá restringirla a los usuarios que Fonda Argentina autorice y, de preferencia, segmentar la vista por tipo de gasto (secciones 8 y 9).
 > - **Cómo entran las ventas a Odoo y por qué su costo puede ir atrasado:** la automatización de Odoo solo procesa un ticket cuando hay inventario de todos los insumos de su receta; mientras falte alguno, ese día no tiene costo en Odoo (5.2).
 > - **Regla del cambio de costo a Odoo:** las sucursales de la ola de octubre pasan a costo de Odoo solo cuando Odoo tiene un mes completo facturado, y desde el día 1 del mes siguiente; un mes nunca mezcla los dos sistemas (secciones 3, 5.2 y 9).
 
@@ -34,6 +47,7 @@ el esquema completo de cada tabla (Apéndice A) se tomó de producción el
    - [5.4 Inventario](#54-inventario)
    - [5.5 Zenput](#55-zenput-base-zenput)
    - [5.6 Tablas de gobierno](#56-tablas-de-gobierno)
+   - [5.7 Gastos](#57-gastos-facturas-de-proveedor-wansoft--odoo)
 6. [No usar](#6-no-usar)
 7. [Frescura y horarios](#7-frescura-y-horarios)
 8. [Acceso](#8-acceso)
@@ -133,8 +147,12 @@ Notas:
 - La misma sucursal tiene nombres distintos según el sistema: Metepec =
   "Tollocan", Napoles = "Polyforum", Versalles = "Taquería Exhibimex", Acoxpa =
   "Costa Nera" en Odoo. Los nombres largos usan guion (`-`) o guion largo (`–`).
-- `7697` "Taqueria San Fernando" solo aparece en costos históricos; no es una de
-  las 19 sucursales actuales.
+- `7697` "Taqueria San Fernando" perteneció al grupo **hasta el 2025-02-28** y no es una de las 19
+  sucursales actuales. Todo lo que su cuenta de Wansoft registró después (cortes de caja hasta julio
+  de 2025, facturas de marzo y abril de 2025, renglones de costo en cero hasta 2026) **no es del grupo y
+  no se debe sumar**. Sus tickets de venta llegan solo al 2024-12-31 (enero y febrero de 2025 solo están
+  en el corte de caja). En `analytics_expense_invoices` su clave es `Taqueria San Fernando` y sus
+  facturas posteriores salen con `exclude_reason = 'branch_left_group'`.
 - **Las ventas siempre vienen de Wansoft, para todas las sucursales**, sin
   importar la fuente de compras.
 - **Sucursales nuevas** (hoy Puebla y CentroMyJ, y todas las que abran
@@ -169,7 +187,7 @@ Notas:
 | Costo de venta del día | `gettotalcostbydate` | una fila por sucursal por día |
 | Rendimientos de tablajería | `gettablajeriareport` | solo histórico de sucursales Wansoft; va de salida (ver 5.2) |
 | Compras (mercancía) de cualquier sucursal y periodo | `analytics_purchase_order_lines` / `analytics_purchase_orders` / `analytics_purchase_daily_company_product` | `include_in_business_views = 1` |
-| Gasto por cuenta contable (Costo operativo, Gastos directos...) | `getexpenses_factura` | solo Wansoft (ver 5.3) |
+| Gasto por cuenta contable (Costo operativo, Gastos directos...) | `analytics_expense_invoices` | todas las sucursales, Wansoft + Odoo (5.7); `getexpenses_factura` es solo Wansoft |
 | Detalle de entradas y salidas de inventario (Wansoft) | `getinputinventory_entrada`, `getoutgoinginventory_salida` | sucursales Wansoft |
 | Lo que las sucursales de Odoo siguen capturando en Wansoft (solo para comparar) | `wansoft_parallel_inputinventory_entrada`, `wansoft_parallel_outgoinginventory_salida` | desde el 2026-10-01; nunca en totales (ver 5.4) |
 | Existencias actuales, las 19 sucursales | `analytics_inventory_balance` (y `analytics_inventory_current_product_location` para Odoo por ubicación) | `include_in_business_views = 1`; solo la foto de hoy |
@@ -196,6 +214,7 @@ Fechas de inicio medidas en producción el 2026-09-28; la puesta en producción 
 | Costo semanal acumulado | `costeomensual_semanapyq` | Wansoft u Odoo (5.2) | 2024-01-02 |  |
 | Tablajería | `gettablajeriareport` | Wansoft | 2022-01-01 | Va de salida (sección 5.2) |
 | Facturas de proveedor por cuenta contable | `getexpenses_factura` | Wansoft | 2019-02-18 | El histórico más antiguo; solo mientras la sucursal captura en Wansoft |
+| **Facturas de proveedor unificadas** | `analytics_expense_invoices` | **Wansoft + Odoo** | 2019-02-18 | Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde entonces; Puebla y CentroMyJ con todo su histórico de Odoo, incluida la inversión de apertura (5.7) |
 | Entradas de inventario | `getinputinventory_entrada` | Wansoft | 2021-09-01 |  |
 | Salidas de inventario | `getoutgoinginventory_salida` | Wansoft | 2020-11-30 | Unas 1.1 millones de filas traen `Fecha` vacía (`0000-00-00`): son ajustes y mermas con su fecha de negocio en `FechaReal`. **No las excluyas**: usa `COALESCE(NULLIF(Fecha, '0000-00-00'), FechaReal)` (5.4) |
 | **Compras unificadas** | `analytics_purchase_order_lines`, `analytics_purchase_orders`, `analytics_purchase_daily_company_product` | **Wansoft + Odoo** | **2021-09-01** | Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde entonces (1 de octubre de 2026 para las migradas; Puebla y CentroMyJ desde su apertura en junio). Verificado año por año: mismos renglones y pesos que las facturas de Wansoft en producción |
@@ -204,7 +223,7 @@ Fechas de inicio medidas en producción el 2026-09-28; la puesta en producción 
 | Existencias de Odoo día por día | `odoo_inventory_quant_daily` | Odoo | 2026-10-08 | Una foto cruda por noche (producto × ubicación); no hay historia de Odoo antes de esa fecha |
 | Checklists | `zenput.submissions`, `zenput.submission_answers` | Zenput | 2025-06-11 |  |
 | Tareas | `zenput.zenput_tasks` | Zenput | 2025-06-03 |  |
-| **Movimientos de inventario unificados** | `analytics_inventory_movements` | **Wansoft + Odoo** | 2020-09-29 | Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde entonces (Puebla desde el 2026-06-09); lo capturado en paralelo se conserva con `include_in_business_views = 0` |
+| **Movimientos de inventario unificados** | `analytics_inventory_movements` | **Wansoft + Odoo** | 2020-09-29 | Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde entonces (CentroMyJ desde el 2026-06-09, Puebla desde el 2026-07-20); lo capturado en paralelo se conserva con `include_in_business_views = 0` |
 | Calendario | `dim_time` | — | 2020-01-01 | Hasta 2035-12-31 |
 
 ---
@@ -439,10 +458,10 @@ cubren mercancía. Por eso:
   ambos sistemas para la misma sucursal y día; no compares Odoo contra Wansoft
   esperando que coincidan.
 - **Gastos que no son mercancía** (renta, servicios, software, nómina,
-  fletes...) de las sucursales que ya operan en Odoo: hoy **no** se extraen de
-  Odoo. En `getexpenses_factura` esas sucursales solo tienen sus facturas hasta
-  su fecha de arranque en Odoo. De la contabilidad de Odoo solo se toma el costo
-  de venta (sección 5.2).
+  fletes...) de las sucursales que ya operan en Odoo: están en
+  `analytics_expense_invoices` (sección 5.7), con las facturas de proveedor de Odoo.
+  En `getexpenses_factura` esas sucursales solo tienen sus facturas hasta su fecha
+  de arranque en Odoo.
 
 Algunas facturas de Wansoft traen `Cuenta` vacía. En esta tabla montos y
 fechas son texto. **`Estatus = 'Por pagar'` no significa que no se haya
@@ -580,6 +599,62 @@ de venta.
   reescribe cada noche (sección 5.2).
 - `dim_time`: calendario (`date_key` = `AAAAMMDD`), semanas, meses, semanas ISO.
 
+### 5.7 Gastos: facturas de proveedor (Wansoft + Odoo)
+
+`analytics_expense_invoices` reúne **todas las facturas de proveedor de todas las sucursales**, de Wansoft y de
+Odoo, con todo el histórico (desde 2019-02-18), clasificadas con las mismas Cuentas y Subcuentas de Wansoft. Se
+reconstruye completa cada noche. Para gastos úsala en lugar de `getexpenses_factura`, que sigue existiendo como
+tabla cruda de Wansoft.
+
+- **Qué incluye:** de Wansoft, cada factura de `getexpenses_factura`; de Odoo, cada factura y nota de crédito de
+  proveedor. Mismo criterio que las compras: Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde
+  entonces; Puebla y CentroMyJ, que nacieron en Odoo, con todo su histórico de Odoo, incluida la inversión de
+  apertura.
+- **Identificadores:** `expense_document_id` identifica la factura (`wansoft:<IdDocumento>` u
+  `odoo:<id>`); `expense_row_key` identifica la fila. Una factura de Odoo con renglones de varias Cuentas
+  ocupa una fila por Cuenta: para el total de una factura, suma sus filas.
+- **Clasificación:** `tipo_de_egreso`, `cuenta`, `subcuenta`. En Wansoft, tal como se capturó. En Odoo, por
+  la equivalencia de sus cuentas contables con las de Wansoft, que decidió Fonda Argentina
+  (`classification_status` dice cómo se clasificó cada fila). Nueva Cuenta **`Inversión inicial`**
+  (`tipo_de_egreso = 'Inversión'`): equipo, obra e instalación de aperturas.
+- **Montos** numéricos, en pesos: `subtotal`, `discount`, `iva`, `ieps`, `retentions` (retenido, en positivo) y
+  `total` = subtotal + iva + ieps − discount − retentions, como en Wansoft. Las notas de crédito
+  (`document_type = 'credit_note'`) son negativas.
+- **Estatus:** en Wansoft, `status` se actualiza cada noche con el estatus vigente en Wansoft (Pagada / Por
+  pagar / Rechazada); "Por pagar" en Wansoft sigue sin significar que no se haya pagado. En Odoo: Pagada, En
+  pago, Pago parcial, Por pagar, Revertida, Cancelada; `payment_date` cuando Odoo registra un pago.
+- **Cifras de negocio: filtra `include_in_business_views = 1`.** El resto se conserva con su
+  `exclude_reason`: `rejected`, `cancelled`, `advance` (anticipos, para no contar dos veces la factura final),
+  `internal_provider_or_holding`, `before_odoo_start` (lo que las sucursales migradas capturaron en Odoo antes de
+  su arranque) y `branch_left_group` (San Fernando después del 2025-02-28).
+- `uuid_document_count`: cuántas facturas incluidas comparten el mismo UUID (vacío si es único); Wansoft tiene
+  algunas facturas capturadas dos veces o con el UUID mal escrito.
+- **Al pasar de Wansoft a Odoo cambia lo que se registra:** Odoo lleva gastos que una sucursal no capturaba en
+  Wansoft (por ejemplo, la renta de Acoxpa aparece desde octubre de 2026). No es un aumento de gasto.
+
+Equivalencia con `getexpenses_factura`: `IdDocumento` → `source_document_id`; `Sucursal` →
+`company_source_key`; `FechaDeExpedicion` → `invoice_date`; `Folio`, `UUID` → `folio`, `uuid`;
+`NombreProveedor`, `RFCProveedor`, `ClaveProveedor` → `vendor_name`, `vendor_rfc`, `vendor_key`;
+`TipoDeEgreso`, `Cuenta`, `Subcuenta` → `tipo_de_egreso`, `cuenta`, `subcuenta`; `Subtotal`, `IVA`, `IEPS`,
+`Discount`, `Retentions`, `Total` → los mismos montos, como números; `Estatus` → `status` (actualizado).
+
+Verificada el 2026-10-21 contra los reportes de los propios sistemas: Aeropuerto, septiembre de 2026 (reporte
+de compras de Wansoft, 302 facturas) y Acoxpa, octubre, y Puebla, septiembre (facturas y apuntes de Odoo):
+iguales factura por factura y por cuenta.
+
+Ejemplo, gasto mensual por Cuenta de una sucursal:
+
+```sql
+SELECT DATE_FORMAT(invoice_date, '%Y-%m') AS mes, cuenta, SUM(subtotal) AS subtotal
+FROM analytics_expense_invoices
+WHERE include_in_business_views = 1 AND company_source_key = 'Acoxpa'
+  AND invoice_date >= '2026-07-01'
+GROUP BY 1, 2
+ORDER BY 1, 3 DESC;
+```
+
+**Acceso restringido:** ver la sección 8.
+
 ---
 
 ## 6. No usar
@@ -597,7 +672,7 @@ de venta.
 
 ## 7. Frescura y horarios
 
-- Pipeline diario a la **01:30** (hora de Ciudad de México), unos 40 minutos;
+- Pipeline diario a la **01:30** (hora de Ciudad de México), alrededor de una hora;
   datos hasta el día anterior. En producción desde el 1 de octubre de 2026.
 - Revisiones continuas: ventas 10 días (cuadradas contra todos los cortes de
   caja del día en Wansoft; el último día se valida la noche siguiente),
@@ -626,21 +701,32 @@ máximo de 4 conexiones simultáneas y 30 minutos por consulta.
 
 Las tablas que el usuario puede leer son exactamente las del Apéndice A, con
 todas sus columnas. Cuando se agrega una tabla nueva (sección 9), se concede al
-usuario y se actualizan esta guía y el apéndice. Excepción: la tabla de gastos
-deberá tener además acceso restringido en la plataforma de tukanmx (sección 9).
+usuario y se actualizan esta guía y el apéndice.
+
+**Requisito para tukanmx: acceso restringido a los gastos.** `analytics_expense_invoices` y
+`getexpenses_factura` tienen información sensible (rentas, sueldos, honorarios, gastos administrativos,
+con el proveedor de cada uno). En su plataforma, tukanmx debe restringir **las dos** a los usuarios que
+Fonda Argentina autorice, con el nivel de gasto de cada uno:
+
+| Nivel | Qué ve |
+|---|---|
+| Ninguno | Ninguna factura de proveedor |
+| Operativo | Solo las Cuentas `Costo operativo`, `Gastos de venta` y `Gastos Directos` |
+| Completo | Todas las Cuentas, incluidas renta, sueldos, honorarios e inversión inicial |
+
+Fonda Argentina entrega la lista de usuarios iniciales con el nivel de cada uno.
 
 ---
 
 ## 9. Lo que falta (en construcción)
 
-Estado al 2026-10-20. Los movimientos de inventario unificados ya están en
-producción (5.4). Las tablas de abajo todavía no existen; cuando entren, se
-concederán al usuario y se documentarán aquí.
+Estado al 2026-10-22. Las facturas de proveedor unificadas ya están en
+producción (5.7). La tabla de abajo todavía no existe; cuando entre, se
+concederá al usuario y se documentará aquí.
 
 | Qué | Tabla | Estado | Qué resuelve |
 |---|---|---|---|
-| Existencias diarias unificadas | `analytics_inventory_stock_daily` | Diseñada | Existencias por sucursal × producto × día desde el primer movimiento, ambas fuentes; reemplaza la fórmula de entradas − salidas de la sección 5.4 y cubre los huecos de Odoo antes del 2026-10-08 |
-| Facturas de proveedor unificadas | `analytics_expense_invoices` | Diseñada | Facturas por cuenta contable de Wansoft + facturas de proveedor de Odoo; hoy los gastos que no son mercancía de las sucursales de Odoo no se extraen (5.3) |
+| Existencias diarias unificadas | `analytics_inventory_stock_daily` | En construcción; llega en la versión 1.9 | Existencias por sucursal × producto × día desde el primer movimiento, ambas fuentes; reemplaza la fórmula de entradas − salidas de la sección 5.4 y cubre los huecos de Odoo antes del 2026-10-08 |
 
 Otros cambios próximos:
 - **Aeropuerto y Taquería Viaducto pasan a Odoo el 2026-11-01** (como
@@ -651,7 +737,6 @@ Otros cambios próximos:
   Wansoft hasta que Odoo tenga un mes completo facturado; `costs_source_by_company`
   muestra el día del cambio (5.2).
 - **Antenas** sigue con costo de Wansoft mientras se repara su base en Odoo.
-- **Requisito para tukanmx: acceso restringido a la tabla de gastos.** La tabla de facturas de proveedor (`analytics_expense_invoices`) tendrá información sensible: rentas, honorarios, sueldos y gastos administrativos, con el proveedor de cada uno. En su plataforma, tukanmx debe restringirla para todos los usuarios: solo la podrán consultar los usuarios que Fonda Argentina autorice. De preferencia, la vista debe segmentarse por tipo de gasto (cada factura traerá su tipo de egreso, cuenta y subcuenta), para que, por ejemplo, un usuario de operación vea el costo de mercancía y los gastos de venta, pero no las rentas, los honorarios ni los sueldos. Pedimos a tukanmx que nos confirme cómo lo hará antes de que se le conceda la tabla.
 - **Seguridad del acceso:** el acceso del usuario quedará limitado a una IP fija y la conexión será cifrada (TLS); avisaremos la fecha y lo necesario para conectarse.
 
 ---
@@ -659,6 +744,13 @@ Otros cambios próximos:
 ## 10. Historial de versiones
 
 La versión más reciente va primero.
+
+**Versión 1.8 (2026-10-22)**
+
+- **Nueva tabla de facturas de proveedor, Wansoft + Odoo:** `analytics_expense_invoices`, todas las sucursales con todo su histórico, clasificadas por Cuenta / Subcuenta de Wansoft; sustituye a `getexpenses_factura` para gastos (sección 5.7).
+- **Cómo calcular el inventario por ahora** (nota al inicio de la guía); las existencias diarias llegan en la 1.9.
+- **Taquería San Fernando (7697)** perteneció al grupo hasta el 2025-02-28; lo posterior no se suma (sección 3).
+- **Acceso restringido a los gastos:** `analytics_expense_invoices` y `getexpenses_factura`, por nivel Ninguno / Operativo / Completo (sección 8). Acceso: 29 tablas de `wansoft`.
 
 **Versión 1.7 (2026-10-20)**
 
@@ -711,7 +803,7 @@ La versión más reciente va primero.
 
 ## Apéndice A. Esquema de las tablas
 
-Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas del esquema de producción el 2026-10-16. **Nulo**: si la columna admite NULL. **Llave**: `PRI` llave primaria, `UNI` parte de una llave única, `MUL` parte de un índice. El significado de los campos importantes está en la sección indicada entre paréntesis.
+Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas del esquema de producción el 2026-10-22. **Nulo**: si la columna admite NULL. **Llave**: `PRI` llave primaria, `UNI` parte de una llave única, `MUL` parte de un índice. El significado de los campos importantes está en la sección indicada entre paréntesis.
 
 ### A.1 Ventas
 
@@ -1146,7 +1238,7 @@ Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas d
 | `id` | int(11) | no |  |
 | `Sucursal` | varchar(255) | sí |  |
 | `Factura_Id` | varchar(255) | sí |  |
-| `IdDocumento` | varchar(255) | sí |  |
+| `IdDocumento` | varchar(255) | sí | UNI |
 | `Folio` | varchar(255) | sí |  |
 | `RFCProveedor` | varchar(255) | sí |  |
 | `NombreProveedor` | varchar(255) | sí |  |
@@ -1180,6 +1272,47 @@ Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas d
 | `Discount` | varchar(255) | sí |  |
 | `Retentions` | varchar(255) | sí |  |
 | `Egresos_Id` | varchar(255) | sí |  |
+
+**`analytics_expense_invoices`**: facturas de proveedor de todas las sucursales, Wansoft + Odoo, por cuenta contable (5.7). 36 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `expense_row_key` | char(32) | no | PRI |
+| `expense_document_id` | varchar(40) | no | MUL |
+| `source_system` | varchar(10) | no |  |
+| `source_document_id` | varchar(32) | no |  |
+| `document_type` | varchar(20) | no |  |
+| `company_source_key` | varchar(100) | sí | MUL |
+| `source_company_name` | varchar(255) | sí |  |
+| `invoice_date` | date | sí |  |
+| `due_date` | date | sí |  |
+| `folio` | varchar(255) | sí |  |
+| `uuid` | varchar(64) | sí |  |
+| `uuid_document_count` | int(11) | sí |  |
+| `vendor_name` | varchar(255) | sí |  |
+| `vendor_rfc` | varchar(20) | sí |  |
+| `vendor_key` | varchar(50) | sí |  |
+| `tipo_de_egreso` | varchar(100) | sí |  |
+| `cuenta` | varchar(255) | sí | MUL |
+| `subcuenta` | varchar(255) | sí |  |
+| `is_costo_operativo` | tinyint(1) | no |  |
+| `classification_status` | varchar(30) | no |  |
+| `source_account_name` | varchar(500) | sí |  |
+| `subtotal` | decimal(18,2) | no |  |
+| `discount` | decimal(18,2) | no |  |
+| `iva` | decimal(18,2) | no |  |
+| `ieps` | decimal(18,2) | sí |  |
+| `retentions` | decimal(18,2) | no |  |
+| `total` | decimal(18,2) | no |  |
+| `status` | varchar(30) | sí |  |
+| `source_status` | varchar(50) | sí |  |
+| `status_from_live` | tinyint(1) | no |  |
+| `payment_date` | date | sí |  |
+| `payment_terms` | varchar(255) | sí |  |
+| `purchase_order_ref` | varchar(500) | sí |  |
+| `include_in_business_views` | tinyint(1) | no | MUL |
+| `exclude_reason` | varchar(50) | sí |  |
+| `built_at` | datetime | no |  |
 
 ### A.4 Inventario
 

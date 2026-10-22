@@ -50,6 +50,7 @@ GROUPS = [
         ("analytics_purchase_orders", "órdenes de compra / facturas, Wansoft + Odoo (5.3)", "purchase orders / invoices, Wansoft + Odoo (5.3)"),
         ("analytics_purchase_daily_company_product", "compras por sucursal × día × producto (5.3)", "purchases per branch × day × product (5.3)"),
         ("getexpenses_factura", "facturas de proveedor de Wansoft por cuenta contable (5.3)", "Wansoft supplier invoices by account (5.3)"),
+        ("analytics_expense_invoices", "facturas de proveedor de todas las sucursales, Wansoft + Odoo, por cuenta contable (5.7)", "supplier invoices of every branch, Wansoft + Odoo, by account (5.7)"),
     ]),
     ("Inventario", "Inventory", [
         ("analytics_inventory_balance", "existencias de hoy, las 19 sucursales (5.4)", "today's stock, all 19 branches (5.4)"),
