@@ -104,6 +104,15 @@ GRANT SELECT ON `wansoft`.`analytics_inventory_movements`                TO 'tuk
 -- still carries mappings under review.
 GRANT SELECT ON `wansoft`.`analytics_odoo_product_code`                  TO 'tukan_wansoft'@'%';
 
+-- ---------------- PART H (2026-10-22, once the table exists) ----------------
+-- Unified supplier invoices, Wansoft + Odoo, by Cuenta (guide 1.8), live in
+-- production since 2026-10-22. Sensitive (rent, salaries, fees): tukanmx must
+-- restrict it to authorised users, by expense level (guide 1.6/1.8), like
+-- getexpenses_factura. The helper tables (expense_account_mapping,
+-- expense_vendor_rule, odoo_vendor_bill_*, wansoft_expense_live_status) are
+-- not granted.
+GRANT SELECT ON `wansoft`.`analytics_expense_invoices`                   TO 'tukan_wansoft'@'%';
+
 -- Re-running the WHOLE file is safe: CREATE USER IF NOT EXISTS leaves an
 -- existing user and its password untouched (a note, not an error), and a GRANT
 -- that already exists changes nothing. Do that when parts C/D/E are in doubt.
@@ -113,7 +122,7 @@ GRANT SELECT ON `wansoft`.`analytics_odoo_product_code`                  TO 'tuk
 -- ---------------- VERIFY ----------------
 SHOW GRANTS FOR 'tukan_wansoft'@'%';
 SHOW GRANTS FOR 'tukan_zenput'@'%';
--- Expected: USAGE + 27 table grants for tukan_wansoft (28 once part G exists); USAGE + `zenput`.* for tukan_zenput.
+-- Expected: USAGE + 29 table grants for tukan_wansoft (28 before part H, 2026-10-22); USAGE + `zenput`.* for tukan_zenput.
 
 -- ---------------- DIAGNOSE: "Access denied ... @'localhost'" (2026-10-13) ----------------
 -- phpMyAdmin runs ON the database server, so it logs in as 'tukan_wansoft'@'localhost'.
