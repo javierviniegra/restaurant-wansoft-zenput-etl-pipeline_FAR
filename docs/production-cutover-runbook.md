@@ -770,6 +770,19 @@ Re-running is safe: every stage reloads its window (rewrite or upsert by key), a
   missed Sunday mapping job or catalog review is run on its own (9.6).
 - If production was down for longer than a window, widen it for that one run (9.5).
 
+**Servers off at night (2026-10-23).** Every task is registered with
+`StartWhenAvailable`: a run missed because the VM was off starts **as soon as the VM
+is back**, even in the daytime. On 2026-10-23 the servers were off after 00:30 and
+came back around noon: `Wansoft_Pipeline_Diario` and `Wansoft_Cortes_Manana` both
+started at 12:10 and ran at the same time. That is safe: `getglobalcashclosing` has
+the unique key `uq_subsidiary_fecha_corte`, and the windows reload the missed day
+(the log of that run is `daily_cycle_<day of the run>.log`). What cannot be
+recovered is that night's Odoo stock snapshot (`odoo_inventory_quant_daily`, stock
+date 2026-10-22 missing): Odoo keeps no past stock. A daytime capture is labelled
+with the day of the run and replaced by the next night's. Check with
+`Get-ScheduledTask | Where-Object { $_.TaskName -like 'Wansoft*' } | Get-ScheduledTaskInfo`
+before starting anything by hand, so a manual run does not overlap a catch-up run.
+
 ### 9.4 Re-run a single stage (VM, writes to production)
 
 `-Only` takes comma-separated fragments, case-insensitive, matched as substrings of
