@@ -14,7 +14,11 @@ from datetime import datetime
 from pipelines.scheduler import DAILY_LEGACY_CHAIN_STEPS
 from pipelines.jobs.inventory_pipeline_job import run_inventory_pipeline_job
 from pipelines.jobs.odoo_inventory_daily_job import run_odoo_inventory_daily_job
-from pipelines.jobs.inventory_movements_job import run_odoo_stock_moves_job, run_inventory_movements_job
+from pipelines.jobs.inventory_movements_job import (
+    run_inventory_movements_job,
+    run_inventory_stock_daily_job,
+    run_odoo_stock_moves_job,
+)
 from pipelines.jobs.purchases_pipeline_job import run_purchases_pipeline_job
 from pipelines.jobs.analytics_purchase_pipeline_job import run_analytics_purchase_pipeline_job
 from pipelines.jobs.odoo_cutover_validation_job import run_odoo_cutover_validation_job
@@ -41,6 +45,8 @@ def build_stages(today=None):
         # Unified inventory movements, Wansoft + Odoo (owner, 2026-10-14).
         ("Inventario Odoo - movimientos", run_odoo_stock_moves_job),
         ("Inventario - movimientos unificados", run_inventory_movements_job),
+        # Stock per branch x product x day from the movements (owner, 2026-10-26).
+        ("Inventario - existencias diarias", run_inventory_stock_daily_job),
         ("Purchases pipeline", run_purchases_pipeline_job),
         ("Analytics purchase pipeline", run_analytics_purchase_pipeline_job),
         ("Odoo cutover validation", run_odoo_cutover_validation_job),

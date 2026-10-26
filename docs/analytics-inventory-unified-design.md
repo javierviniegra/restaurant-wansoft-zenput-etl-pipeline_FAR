@@ -338,7 +338,21 @@ nine consistent branches it equals the forward sum.
    Wansoft code equivalence it uses (consumers' table, 2026-10-16). Next
    improvement: an incremental Odoo side (the full nightly rebuild of 1.15 M
    rows takes about 12 min in production).
-4. **`analytics_inventory_stock_daily`** from the movements.
+4. **`analytics_inventory_stock_daily`** from the movements. **Built on dev
+   2026-10-26** (`scripts/build_analytics_inventory_stock_daily.py`): `--full`
+   builds a new table by branch and swaps it in (a grid product x calendar day
+   plus a running sum; Napoles 1.3 M rows in about 4.5 minutes on dev, so about one
+   hour for all 18 M); the nightly mode updates the live table in place: per
+   branch, the Wansoft days from the oldest day the movements' nightly window
+   touched (seeded with the stored stock of the day before) and the whole Odoo
+   series, 5-12 s per branch. Stage "Inventario - existencias diarias" after
+   "movimientos unificados". Validated with full history copied from production
+   (Napoles, La Esquina Coyoacan, CentroMyJ): no gaps; Napoles' last day = the
+   balance for 862/862 products; latest Odoo capture = sum of Odoo's own moves
+   (200/200, 331/332), older captures differ only by moves registered later; the
+   nightly mode reproduces the full build with 0 differences (also after deleting
+   30 days). Production: one-off `--full` load on the VM in the daytime, then the
+   stage, grant to tukanmx, data guide 1.9.
 5. **`analytics_expense_invoices`** (supplier invoices; needs a crosswalk from
    Odoo accounting accounts to Wansoft's `Cuenta`).
 
