@@ -92,3 +92,4 @@ Vigilancia y Seguridad,approved,Gasto,Gastos Directos,Vigilancia y Seguridad,,"o
 Combustibles y Lubricantes,approved,Gasto,Gastos Directos,Combustibles y Lubricantes,,"owner 2026-10-19/20, docs/analytics-expense-invoices-design.md"
 Otros Impuestos y Derechos,approved,Gasto,Gastos Directos,Otros Impuestos o Derechos,,"owner 2026-10-19/20, docs/analytics-expense-invoices-design.md"
 Goods Received - No Invoices,product_category,,,,,goods clearing account: classify each line by its product category expense account
+Gastos de Fin de Año,approved,Gasto,Gastos Directos,Gastos de Fin de año,,"owner 2026-10-26: new Odoo account, same as the Wansoft subcuenta"

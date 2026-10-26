@@ -28,7 +28,10 @@ mapping_status / rule_status:
   pending_review    added automatically, waiting for the owner
 
 A re-run never overwrites a human decision: it inserts new rows and only
-updates rows still in pending_review. Read-only against Odoo.
+updates rows still in pending_review. When the owner CHANGES a decision, it is
+edited in the seed file and applied once with --update-decided, which rewrites
+the existing rows that differ from the seed (first used 2026-10-26: La Cava de
+James from unclassified to Costo de bebidas). Read-only against Odoo.
 """
 import argparse
 import csv
@@ -146,8 +149,9 @@ def odoo_branch_accounts():
     return accounts, len(roots), skipped
 
 
-def upsert(cur, table, key, columns, rows, status_field):
-    """Insert new rows; update existing ones only while they are still pending_review."""
+def upsert(cur, table, key, columns, rows, status_field, update_decided=False):
+    """Insert new rows; update existing ones only while they are still pending_review,
+    or, with update_decided, whenever the seed (a decision the owner changed) differs."""
     cur.execute(f"SELECT {key}, {status_field} FROM {table}")
     existing = dict(cur.fetchall())
     inserted = updated = kept = 0
@@ -156,16 +160,18 @@ def upsert(cur, table, key, columns, rows, status_field):
         if r[key] not in existing:
             cur.execute(f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({', '.join(['%s'] * len(columns))})", values)
             inserted += 1
-        elif existing[r[key]] == "pending_review" and r[status_field] != "pending_review":
+        elif update_decided or (existing[r[key]] == "pending_review" and r[status_field] != "pending_review"):
             sets = ", ".join(f"{c} = %s" for c in columns if c != key)
             cur.execute(f"UPDATE {table} SET {sets} WHERE {key} = %s", [r.get(c) for c in columns if c != key] + [r[key]])
-            updated += 1
+            # rowcount counts only rows whose values actually changed
+            updated += cur.rowcount
+            kept += 1 - cur.rowcount
         else:
             kept += 1
     return inserted, updated, kept
 
 
-def main(apply=False):
+def main(apply=False, update_decided=False):
     account_seed = read_seed(ACCOUNT_SEED, "mapping_status", ACCOUNT_STATUSES)
     vendor_seed = read_seed(VENDOR_SEED, "rule_status", VENDOR_STATUSES)
     decisions = {r["odoo_account_name"]: r for r in account_seed}
@@ -200,16 +206,22 @@ def main(apply=False):
         cur = conn.cursor()
         for ddl in DDL:
             cur.execute(ddl)
-        a = upsert(cur, "expense_account_mapping", "odoo_account_id", ACCOUNT_COLUMNS, rows, "mapping_status")
-        v = upsert(cur, "expense_vendor_rule", "odoo_partner_id", VENDOR_COLUMNS, vendors, "rule_status")
+        a = upsert(cur, "expense_account_mapping", "odoo_account_id", ACCOUNT_COLUMNS, rows, "mapping_status",
+                   update_decided)
+        v = upsert(cur, "expense_vendor_rule", "odoo_partner_id", VENDOR_COLUMNS, vendors, "rule_status", update_decided)
         conn.commit()
     finally:
         conn.close()
-    print(f"expense_account_mapping: {a[0]} inserted, {a[1]} updated from pending_review, {a[2]} kept")
-    print(f"expense_vendor_rule: {v[0]} inserted, {v[1]} updated from pending_review, {v[2]} kept")
+    how = "changed by the seed" if update_decided else "updated from pending_review"
+    print(f"expense_account_mapping: {a[0]} inserted, {a[1]} {how}, {a[2]} kept")
+    print(f"expense_vendor_rule: {v[0]} inserted, {v[1]} {how}, {v[2]} kept")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--apply", action="store_true", help="create the tables and write the rows")
-    main(parser.parse_args().apply)
+    parser.add_argument("--update-decided", action="store_true",
+                        help="also rewrite existing rows that differ from the seed: only after the owner changed a "
+                             "decision in the seed files (never in the nightly run)")
+    args = parser.parse_args()
+    main(args.apply, args.update_decided)

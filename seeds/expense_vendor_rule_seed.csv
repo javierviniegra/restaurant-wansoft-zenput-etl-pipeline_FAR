@@ -19,7 +19,7 @@ odoo_partner_id,vendor_name,vendor_rfc,rule_status,rule_source,tipo_de_egreso,cu
 46,BB LO NATURAL,BLN191008ER6,approved,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,3202/3341
 211,PROPIMEX,PRO840423SG8,approved,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,1270/1306
 50,WITTING Y GUERRERO LUZ ALICIA,WIGL480203HG5,approved,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,905/915
-4318,LA CAVA DE JAMES,,unclassified,por_clasificar,,,,
+4318,LA CAVA DE JAMES,,approved,owner_agreed,Costo de producción,Costo operativo,Costo de bebidas,"owner 2026-10-26: liquor; 1,013 Wansoft invoices by name are Costo de bebidas"
 1778,COMERCIALIZADORA SCARV,CSC1609074UA,approved,wansoft_vendor_history,Gasto,Gastos de venta,Carbon,325/355
 85,NUEVA WALMART DE MEXICO,NWM9709244W4,approved,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,1621/2667
 1766,ECM DE VINOS,EVI060613AE2,approved,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de bebidas,441/446
@@ -71,3 +71,5 @@ odoo_partner_id,vendor_name,vendor_rfc,rule_status,rule_source,tipo_de_egreso,cu
 4609,Sarahi Mendez,,unclassified,por_clasificar,,,,
 3998,COMERCIAL CITY FRESKO,CCF121101KQ4,approved,wansoft_vendor_history,Costo de producción,Costo operativo,Costo de alimentos,51/177
 551,Alejandro Rodríguez,,unclassified,por_clasificar,,,,
+217,EDENRED MEXICO,ASE930924SS7,approved,owner_agreed,Gasto,Sueldos y Salarios,Vales de Despensa,owner 2026-10-26: meal vouchers
+5044,ANA LORENA RODRIGUEZ ESTRADA,ROEA921123SK0,approved,owner_agreed,Gasto,Gastos Directos,Atención a Clientes,owner 2026-10-26: tango show
