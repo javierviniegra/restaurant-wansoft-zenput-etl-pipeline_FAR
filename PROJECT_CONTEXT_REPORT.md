@@ -2,7 +2,7 @@
 
 Master continuity document. Generated/updated automatically at the close of major steps, on explicit request ("Generate project context report"), when the conversation gets very long, when consumed context exceeds ~70%, or when a new chat needs to be opened due to token limits. Always regenerated in full, never as an incremental patch.
 
-Last generated: 2026-10-19 (Monday), for a chat handoff. **Production runs the nightly cycle `Wansoft_Pipeline_Diario` at 01:30 with 21 stages (~60-65 min) plus `Wansoft_Cortes_Manana` at 07:30.** Since 2026-10-13: **unified inventory movements live** (`analytics_inventory_movements`, 40.6 M rows, Wansoft + Odoo, full history, validator PASS; `analytics_odoo_product_code`; weekly name matcher for Odoo products on a temporary `ODOO-<id>` code); dev MySQL corruption root-caused (`innodb_use_native_aio=0`) and fixed; 69 wrong Odoo mappings rejected; tukanmx: 28 granted tables, data guide **1.5**, IP + TLS approved for this week; **cost switch rule replaced** (complete month invoiced in Odoo; Isabel and Vía Vallejo reverted to Wansoft). **NEXT: expenses domain (`analytics_expense_invoices`, design `docs/analytics-expense-invoices-design.md`), block 1 = read-only exploration of Odoo vendor bills.** Read Section 13 "NOW / NEXT" first, then Section 0 (machines).
+Last generated: 2026-10-26 (Monday), for a chat handoff. **Production runs `Wansoft_Pipeline_Diario` at 01:30 with 25 stages (~60 min) plus `Wansoft_Cortes_Manana` at 07:30.** Since 2026-10-19: **expenses domain live** (`analytics_expense_invoices`, Wansoft + Odoo supplier invoices by Cuenta, 3 nightly stages, validated against Wansoft and Odoo reports), one shared Odoo cost read per night (cost continuity fix), `getexpenses_factura` deduplicated with a unique key on `IdDocumento`, data guide **1.8** ready for tukanmx (29 granted tables). **`analytics_inventory_stock_daily` (stock per branch × product × day, 18.1 M rows) built and validated on dev; its one-off `--full` load was RUNNING on the tasks VM at handoff (started ~10:45 on 2026-10-26).** Read Section 13 "NOW / NEXT" first, then Section 0 (machines).
 
 ---
 
@@ -471,9 +471,68 @@ See prior reports for bugs #1-#17.
 - **2026-10-12, November wave:** Aeropuerto and Taquería Viaducto start on Odoo on 2026-11-01 as branches of FONDA ARGENTINA AEROPUERTO; Parroquia/Exhibimex configured, unused; Playa del Carmen closes next year and is not integrated; Cancún will run as a normal company. Three reminder layers (nightly detector, checklist, scheduled session 2026-10-26).
 - **2026-10-12, cash closings:** a 07:30 pass (`Wansoft_Cortes_Manana`); **2026-10-13:** seven branches upload their closing the next morning; accepted as known behavior, no further change.
 
+**Second production weeks (2026-10-19 to 10-26)**
+- **2026-10-19, expenses crosswalk:** Odoo account -> Wansoft Cuenta / Subcuenta decided by the owner (93 names; 504.01 accounts = Gastos de venta; opening capex -> new `TipoDeEgreso = Inversión`, `Cuenta = Inversión inicial`; advance accounts excluded; "Other overheads" classified per vendor; Liquidity Transfer = Nova SM's oven -> Equipo de restaurante). Decisions are editable: seed files + `seed_expense_mappings.py` (`--update-decided` for changed decisions, 2026-10-26).
+- **2026-10-20:** branches born on Odoo (Puebla, CentroMyJ) take their whole Odoo history in the expense table, opening investment included; migrated branches keep their start date.
+- **2026-10-20, tukanmx:** use `getexpenses_factura.IdDocumento`; 90 stale Coyoacán duplicates removed and unique key added in production (owner ran it); guide 1.6 requirement: expense tables restricted per user.
+- **2026-10-21, tukanmx meeting:** Taquería San Fernando (Wansoft 7697) belongs to the group only until **2025-02-28** (`BRANCH_LAST_GROUP_DAY`); both expense tables restricted (option B: tukanmx keeps both grants); expense access levels Ninguno / Operativo (Costo operativo + Gastos de venta + Gastos Directos) / Completo; initial-user template `reports/tukan/lista_usuarios_tukan_plantilla.xlsx` (not in git); guide 1.7 not sent alone, 1.8 is the next delivery, with an interim inventory note on top (stock at a date = sum of `analytics_inventory_movements`, option A) and the daily-stock table in 1.9.
+- **2026-10-21, costs:** one Odoo cost read per night shared by the three cost stages (a user processed Coyoacán tickets in Odoo during the cost stages and broke continuity); the scheduled Odoo sales automation runs at 02:00, manual loads by users can happen at any hour.
+- **2026-10-26:** expense decisions for new rows (Gastos de Fin de Año account, Edenred -> Vales de Despensa, tango show -> Atención a Clientes, La Cava de James -> Costo de bebidas); `analytics_inventory_stock_daily` keeps **every day, zero-stock days included** (option A, 18.1 M rows measured in production).
+
 # 13. Identified Legacy / Consolidated Backlog
 
-## NOW / NEXT (2026-10-19, Monday, handoff) — start here
+## NOW / NEXT (2026-10-26, Monday, handoff) — start here
+
+**In progress at handoff:** the owner was running on the tasks VM (Analisis_BI,
+`C:\Apps\Wansoft_ETL`, writes to production) the one-off load
+`.\.venv\Scripts\python.exe -m scripts.build_analytics_inventory_stock_daily --full`
+(started about 10:45 on 2026-10-26, about one hour; prints one line per branch and ends with
+`analytics_inventory_stock_daily: ~18,1xx,xxx filas`). It builds `analytics_inventory_stock_daily_new`
+and swaps it in at the end. The code (`51859aa`) is already on the VM and the nightly stage
+**"Inventario - existencias diarias"** (stage 22 of 25, after "movimientos unificados") runs from tonight:
+**if the --full load did not finish, tonight's stage fails with "run once with --full"** — then re-run --full in the daytime.
+
+**Next chat (Paso 30), in order:**
+1. Confirm the --full load finished; verify read-only from the dev PC (`ENV=prod`): one row per branch x product
+   x day with no gaps, last day = `analytics_inventory_balance` for Wansoft branches (Napoles was 862/862 on dev),
+   Odoo branches' last day = the latest `odoo_inventory_quant_daily` capture (internal locations). Validation
+   scripts used on dev are described in `docs/analytics-inventory-unified-design.md` (build order step 4).
+2. Check the night 10-26 -> 10-27: 25 stages, 0 failed, the new stage ~2-3 min; expense `[AVISO]` lines should be
+   gone (decisions of 10-26 applied; nightly seed + build).
+3. Grant `SELECT` on `analytics_inventory_stock_daily` to `tukan_wansoft` (add part I to
+   `sql/maintenance/create_tukan_readonly_users.sql`; owner runs it as root in phpMyAdmin).
+4. Data guide **1.9**: replace the interim inventory note at the top with the new table (section 5.4, 4.1,
+   section 9, appendix regenerated with `build_schema_appendix.py`, add the table to its GROUPS), version box
+   relative to the last version delivered (1.8 if the owner sent it), section 10.
+5. **November wave** (Aeropuerto and Taquería Viaducto on Odoo from 2026-11-01, branches of FONDA ARGENTINA
+   AEROPUERTO): checklist `docs/odoo-wave-2026-11-01-checklist.md`; the session scheduled for 2026-10-26 did not
+   happen yet. Their accounts are already in `expense_account_mapping` (seeded from the holding's chart).
+
+**Done since 2026-10-19 (details in `docs/analytics-expense-invoices-design.md` and the runbook):**
+- Expenses blocks 1-6: Odoo vendor-bill exploration; `expense_account_mapping` (1,119 accounts) and
+  `expense_vendor_rule` (74 vendors); `odoo_vendor_bill_snapshot` / `_line_snapshot` (incremental, full on
+  Sundays); `wansoft_expense_live_status` (Wansoft's current Estatus from `GetPendingExpenses_Xml`, read-only;
+  12,845 invoices stored as "Por pagar" were "Pagada"); `analytics_expense_invoices` (~194 k rows, Wansoft equal
+  to `getexpenses_factura` to the cent, every Odoo bill equal to its total, validated against Wansoft's
+  purchases report and Odoo exports). Live in production since 2026-10-22; 3 nightly stages (~2.5 min).
+- Costs: one shared Odoo cost read per night (`odoo_daily_cost_snapshot`), continuity clean since 10-22.
+- Servers were off the night of 10-22 -> 10-23; the VM ran the missed tasks at 12:10 when it came back
+  (`StartWhenAvailable`, runbook 9.3); data recovered, except the Odoo stock capture of stock date 2026-10-22.
+- Nights 10-24, 10-25, 10-26: 0 failed, 72 / 65 / 60 min; "movimientos unificados" back to ~14 min.
+- tukanmx: 29 granted tables (owner confirmed `SHOW GRANTS`), guide 1.8 (es/en PDFs) with e-mail draft and the
+  user template; owner sends them.
+- A separate session produced the analysis of the drop in tables of 2-4 people (`reports/caida_mesas_2a4/`,
+  not in git).
+
+**Owner's open items:** send guide 1.8 + user template to tukanmx; tukanmx's fixed IP and a date for TLS (plan in
+the 2026-10-21 notes: test on dev first, then a one-minute MySQL restart outside 01:30-03:00, 07:30 and Thursday
+18:00); CentroMyJ has 692 k of unapplied advances to Salvador Ramos Tapia (accounting); an Oceanía Odoo bill dated
+2026-10-30.
+
+**Later:** incremental Odoo side of the movements build; owner reviews (Odoo name-match candidates, in-use wrong
+mappings); Perisur/Lindavista Symphony sales; housekeeping (dev folders, analisisbi password).
+
+## Earlier NOW / NEXT (2026-10-19, Monday, handoff)
 
 **Next chat (Paso 29): expenses domain, `analytics_expense_invoices`** (last domain of the
 owner's goal "one source-agnostic table per domain with all history"). Design agreed on
