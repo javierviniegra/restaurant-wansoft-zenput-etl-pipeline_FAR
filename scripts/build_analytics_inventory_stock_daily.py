@@ -49,7 +49,7 @@ STAGING = f"{TABLE}_new"
 MOVES = "analytics_inventory_movements"
 QUANTS = "odoo_inventory_quant_daily"
 CODES = "analytics_odoo_product_code"
-KEEP_ZERO_DAYS = False
+KEEP_ZERO_DAYS = True  # owner, 2026-10-26: every day, zero-stock days included (18.1 M rows measured)
 ZERO = 0.000001  # quantities below this are zero (decimal noise of unit conversions)
 
 DDL = f"""
@@ -88,57 +88,78 @@ def branch_plan(cur):
     return plan
 
 
-def daily_net_sql(source, key_filter, extra=""):
-    """Per product x day: net quantity and net cost of the stock-moving rows."""
-    return f"""
-        SELECT product_code, movement_date AS d, SUM(quantity) AS net_qty, SUM(COALESCE(total_cost, 0)) AS net_value,
-               MAX(product_name) AS product_name
+def load_nets(cur, key, source, until, business_only):
+    """tmp_sd_nets: per product x day, the net quantity and cost of the stock-moving rows."""
+    cur.execute("DROP TABLE IF EXISTS tmp_sd_nets")
+    cur.execute("""
+        CREATE TABLE tmp_sd_nets (
+            product_code VARCHAR(60) NOT NULL, d DATE NOT NULL, net_qty DECIMAL(18,6) NOT NULL,
+            net_value DECIMAL(18,4) NOT NULL, product_name VARCHAR(255) NULL,
+            PRIMARY KEY (product_code, d)
+        ) ENGINE=InnoDB
+    """)
+    cur.execute(f"""
+        INSERT INTO tmp_sd_nets
+        SELECT product_code, movement_date, SUM(quantity), SUM(COALESCE(total_cost, 0)), MAX(product_name)
         FROM {MOVES}
-        WHERE company_source_key = %s AND source_system = '{source}' AND counts_in_stock = 1
-          AND product_code IS NOT NULL {key_filter} {extra}
+        WHERE company_source_key = %s AND source_system = %s AND counts_in_stock = 1 AND product_code IS NOT NULL
+          AND movement_date <= %s {"AND include_in_business_views = 1" if business_only else ""}
         GROUP BY product_code, movement_date
+    """, (key, source, until))
+
+
+def insert_days(cur, key, source, status, first_day_sql, last_day, keep_from, stock_sql, built_at):
     """
+    The grid product x day (each product from its first day to last_day) joined
+    to the day's net by exact key, then a running sum per product. Expanding a
+    grid of products x calendar days is cheap; joining every change to a range of
+    days was a block-nested-loop join (1.75 billion comparisons for Napoles).
+    keep_from drops the days before it after the running sum (the Odoo side
+    starts at the branch's start date but sums every earlier move).
+    """
+    zero_filter = "" if KEEP_ZERO_DAYS else f"AND (ABS(x.stock_qty) > {ZERO} OR x.moved_qty <> 0)"
+    cur.execute(f"""
+        INSERT INTO {STAGING}
+        SELECT x.stock_date, %s, x.product_code, %s, x.product_name, x.stock_qty, x.stock_value, x.moved_qty,
+               %s, 1, %s
+        FROM (
+            SELECT t.calendar_date AS stock_date, p.product_code, p.product_name,
+                   {stock_sql} AS stock_qty,
+                   SUM(COALESCE(n.net_value, 0)) OVER (PARTITION BY p.product_code ORDER BY t.calendar_date) AS stock_value,
+                   COALESCE(n.net_qty, 0) AS moved_qty
+            FROM tmp_sd_products p
+            JOIN dim_time t ON t.calendar_date BETWEEN {first_day_sql} AND %s
+            LEFT JOIN tmp_sd_nets n ON n.product_code = p.product_code AND n.d = t.calendar_date
+        ) x
+        WHERE x.stock_date >= %s {zero_filter}
+    """, (key, source, status, built_at, last_day, keep_from))
+    return cur.rowcount
 
 
 def build_branch(cur, key, odoo_start, born_on_odoo, yesterday, built_at):
     """Insert the branch's days into the staging table; returns rows inserted."""
-    cur.execute("DROP TABLE IF EXISTS tmp_sd_changes")
-    cur.execute("""
-        CREATE TABLE tmp_sd_changes (
-            product_code VARCHAR(60) NOT NULL, d DATE NOT NULL, source_system VARCHAR(10) NOT NULL,
-            product_name VARCHAR(255), net_qty DECIMAL(18,6) NOT NULL, stock_qty DECIMAL(18,6) NOT NULL,
-            stock_value DECIMAL(18,4) NULL, series_end DATE NOT NULL,
-            PRIMARY KEY (product_code, d)
-        ) ENGINE=InnoDB
-    """)
+    rows = 0
+    running = "SUM(COALESCE(n.net_qty, 0)) OVER (PARTITION BY p.product_code ORDER BY t.calendar_date)"
 
-    # ---- Wansoft series: running sum, cut the day before the Odoo start
+    # ---- Wansoft series: running sum, up to the day before the Odoo start
     if not born_on_odoo:
         wansoft_end = (odoo_start - timedelta(days=1)) if odoo_start else yesterday
-        cur.execute(f"""
-            INSERT INTO tmp_sd_changes
-            SELECT product_code, d, 'wansoft', product_name, net_qty,
-                   SUM(net_qty) OVER (PARTITION BY product_code ORDER BY d),
-                   SUM(net_value) OVER (PARTITION BY product_code ORDER BY d),
-                   %s
-            FROM ({daily_net_sql('wansoft', "AND include_in_business_views = 1", "AND movement_date <= %s")}) w
-        """, (wansoft_end, key, wansoft_end))
+        load_nets(cur, key, "wansoft", wansoft_end, business_only=True)
+        cur.execute("DROP TABLE IF EXISTS tmp_sd_products")
+        cur.execute("""
+            CREATE TABLE tmp_sd_products ENGINE=InnoDB AS
+            SELECT product_code, MIN(d) AS first_d, MAX(product_name) AS product_name, CAST(0 AS DECIMAL(18,6)) AS cap_qty,
+                   CAST(0 AS DECIMAL(18,6)) AS fwd_at_capture
+            FROM tmp_sd_nets GROUP BY product_code
+        """)
+        status = "wansoft_history_before_odoo" if odoo_start else "wansoft_final"
+        rows += insert_days(cur, key, "wansoft", status, "p.first_d", wansoft_end, date(2000, 1, 1), running, built_at)
 
     # ---- Odoo series: backwards from the latest capture of the branch
     if odoo_start or born_on_odoo:
         capture = fetch(cur, f"SELECT MAX(stock_date) FROM {QUANTS} WHERE company_source_key = %s AND stock_date <= %s",
                         (key, yesterday))[0][0]
-        odoo_from = None if born_on_odoo else odoo_start
-        cur.execute("DROP TABLE IF EXISTS tmp_sd_odoo")
-        cur.execute(f"""
-            CREATE TABLE tmp_sd_odoo ENGINE=InnoDB AS
-            SELECT product_code, d, product_name, net_qty, net_value,
-                   SUM(net_qty) OVER (PARTITION BY product_code ORDER BY d) AS fwd_qty,
-                   SUM(net_value) OVER (PARTITION BY product_code ORDER BY d) AS fwd_value
-            FROM ({daily_net_sql('odoo', '', 'AND movement_date <= %s')}) o
-        """, (key, yesterday))
-        cur.execute("ALTER TABLE tmp_sd_odoo ADD PRIMARY KEY (product_code, d)")
-        # Odoo's stock at the capture, by the same product code as the movements.
+        load_nets(cur, key, "odoo", yesterday, business_only=False)  # every Odoo move: the sum starts at the beginning
         cur.execute("DROP TABLE IF EXISTS tmp_sd_capture")
         cur.execute(f"""
             CREATE TABLE tmp_sd_capture ENGINE=InnoDB AS
@@ -148,74 +169,29 @@ def build_branch(cur, key, odoo_start, born_on_odoo, yesterday, built_at):
             WHERE q.company_source_key = %s AND q.stock_date = %s AND q.location_usage = 'internal'
             GROUP BY 1
         """, (key, capture))
-        cur.execute("ALTER TABLE tmp_sd_capture ADD PRIMARY KEY (product_code)")
-        # forward sum at the capture day, per product
-        cur.execute("DROP TABLE IF EXISTS tmp_sd_at_capture")
+        series_start = (fetch(cur, "SELECT MIN(d) FROM tmp_sd_nets")[0][0] or capture or yesterday) if born_on_odoo else odoo_start
+        cur.execute("DROP TABLE IF EXISTS tmp_sd_products")
+        # Products with moves start at their first move (the running sum needs it);
+        # products Odoo holds without any move start at the series start.
         cur.execute("""
-            CREATE TABLE tmp_sd_at_capture ENGINE=InnoDB AS
-            SELECT product_code, MAX(fwd_qty) AS fwd_at_capture
-            FROM (SELECT o.product_code, o.fwd_qty FROM tmp_sd_odoo o
-                  JOIN (SELECT product_code, MAX(d) AS d FROM tmp_sd_odoo WHERE d <= %s GROUP BY product_code) x
-                    ON x.product_code = o.product_code AND x.d = o.d) t
-            GROUP BY product_code
-        """, (capture or date.min,))
-        cur.execute("ALTER TABLE tmp_sd_at_capture ADD PRIMARY KEY (product_code)")
-        # stock(D) = capture + fwd(D) - fwd(capture); with no capture, the forward sum
-        series_from = odoo_from or date(2000, 1, 1)
-        cur.execute(f"""
-            INSERT INTO tmp_sd_changes
-            SELECT o.product_code, o.d, 'odoo', COALESCE(o.product_name, cap.product_name), o.net_qty,
-                   COALESCE(cap.qty, 0) + o.fwd_qty - COALESCE(a.fwd_at_capture, 0) * (%s IS NOT NULL),
-                   o.fwd_value, %s
-            FROM tmp_sd_odoo o
-            LEFT JOIN tmp_sd_capture cap ON cap.product_code = o.product_code
-            LEFT JOIN tmp_sd_at_capture a ON a.product_code = o.product_code
-            WHERE o.d >= %s
-        """, (capture, yesterday, series_from))
-        # The stock the series starts with: the day before its first day (opening),
-        # for products already holding stock when the series begins, and the
-        # products Odoo holds with no movement in the series at all.
-        start_day = odoo_from or None
-        if start_day:
-            cur.execute(f"""
-                INSERT INTO tmp_sd_changes
-                SELECT p.product_code, %s, 'odoo', COALESCE(o.product_name, cap.product_name), 0,
-                       COALESCE(cap.qty, 0) + COALESCE(o.fwd_qty, 0) - COALESCE(a.fwd_at_capture, 0) * (%s IS NOT NULL),
-                       o.fwd_value, %s
-                FROM (SELECT product_code FROM tmp_sd_capture UNION SELECT DISTINCT product_code FROM tmp_sd_odoo) p
-                LEFT JOIN (SELECT t.* FROM tmp_sd_odoo t
-                           JOIN (SELECT product_code, MAX(d) AS d FROM tmp_sd_odoo WHERE d < %s GROUP BY product_code) x
-                             ON x.product_code = t.product_code AND x.d = t.d) o ON o.product_code = p.product_code
-                LEFT JOIN tmp_sd_capture cap ON cap.product_code = p.product_code
-                LEFT JOIN tmp_sd_at_capture a ON a.product_code = p.product_code
-                WHERE NOT EXISTS (SELECT 1 FROM tmp_sd_changes c WHERE c.product_code = p.product_code AND c.d = %s)
-            """, (start_day, capture, yesterday, start_day, start_day))
-        else:
-            cur.execute(f"""
-                INSERT INTO tmp_sd_changes
-                SELECT cap.product_code, %s, 'odoo', cap.product_name, 0, cap.qty, NULL, %s
-                FROM tmp_sd_capture cap
-                WHERE NOT EXISTS (SELECT 1 FROM tmp_sd_odoo o WHERE o.product_code = cap.product_code)
-            """, (capture, yesterday))
-
-    # ---- Expand each change to the days until the next change (or the series end)
-    status = {"wansoft": "wansoft_final" if not odoo_start else "wansoft_history_before_odoo", "odoo": "odoo_final"}
-    zero_filter = "" if KEEP_ZERO_DAYS else f"AND (ABS(c.stock_qty) > {ZERO} OR t.calendar_date = c.d)"
-    cur.execute(f"""
-        INSERT INTO {STAGING}
-        SELECT t.calendar_date, %s, c.product_code, c.source_system, c.product_name, c.stock_qty, c.stock_value,
-               IF(t.calendar_date = c.d, c.net_qty, 0),
-               CASE c.source_system WHEN 'wansoft' THEN %s ELSE %s END, 1, %s
-        FROM (SELECT ch.*, LEAD(ch.d) OVER (PARTITION BY ch.product_code ORDER BY ch.d) AS next_d FROM tmp_sd_changes ch) c
-        JOIN dim_time t ON t.calendar_date >= c.d
-                       AND t.calendar_date < COALESCE(LEAST(c.next_d, DATE_ADD(c.series_end, INTERVAL 1 DAY)),
-                                                      DATE_ADD(c.series_end, INTERVAL 1 DAY))
-        WHERE 1 = 1 {zero_filter}
-    """, (key, status["wansoft"], status["odoo"], built_at))
-    return cur.rowcount
+            CREATE TABLE tmp_sd_products ENGINE=InnoDB AS
+            SELECT a.product_code, LEAST(COALESCE(n.first_d, %s), %s) AS first_d,
+                   COALESCE(n.product_name, c.product_name) AS product_name,
+                   COALESCE(c.qty, 0) AS cap_qty, COALESCE(f.fwd_at_capture, 0) AS fwd_at_capture
+            FROM (SELECT product_code FROM tmp_sd_nets UNION SELECT product_code FROM tmp_sd_capture) a
+            LEFT JOIN (SELECT product_code, MIN(d) AS first_d, MAX(product_name) AS product_name
+                       FROM tmp_sd_nets GROUP BY product_code) n ON n.product_code = a.product_code
+            LEFT JOIN tmp_sd_capture c ON c.product_code = a.product_code
+            LEFT JOIN (SELECT product_code, SUM(net_qty) AS fwd_at_capture FROM tmp_sd_nets
+                       WHERE d <= %s GROUP BY product_code) f ON f.product_code = a.product_code
+        """, (series_start, series_start, capture or date.min))
+        # stock(D) = capture + forward(D) - forward(capture); with no capture, the forward sum
+        stock = running if capture is None else f"p.cap_qty + {running} - p.fwd_at_capture"
+        rows += insert_days(cur, key, "odoo", "odoo_final", "p.first_d", yesterday, series_start, stock, built_at)
+    return rows
 
 
-HELPERS = ("tmp_sd_changes", "tmp_sd_odoo", "tmp_sd_capture", "tmp_sd_at_capture")
+HELPERS = ("tmp_sd_nets", "tmp_sd_products", "tmp_sd_capture")
 
 
 def drop_helpers(cur):

@@ -245,6 +245,19 @@ At a branch's Odoo start date the series switches from the Wansoft balance
 to the Odoo one (each system's own count; Odoo starts from its opening
 balances). The nightly run recomputes only the days inside the reload window.
 
+**Size measured in production (2026-10-26, read-only):** 14,280 branch ×
+product pairs; **18.1 M rows** keeping every day from each product's first
+movement to yesterday (the 2026-10-10 estimate was about 12 M), 13.6 M keeping
+only days with stock or a movement, 4.6 M change days. **Owner, 2026-10-26:
+keep every day, zero-stock days included** (option A): a missing row never means
+zero, so averages and counts over days cannot silently go wrong; about 1 GB more
+than skipping zeros, and WansoftServer has well over 200 GB free.
+Build: `scripts/build_analytics_inventory_stock_daily.py` (`KEEP_ZERO_DAYS = True`).
+Columns as built: `stock_date`, `company_source_key`, `product_code` (the same
+common code as the movements), `source_system`, `product_name`, `stock_qty`,
+`stock_value`, `moved_qty` (net movement of that day), `final_source_status`,
+`include_in_business_views`, `built_at`.
+
 ## Odoo stock rebuilt from moves: findings and rule (2026-10-12)
 
 Step 1 loaded every done `stock.move` of the 19 group companies (1,616,098)
