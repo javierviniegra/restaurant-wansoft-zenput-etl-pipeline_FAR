@@ -6,32 +6,19 @@ Para: equipos externos que construirán su propio ETL sobre estas bases (por
 ejemplo, una capa de preguntas y respuestas / chatbot). Indica **qué tabla usar
 para cada pregunta de negocio, qué campos importan, cómo se unen las tablas y
 qué trampas evitar**. Cada regla se verificó contra el esquema y los datos
-reales el 2026-09-28; la guía está actualizada al **2026-10-22**. El 2026-10-07
+reales el 2026-09-28; la guía está actualizada al **2026-10-27**. El 2026-10-07
 se comprobó que existen en producción todas las tablas y columnas que nombra, y
 el esquema completo de cada tabla (Apéndice A) se tomó de producción el
 2026-10-13. Versión en PDF: [data-access-guide.es.pdf](data-access-guide.es.pdf).
 
-**Versión 1.8 (2026-10-22).** Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.
+**Versión 1.9 (2026-10-27).** Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.
 
-> **Cómo calcular el inventario (por ahora).** Las existencias de una sucursal × producto a una fecha son la suma de `quantity` en `analytics_inventory_movements`, con `counts_in_stock = 1` e `include_in_business_views = 1`, hasta esa fecha: Wansoft y Odoo, con todo el histórico (sección 5.4). Verificado en producción el 2026-10-22: para Nápoles da exactamente las existencias de hoy en los 862 productos. `odoo_inventory_quant_daily` es solo la foto cruda de Odoo y solo desde el 2026-10-08. En Antenas, las existencias que muestra Odoo no son la suma de sus propios movimientos (inconsistencia interna de Odoo). **La tabla de existencias por día con todo el histórico (`analytics_inventory_stock_daily`) llega en la versión 1.9 de esta guía** y reemplazará este cálculo.
-
-> ```sql
-> SELECT company_source_key, product_code, product_name, SUM(quantity) AS existencias
-> FROM analytics_inventory_movements
-> WHERE counts_in_stock = 1 AND include_in_business_views = 1
->   AND movement_date <= '2026-09-30'
-> GROUP BY company_source_key, product_code, product_name;
-> ```
-
-> **Novedades de la versión 1.8** (respecto a la 1.4 del 2026-10-16, la última entregada; incluye la 1.5, la 1.6 y la 1.7):
+> **Novedades de la versión 1.9** (respecto a la 1.8 del 2026-10-22):
 >
-> - **Nueva tabla de facturas de proveedor, Wansoft + Odoo:** `analytics_expense_invoices`, todas las sucursales con todo su histórico, clasificadas por Cuenta / Subcuenta de Wansoft; sustituye a `getexpenses_factura` para gastos (sección 5.7).
-> - **Cómo calcular el inventario por ahora** (nota al inicio de la guía); las existencias diarias llegan en la 1.9.
-> - **Taquería San Fernando (7697)** perteneció al grupo hasta el 2025-02-28; lo posterior no se suma (sección 3).
-> - **Acceso restringido a los gastos:** `analytics_expense_invoices` y `getexpenses_factura`, por nivel Ninguno / Operativo / Completo (sección 8). Acceso: 29 tablas de `wansoft`.
-> - **Cómo identificar una factura de Wansoft:** usa `getexpenses_factura.IdDocumento`, que es único; la columna `id` no sirve. Se quitaron 90 facturas de Coyoacán que estaban duplicadas (5.3).
-> - **Cómo entran las ventas a Odoo y por qué su costo puede ir atrasado:** la automatización de Odoo solo procesa un ticket cuando hay inventario de todos los insumos de su receta; mientras falte alguno, ese día no tiene costo en Odoo (5.2).
-> - **Regla del cambio de costo a Odoo:** las sucursales de la ola de octubre pasan a costo de Odoo solo cuando Odoo tiene un mes completo facturado, y desde el día 1 del mes siguiente; un mes nunca mezcla los dos sistemas (secciones 3, 5.2 y 9).
+> - **Nueva tabla de existencias por día, Wansoft + Odoo:** `analytics_inventory_stock_daily`, una fila por sucursal × producto × día, con todo el histórico y todos los días (también los de existencia cero). **Reemplaza la nota "Cómo calcular el inventario (por ahora)" de la 1.8** y la fórmula de entradas − salidas (secciones 4, 4.1 y 5.4).
+> - **Histórico de gastos corregido:** `analytics_expense_invoices` y `getexpenses_factura` están completas desde el **2023-01-01**; antes solo hay facturas sueltas (desde 2019-02-18). La 1.8 decía "desde 2019-02-18" (secciones 4.1 y 5.7).
+> - **Cómo consultar las tablas grandes de inventario** sin leerlas completas, y la fecha de inicio por sucursal (secciones 4.1 y 8).
+> - **Acceso:** 30 tablas de `wansoft` (se agregó `analytics_inventory_stock_daily`).
 
 ## Índice
 
@@ -150,7 +137,8 @@ Notas:
 - `7697` "Taqueria San Fernando" perteneció al grupo **hasta el 2025-02-28** y no es una de las 19
   sucursales actuales. Todo lo que su cuenta de Wansoft registró después (cortes de caja hasta julio
   de 2025, facturas de marzo y abril de 2025, renglones de costo en cero hasta 2026) **no es del grupo y
-  no se debe sumar**. Sus tickets de venta llegan solo al 2024-12-31 (enero y febrero de 2025 solo están
+  no se debe sumar**. Su nombre cambia por tabla: `Taq San Fernando` en ventas, `Fonda Argentina - Taqueria
+  San Fernando` en costos y cierre de caja, `Taqueria San Fernando` en facturas. Sus tickets de venta llegan solo al 2024-12-31 (enero y febrero de 2025 solo están
   en el corte de caja). En `analytics_expense_invoices` su clave es `Taqueria San Fernando` y sus
   facturas posteriores salen con `exclude_reason = 'branch_left_group'`.
 - **Las ventas siempre vienen de Wansoft, para todas las sucursales**, sin
@@ -191,8 +179,8 @@ Notas:
 | Detalle de entradas y salidas de inventario (Wansoft) | `getinputinventory_entrada`, `getoutgoinginventory_salida` | sucursales Wansoft |
 | Lo que las sucursales de Odoo siguen capturando en Wansoft (solo para comparar) | `wansoft_parallel_inputinventory_entrada`, `wansoft_parallel_outgoinginventory_salida` | desde el 2026-10-01; nunca en totales (ver 5.4) |
 | Existencias actuales, las 19 sucursales | `analytics_inventory_balance` (y `analytics_inventory_current_product_location` para Odoo por ubicación) | `include_in_business_views = 1`; solo la foto de hoy |
-| Existencias a una fecha pasada, sucursales Wansoft | `getinputinventory_entrada` − `getoutgoinginventory_salida` hasta esa fecha | ver 5.4 |
-| Existencias a una fecha pasada, sucursales Odoo | `odoo_inventory_quant_daily` | desde el 2026-10-08 (ver 5.4) |
+| **Existencias a cualquier fecha, las 19 sucursales, Wansoft + Odoo** | `analytics_inventory_stock_daily` | una fila por sucursal × producto × día; filtra siempre por sucursal y fechas (5.4) |
+| Existencias de Odoo por ubicación (almacén, cocina), día por día | `odoo_inventory_quant_daily` | foto cruda de Odoo, desde el 2026-10-08 (ver 5.4) |
 | Resultados de checklists | `zenput.submissions` + `zenput.submission_answers` | |
 | Tareas | `zenput.zenput_tasks` | |
 | Qué fuente alimenta cada sucursal | `analytics_company_domain_coverage` | |
@@ -202,7 +190,7 @@ Notas:
 
 ### 4.1 Histórico disponible
 
-Fechas de inicio medidas en producción el 2026-09-28; la puesta en producción del 1 de octubre no las cambió (solo quitó copias duplicadas de filas). Las tablas se siguen llenando a diario hasta el día anterior.
+Fechas de inicio medidas en producción el 2026-09-28 (y el 2026-10-27 para las tablas nuevas); la puesta en producción del 1 de octubre no las cambió (solo quitó copias duplicadas de filas). Las tablas se siguen llenando a diario hasta el día anterior. **Son la fecha más antigua de la tabla: cada sucursal empieza cuando abrió o cuando empezó a capturar** (por ejemplo, Cancún y Playa del Carmen en agosto de 2022, Tepeyac en noviembre de 2022, Coyoacán en enero de 2026, CentroMyJ y Puebla en 2026). Para el inicio por sucursal y tabla, agrupa por sucursal como se indica en la sección 8.
 
 | Dato | Tabla | Fuente | Desde | Notas |
 |---|---|---|---|---|
@@ -213,17 +201,18 @@ Fechas de inicio medidas en producción el 2026-09-28; la puesta en producción 
 | Costo mensual acumulado | `costeomensual` | Wansoft u Odoo (5.2) | 2022-01-01 | Puebla y CentroMyJ con costo desde julio de 2026 (5.2) |
 | Costo semanal acumulado | `costeomensual_semanapyq` | Wansoft u Odoo (5.2) | 2024-01-02 |  |
 | Tablajería | `gettablajeriareport` | Wansoft | 2022-01-01 | Va de salida (sección 5.2) |
-| Facturas de proveedor por cuenta contable | `getexpenses_factura` | Wansoft | 2019-02-18 | El histórico más antiguo; solo mientras la sucursal captura en Wansoft |
-| **Facturas de proveedor unificadas** | `analytics_expense_invoices` | **Wansoft + Odoo** | 2019-02-18 | Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde entonces; Puebla y CentroMyJ con todo su histórico de Odoo, incluida la inversión de apertura (5.7) |
+| Facturas de proveedor por cuenta contable | `getexpenses_factura` | Wansoft | **2023-01-01** | Antes solo hay facturas sueltas (desde 2019-02-18, unas 300 en 2022); solo mientras la sucursal captura en Wansoft |
+| **Facturas de proveedor unificadas** | `analytics_expense_invoices` | **Wansoft + Odoo** | **2023-01-01** | Antes solo hay facturas sueltas (desde 2019-02-18). Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde entonces; Puebla y CentroMyJ con todo su histórico de Odoo, incluida la inversión de apertura (5.7) |
 | Entradas de inventario | `getinputinventory_entrada` | Wansoft | 2021-09-01 |  |
 | Salidas de inventario | `getoutgoinginventory_salida` | Wansoft | 2020-11-30 | Unas 1.1 millones de filas traen `Fecha` vacía (`0000-00-00`): son ajustes y mermas con su fecha de negocio en `FechaReal`. **No las excluyas**: usa `COALESCE(NULLIF(Fecha, '0000-00-00'), FechaReal)` (5.4) |
 | **Compras unificadas** | `analytics_purchase_order_lines`, `analytics_purchase_orders`, `analytics_purchase_daily_company_product` | **Wansoft + Odoo** | **2021-09-01** | Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde entonces (1 de octubre de 2026 para las migradas; Puebla y CentroMyJ desde su apertura en junio). Verificado año por año: mismos renglones y pesos que las facturas de Wansoft en producción |
-| **Existencias unificadas** | `analytics_inventory_current_product_location`, `analytics_inventory_balance` | **Wansoft + Odoo** | Foto actual | Sin histórico por diseño; el saldo de Wansoft se recalcula cada noche con todos los movimientos desde 2020-11-30 |
+| **Existencias unificadas** | `analytics_inventory_current_product_location`, `analytics_inventory_balance` | **Wansoft + Odoo** | Foto actual | Sin histórico por diseño (para historia usa `analytics_inventory_stock_daily`); el saldo de Wansoft se recalcula cada noche con todos los movimientos desde 2020-11-30 |
 | Inventario paralelo de Wansoft (8 sucursales migradas) | `wansoft_parallel_inputinventory_entrada`, `wansoft_parallel_outgoinginventory_salida` | Wansoft | 2026-10-01 | Solo para comparar con Odoo; las filas anteriores al 2026-10-01 son de septiembre y se leen de las tablas principales (5.4) |
 | Existencias de Odoo día por día | `odoo_inventory_quant_daily` | Odoo | 2026-10-08 | Una foto cruda por noche (producto × ubicación); no hay historia de Odoo antes de esa fecha |
 | Checklists | `zenput.submissions`, `zenput.submission_answers` | Zenput | 2025-06-11 |  |
 | Tareas | `zenput.zenput_tasks` | Zenput | 2025-06-03 |  |
 | **Movimientos de inventario unificados** | `analytics_inventory_movements` | **Wansoft + Odoo** | 2020-09-29 | Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde entonces (CentroMyJ desde el 2026-06-09, Puebla desde el 2026-07-20); lo capturado en paralelo se conserva con `include_in_business_views = 0` |
+| **Existencias diarias unificadas** | `analytics_inventory_stock_daily` | **Wansoft + Odoo** | 2020-09-29 | Cada producto desde su primer movimiento en la sucursal; las 19 sucursales completas desde octubre de 2021. Wansoft hasta el arranque de cada sucursal en Odoo y Odoo desde entonces (CentroMyJ desde el 2026-06-17, Puebla desde el 2026-07-20) |
 | Calendario | `dim_time` | — | 2020-01-01 | Hasta 2035-12-31 |
 
 ---
@@ -479,6 +468,61 @@ registra en otro lado), así que no uses ese campo para cuentas por pagar.
   `analytics_inventory_current_product_location` da lo de Odoo por ubicación
   (almacén, cocina). Filtra `include_in_business_views = 1`. **Es la foto de
   hoy: se reescribe cada noche y no guarda historia.**
+- **Existencias por día, las 19 sucursales (desde la versión 1.9):**
+  `analytics_inventory_stock_daily`, una fila por sucursal × producto × día,
+  de Wansoft y de Odoo, con todo el histórico (unos 18 millones de filas).
+  Cada producto aparece **todos los días** desde su primer movimiento en la
+  sucursal hasta ayer, también los días con existencia cero: si un producto
+  no tiene fila en una fecha, es porque todavía no había tenido ningún
+  movimiento en esa sucursal. Filtra siempre por sucursal y fechas.
+
+| Campo | Significado |
+|---|---|
+| `stock_date` | Día; la existencia es al cierre de ese día |
+| `company_source_key` | Sucursal (clave corta) |
+| `product_code` | Código de producto común, el mismo de `analytics_inventory_movements` (código de Wansoft o temporal `ODOO-<id>`) |
+| `source_system` | `wansoft` u `odoo`: de qué sistema sale ese día |
+| `product_name` | Nombre del producto |
+| `stock_qty` | Existencia al cierre del día, en la unidad del producto (puede ser negativa si el sistema de origen lo es) |
+| `stock_value` | Valor de la existencia: en Odoo, su valuación; en Wansoft, aproximado con el costo de los movimientos |
+| `moved_qty` | Movimiento neto de ese día (+ entra, − sale); 0 si no hubo movimiento |
+| `final_source_status` | `wansoft_final` (sucursal Wansoft), `wansoft_history_before_odoo` (sucursal migrada, antes de su arranque en Odoo), `odoo_final` (Odoo) |
+| `include_in_business_views` | Siempre 1 en esta tabla |
+| `built_at` | Cuándo se calculó la fila |
+
+  Reglas:
+  - **Sucursales migradas:** Wansoft hasta el día anterior a su arranque en
+    Odoo y Odoo desde ese día (2026-10-01 para las 8 de octubre). Cada
+    sistema con su propio conteo: el día del arranque puede haber un salto,
+    porque Odoo empieza con su inventario inicial.
+  - **Wansoft:** existencia = suma de los movimientos desde el primero; el
+    último día es igual a `analytics_inventory_balance`.
+  - **Odoo:** se calcula **hacia atrás desde la foto más reciente de Odoo**
+    (`odoo_inventory_quant_daily`, ubicaciones internas), así que el último
+    día es exactamente lo que muestra Odoo. Odoo a veces registra
+    movimientos días después con una fecha anterior: cuando llegan, los días
+    pasados se recalculan solos. La serie de Odoo se recalcula completa
+    cada noche.
+  - Cada noche se recalculan los días de Wansoft tocados por movimientos
+    capturados en los últimos 10 días, así que los días recientes todavía
+    pueden cambiar.
+
+```sql
+-- Existencias de una sucursal al cierre del 2026-09-30 (solo productos con existencia)
+SELECT product_code, product_name, stock_qty, stock_value
+FROM analytics_inventory_stock_daily
+WHERE company_source_key = 'Viaducto' AND stock_date = '2026-09-30'
+  AND stock_qty <> 0;
+-- Coca Cola Mini (1000-105-203-005): 2,939, igual que la fórmula de entradas − salidas de abajo.
+```
+
+  Verificada en producción el 2026-10-26 y el 2026-10-27: ningún día
+  faltante en ninguna sucursal × producto; el último día es igual a las
+  existencias de Odoo en las 10 sucursales de Odoo y a
+  `analytics_inventory_balance` en las sucursales Wansoft. Única diferencia:
+  8 productos de Aeropuerto, porque 16 entradas de noviembre de 2021 están
+  dos veces en `getinputinventory_entrada` y `analytics_inventory_balance`
+  las suma dos veces; `analytics_inventory_stock_daily` las cuenta una vez.
 - **Movimientos de Wansoft:** `getinputinventory_entrada` (entradas;
   `TipoEntrada`: `Factura`, `Transferencia`, `Entrada con canal`, `Producto
   procesado`, `Ajuste de inventario`) y `getoutgoinginventory_salida`
@@ -498,7 +542,8 @@ registra en otro lado), así que no uses ese campo para cuentas por pagar.
   fuente oficial desde el 2026-10-01 es Odoo. Usa solo fechas desde el
   2026-10-01: las filas anteriores son movimientos de septiembre que se
   leen de las tablas principales.
-- **Existencias a una fecha pasada, sucursales Wansoft:** entradas − salidas
+- **Existencias a una fecha pasada desde las tablas crudas de Wansoft** (para
+  auditar; lo normal es `analytics_inventory_stock_daily`): entradas − salidas
   hasta esa fecha, con las mismas reglas que el saldo de hoy (sin
   transferencias, sin órdenes de compra, sin errores de captura ni facturas
   rechazadas). Las salidas con `Fecha` vacía son ajustes y mermas con su
@@ -525,7 +570,8 @@ SELECT
   `location_usage` `internal` o `transit`, `quantity`, `company_source_key`),
   sin mapeos. Para verlo en códigos Wansoft, une `odoo_product_id` con
   `analytics_odoo_product_code` (abajo). **No hay historia de
-  existencias de Odoo antes del 2026-10-08.**
+  existencias de Odoo antes del 2026-10-08**; para la historia de Odoo usa
+  `analytics_inventory_stock_daily`.
 - **Movimientos de inventario unificados (desde la versión 1.4):**
   `analytics_inventory_movements`, una fila por movimiento de un producto en
   una sucursal, de Wansoft y de Odoo, con todo el histórico (unos 40 millones
@@ -560,9 +606,8 @@ GROUP BY mes, movement_type;
 
   Cada noche se recargan los movimientos de Wansoft capturados en los
   últimos 10 días y todo el lado Odoo, así que los días recientes todavía
-  pueden cambiar. Para existencias usa `analytics_inventory_balance` (hoy) y
-  `odoo_inventory_quant_daily` (Odoo por día); las existencias diarias
-  unificadas están en construcción (sección 9).
+  pueden cambiar. Para existencias usa `analytics_inventory_stock_daily` (por
+  día) o `analytics_inventory_balance` (hoy).
 - **Código de Wansoft de un producto de Odoo:** `analytics_odoo_product_code`
   (`odoo_product_id`, `odoo_product_name`, `wansoft_code`,
   `wansoft_product_name`), una fila por producto de Odoo con equivalencia
@@ -602,7 +647,7 @@ de venta.
 ### 5.7 Gastos: facturas de proveedor (Wansoft + Odoo)
 
 `analytics_expense_invoices` reúne **todas las facturas de proveedor de todas las sucursales**, de Wansoft y de
-Odoo, con todo el histórico (desde 2019-02-18), clasificadas con las mismas Cuentas y Subcuentas de Wansoft. Se
+Odoo, con todo el histórico (completo desde el 2023-01-01; antes solo hay facturas sueltas, desde 2019-02-18), clasificadas con las mismas Cuentas y Subcuentas de Wansoft. Se
 reconstruye completa cada noche. Para gastos úsala en lugar de `getexpenses_factura`, que sigue existiendo como
 tabla cruda de Wansoft.
 
@@ -699,6 +744,17 @@ credenciales nunca se escriben en este documento). Consulta
 filtro de fechas: tienen decenas de millones de filas. Cada usuario tiene un
 máximo de 4 conexiones simultáneas y 30 minutos por consulta.
 
+**Tablas grandes de inventario:** filtra siempre `analytics_inventory_movements`
+(unos 40 millones de filas) por `company_source_key` y un rango de
+`movement_date`, y `analytics_inventory_stock_daily` (unos 18 millones) por
+`company_source_key` y un rango de `stock_date`: así usan sus índices y
+responden en segundos. Un conteo o un agrupado sobre toda la tabla de
+movimientos (por ejemplo, por `source_system` o con
+`include_in_business_views` sin filtro de sucursal) la lee completa y tarda
+más de 10 minutos (medido el 2026-10-27). Para la primera y la última fecha
+por sucursal, `MIN(movement_date)` / `MAX(movement_date)` con
+`GROUP BY company_source_key` y sin otros filtros responde al instante.
+
 Las tablas que el usuario puede leer son exactamente las del Apéndice A, con
 todas sus columnas. Cuando se agrega una tabla nueva (sección 9), se concede al
 usuario y se actualizan esta guía y el apéndice.
@@ -720,13 +776,10 @@ Fonda Argentina entrega la lista de usuarios iniciales con el nivel de cada uno.
 
 ## 9. Lo que falta (en construcción)
 
-Estado al 2026-10-22. Las facturas de proveedor unificadas ya están en
-producción (5.7). La tabla de abajo todavía no existe; cuando entre, se
-concederá al usuario y se documentará aquí.
-
-| Qué | Tabla | Estado | Qué resuelve |
-|---|---|---|---|
-| Existencias diarias unificadas | `analytics_inventory_stock_daily` | En construcción; llega en la versión 1.9 | Existencias por sucursal × producto × día desde el primer movimiento, ambas fuentes; reemplaza la fórmula de entradas − salidas de la sección 5.4 y cubre los huecos de Odoo antes del 2026-10-08 |
+Estado al 2026-10-27. Ya no hay tablas en construcción: las existencias
+diarias unificadas (`analytics_inventory_stock_daily`) están en producción
+desde el 2026-10-26 (5.4). Cuando entre una tabla nueva, se concederá al
+usuario y se documentará aquí.
 
 Otros cambios próximos:
 - **Aeropuerto y Taquería Viaducto pasan a Odoo el 2026-11-01** (como
@@ -744,6 +797,14 @@ Otros cambios próximos:
 ## 10. Historial de versiones
 
 La versión más reciente va primero.
+
+**Versión 1.9 (2026-10-27)**
+
+- **Nueva tabla de existencias por día, Wansoft + Odoo:** `analytics_inventory_stock_daily`, una fila por sucursal × producto × día, con todo el histórico y todos los días (también los de existencia cero); reemplaza la nota provisional de inventario de la 1.8 y la fórmula de entradas − salidas (secciones 4, 4.1 y 5.4).
+- **Histórico de gastos corregido:** `analytics_expense_invoices` y `getexpenses_factura` completas desde el 2023-01-01; antes solo facturas sueltas (4.1 y 5.7).
+- **Cómo consultar las tablas grandes de inventario** sin leerlas completas, y la fecha de inicio por sucursal (secciones 4.1 y 8); nombres de San Fernando por tabla (sección 3).
+- **Sección 9:** ya no hay tablas en construcción.
+- **Acceso:** 30 tablas de `wansoft`, todas en el Apéndice A.
 
 **Versión 1.8 (2026-10-22)**
 
@@ -803,7 +864,7 @@ La versión más reciente va primero.
 
 ## Apéndice A. Esquema de las tablas
 
-Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas del esquema de producción el 2026-10-22. **Nulo**: si la columna admite NULL. **Llave**: `PRI` llave primaria, `UNI` parte de una llave única, `MUL` parte de un índice. El significado de los campos importantes está en la sección indicada entre paréntesis.
+Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas del esquema de producción el 2026-10-27. **Nulo**: si la columna admite NULL. **Llave**: `PRI` llave primaria, `UNI` parte de una llave única, `MUL` parte de un índice. El significado de los campos importantes está en la sección indicada entre paréntesis.
 
 ### A.1 Ventas
 
@@ -1579,6 +1640,22 @@ Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas d
 | `loaded_at` | datetime | no |  |
 | `product_code` | varchar(60) | sí | MUL |
 | `product_code_status` | varchar(15) | sí |  |
+
+**`analytics_inventory_stock_daily`**: existencias por sucursal × producto × día, Wansoft + Odoo (5.4). 11 columnas.
+
+| Columna | Tipo | Nulo | Llave |
+|---|---|---|---|
+| `stock_date` | date | no | PRI |
+| `company_source_key` | varchar(100) | no | PRI |
+| `product_code` | varchar(60) | no | PRI |
+| `source_system` | varchar(10) | no |  |
+| `product_name` | varchar(255) | sí |  |
+| `stock_qty` | decimal(18,6) | no |  |
+| `stock_value` | decimal(18,4) | sí |  |
+| `moved_qty` | decimal(18,6) | no |  |
+| `final_source_status` | varchar(40) | no |  |
+| `include_in_business_views` | tinyint(1) | no |  |
+| `built_at` | datetime | no |  |
 
 **`analytics_odoo_product_code`**: código de Wansoft de cada producto de Odoo (5.4). 6 columnas.
 

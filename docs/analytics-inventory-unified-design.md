@@ -352,7 +352,10 @@ nine consistent branches it equals the forward sum.
    (200/200, 331/332), older captures differ only by moves registered later; the
    nightly mode reproduces the full build with 0 differences (also after deleting
    30 days). Production: one-off `--full` load on the VM in the daytime, then the
-   stage, grant to tukanmx, data guide 1.9.
+   stage, grant to tukanmx, data guide 1.9. **Live 2026-10-26** (18.05 M rows; validator
+   `scripts/validate_analytics_inventory_stock_daily.py`; nightly stage ~4 min); granted to tukanmx (part I);
+   data guide 1.9. History coverage per branch and the query cost of the big inventory tables:
+   `docs/history-coverage-by-branch.md`.
 5. **`analytics_expense_invoices`** (supplier invoices; needs a crosswalk from
    Odoo accounting accounts to Wansoft's `Cuenta`).
 

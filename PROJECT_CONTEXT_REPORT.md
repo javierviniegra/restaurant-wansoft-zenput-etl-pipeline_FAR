@@ -2,7 +2,7 @@
 
 Master continuity document. Generated/updated automatically at the close of major steps, on explicit request ("Generate project context report"), when the conversation gets very long, when consumed context exceeds ~70%, or when a new chat needs to be opened due to token limits. Always regenerated in full, never as an incremental patch.
 
-Last generated: 2026-10-26 (Monday), for a chat handoff. **Production runs `Wansoft_Pipeline_Diario` at 01:30 with 25 stages (~60 min) plus `Wansoft_Cortes_Manana` at 07:30.** Since 2026-10-19: **expenses domain live** (`analytics_expense_invoices`, Wansoft + Odoo supplier invoices by Cuenta, 3 nightly stages, validated against Wansoft and Odoo reports), one shared Odoo cost read per night (cost continuity fix), `getexpenses_factura` deduplicated with a unique key on `IdDocumento`, data guide **1.8** ready for tukanmx (29 granted tables). **`analytics_inventory_stock_daily` (stock per branch × product × day, 18.1 M rows) built and validated on dev; its one-off `--full` load was RUNNING on the tasks VM at handoff (started ~10:45 on 2026-10-26).** Read Section 13 "NOW / NEXT" first, then Section 0 (machines).
+Last generated: 2026-10-26 (Monday), for a chat handoff; Section 13 updated 2026-10-27. **Production runs `Wansoft_Pipeline_Diario` at 01:30 with 25 stages (~60 min) plus `Wansoft_Cortes_Manana` at 07:30.** Since 2026-10-19: **expenses domain live** (`analytics_expense_invoices`, Wansoft + Odoo supplier invoices by Cuenta, 3 nightly stages, validated against Wansoft and Odoo reports), one shared Odoo cost read per night (cost continuity fix), `getexpenses_factura` deduplicated with a unique key on `IdDocumento`, data guide **1.8** ready for tukanmx (29 granted tables). **`analytics_inventory_stock_daily` (stock per branch × product × day, 18.05 M rows) live since 2026-10-26, nightly stage OK (Section 13); data guide 1.9 (30 granted tables) ready to send.** Read Section 13 "NOW / NEXT" first, then Section 0 (machines).
 
 ---
 
@@ -481,7 +481,38 @@ See prior reports for bugs #1-#17.
 
 # 13. Identified Legacy / Consolidated Backlog
 
-## NOW / NEXT (2026-10-26, Monday, handoff) — start here
+## NOW / NEXT (2026-10-27, Tuesday) — start here
+
+**Done 2026-10-26/27 (Paso 30):**
+- `analytics_inventory_stock_daily` live: the 10:45 `--full` run was redone at 12:16 after `update_repo.ps1`
+  brought `51859aa`; 18,054,383 rows. Validated read-only from dev with the new
+  `scripts/validate_analytics_inventory_stock_daily.py`: 0 gaps, Odoo 10/10 equal to the latest capture,
+  Wansoft 8/9 equal to `analytics_inventory_balance`. Aeropuerto's 8 products differ because 16 raw entries
+  of 2021-11-23 are duplicated in `getinputinventory_entrada` (loaded on 2025-04-02 and again on 2025-04-04);
+  the balance counts them twice, the daily table once. Raw cleanup not done (production change, owner's call).
+- Night 10-26 -> 10-27: CYCLE DONE 73.6 min, 0 failed; "Inventario - existencias diarias" OK in 257 s; no
+  `[AVISO]` lines (expense decisions of 10-26 applied). The table reached 10-26 with 0 gaps.
+- Part I applied by the owner: `tukan_wansoft` has USAGE + 30 table grants.
+- Data guide **1.9** (es/en md, html, pdf; appendix regenerated): daily stock table (4, 4.1, 5.4), interim
+  inventory note removed, supplier-invoice history complete only from 2023-01-01 (1.8 said 2019-02-18), how
+  to query the big inventory tables (8), San Fernando's names per table (3). Owner had sent 1.8.
+- History coverage per branch: `sql/maintenance/history_coverage_by_branch.sql` (~1 min) and
+  `docs/history-coverage-by-branch.md` (the bottleneck: a grouped/filtered count over the 40 M-row
+  movements table takes > 10 min; per-branch MIN/MAX over `idx_company_date` is instant; findings).
+- Reference sheet `reports/referencias/tablas_de_referencia_mysql.pdf` (not in git): page 1 per topic with
+  source and start date, page 2 start date per branch x table.
+- E-mail draft for tukanmx: `reports/tukan/correo_tukan_guia_1_9.txt` (not in git); owner sends it, guide apart.
+
+**Next:**
+1. **November wave** (Aeropuerto and Taquería Viaducto on Odoo from Sunday 2026-11-01): checklist
+   `docs/odoo-wave-2026-11-01-checklist.md`. Also guard the daily stock build against a late cutover: if the
+   policy row lands after a night already stored 11-01 as Wansoft, the nightly mode may keep those Wansoft
+   rows or hit a duplicate key with the Odoo series; fix = delete Wansoft rows from `operational_start_date`
+   before rebuilding (test on dev first).
+2. Owner: send the guide 1.9 + e-mail; tukanmx's fixed IP and TLS date.
+3. Optional: remove Aeropuerto's 16 duplicated raw entries (production, owner's decision).
+
+## Earlier NOW / NEXT (2026-10-26, Monday, handoff)
 
 **In progress at handoff:** the owner was running on the tasks VM (Analisis_BI,
 `C:\Apps\Wansoft_ETL`, writes to production) the one-off load

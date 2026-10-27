@@ -61,28 +61,18 @@
 example, a question-and-answer / chatbot layer). It tells you <strong>which table to
 use for each business question, which fields matter, how tables join, and the
 traps to avoid</strong>. Every rule here was checked against the live schema and data
-on 2026-09-28; the guide is current as of <strong>2026-10-22</strong>. Every table and
+on 2026-09-28; the guide is current as of <strong>2026-10-27</strong>. Every table and
 column it names was confirmed to exist in production on 2026-10-07, and the
 full schema of every table (Appendix A) was taken from production on
 2026-10-13. PDF version: <a href="data-access-guide.en.pdf">data-access-guide.en.pdf</a>.</p>
-<p><strong>Version 1.8 (2026-10-22).</strong> Every change to this guide raises its version number and is recorded in Section 10.</p>
+<p><strong>Version 1.9 (2026-10-27).</strong> Every change to this guide raises its version number and is recorded in Section 10.</p>
 <blockquote>
-<p><strong>How to compute inventory (for now).</strong> The stock of a branch × product at a date is the sum of <code>quantity</code> in <code>analytics_inventory_movements</code>, with <code>counts_in_stock = 1</code> and <code>include_in_business_views = 1</code>, up to that date: Wansoft and Odoo, full history (Section 5.4). Checked in production on 2026-10-22: for Nápoles it gives exactly today's stock for all 862 products. <code>odoo_inventory_quant_daily</code> is only Odoo's raw snapshot, and only since 2026-10-08. At Antenas, the stock Odoo shows is not the sum of its own moves (an inconsistency inside Odoo). <strong>The daily-stock table with full history (<code>analytics_inventory_stock_daily</code>) comes in version 1.9 of this guide</strong> and will replace this computation.</p>
-<p><code>sql
-SELECT company_source_key, product_code, product_name, SUM(quantity) AS existencias
-FROM analytics_inventory_movements
-WHERE counts_in_stock = 1 AND include_in_business_views = 1
-  AND movement_date &lt;= '2026-09-30'
-GROUP BY company_source_key, product_code, product_name;</code></p>
-<p><strong>What is new in version 1.8</strong> (compared with 1.4 of 2026-10-16, the last one delivered; includes 1.5, 1.6 and 1.7):</p>
+<p><strong>What is new in version 1.9</strong> (compared with 1.8 of 2026-10-22):</p>
 <ul>
-<li><strong>New supplier invoices table, Wansoft + Odoo:</strong> <code>analytics_expense_invoices</code>, every branch with its full history, classified by Wansoft's Cuenta / Subcuenta; replaces <code>getexpenses_factura</code> for expenses (Section 5.7).</li>
-<li><strong>How to compute inventory for now</strong> (note at the top of the guide); daily stock arrives in 1.9.</li>
-<li><strong>Taquería San Fernando (7697)</strong> belonged to the group until 2025-02-28; anything later must not be summed (Section 3).</li>
-<li><strong>Restricted access to expenses:</strong> <code>analytics_expense_invoices</code> and <code>getexpenses_factura</code>, by level None / Operational / Full (Section 8). Access: 29 <code>wansoft</code> tables.</li>
-<li><strong>How to identify a Wansoft invoice:</strong> use <code>getexpenses_factura.IdDocumento</code>, which is unique; the <code>id</code> column is useless. 90 duplicated Coyoacán invoices were removed (5.3).</li>
-<li><strong>How sales reach Odoo and why its cost can lag:</strong> Odoo's automation only processes a ticket when every ingredient of its recipe is in stock; while one is missing, that day has no cost in Odoo (5.2).</li>
-<li><strong>Rule for switching costs to Odoo:</strong> the October-wave branches switch to Odoo costs only once Odoo has a complete month invoiced, from the first day of the next month; a month never mixes both systems (Sections 3, 5.2 and 9).</li>
+<li><strong>New daily stock table, Wansoft + Odoo:</strong> <code>analytics_inventory_stock_daily</code>, one row per branch × product × day, with the full history and every day (zero-stock days included). <strong>It replaces the note "How to compute inventory (for now)" of 1.8</strong> and the entries − exits formula (Sections 4, 4.1 and 5.4).</li>
+<li><strong>Supplier-invoice history corrected:</strong> <code>analytics_expense_invoices</code> and <code>getexpenses_factura</code> are complete from <strong>2023-01-01</strong>; before that there are only scattered invoices (back to 2019-02-18). Version 1.8 said "since 2019-02-18" (Sections 4.1 and 5.7).</li>
+<li><strong>How to query the large inventory tables</strong> without reading them whole, and the start date per branch (Sections 4.1 and 8).</li>
+<li><strong>Access:</strong> 30 <code>wansoft</code> tables (<code>analytics_inventory_stock_daily</code> added).</li>
 </ul>
 </blockquote>
 <h1>1. What is where</h1>
@@ -370,7 +360,8 @@ GROUP BY company_source_key, product_code, product_name;</code></p>
 <li><code>7697</code> "Taqueria San Fernando" belonged to the group <strong>until 2025-02-28</strong> and is not one of the 19
   current branches. Everything its Wansoft account recorded afterwards (cash closings until July 2025,
   invoices of March and April 2025, zero cost rows until 2026) <strong>does not belong to the group and must
-  not be summed</strong>. Its sales tickets only reach 2024-12-31 (January and February 2025 are only in the cash
+  not be summed</strong>. Its name changes per table: <code>Taq San Fernando</code> in sales, <code>Fonda Argentina - Taqueria
+  San Fernando</code> in costs and cash closing, <code>Taqueria San Fernando</code> in invoices. Its sales tickets only reach 2024-12-31 (January and February 2025 are only in the cash
   closing). In <code>analytics_expense_invoices</code> its key is <code>Taqueria San Fernando</code> and its later invoices carry
   <code>exclude_reason = 'branch_left_group'</code>.</li>
 <li><strong>Sales always come from Wansoft for every branch</strong>, whatever the purchases
@@ -468,14 +459,14 @@ GROUP BY company_source_key, product_code, product_name;</code></p>
 <td><code>include_in_business_views = 1</code>; today's snapshot only</td>
 </tr>
 <tr>
-<td>Stock on a past date, Wansoft branches</td>
-<td><code>getinputinventory_entrada</code> − <code>getoutgoinginventory_salida</code> up to that date</td>
-<td>see 5.4</td>
+<td><strong>Stock on any date, all 19 branches, Wansoft + Odoo</strong></td>
+<td><code>analytics_inventory_stock_daily</code></td>
+<td>one row per branch × product × day; always filter by branch and dates (5.4)</td>
 </tr>
 <tr>
-<td>Stock on a past date, Odoo branches</td>
+<td>Odoo stock by location (warehouse, kitchen), day by day</td>
 <td><code>odoo_inventory_quant_daily</code></td>
-<td>from 2026-10-08 (see 5.4)</td>
+<td>Odoo's raw snapshot, from 2026-10-08 (see 5.4)</td>
 </tr>
 <tr>
 <td>Checklist results</td>
@@ -511,7 +502,7 @@ GROUP BY company_source_key, product_code, product_name;</code></p>
 </table>
 <div class="salto"></div>
 <h2>4.1 Available history</h2>
-<p>Start dates measured in production on 2026-09-28; the go-live of October 1 did not change them (it only removed duplicate copies of rows). Tables keep filling daily through the previous day.</p>
+<p>Start dates measured in production on 2026-09-28 (and on 2026-10-27 for the new tables); the go-live of October 1 did not change them (it only removed duplicate copies of rows). Tables keep filling daily through the previous day. <strong>They are the table's oldest date: each branch starts when it opened or started capturing</strong> (for example Cancún and Playa del Carmen in August 2022, Tepeyac in November 2022, Coyoacán in January 2026, CentroMyJ and Puebla in 2026). For the start per branch and table, group by branch as shown in Section 8.</p>
 <table class="compacta">
 <thead>
 <tr>
@@ -576,15 +567,15 @@ GROUP BY company_source_key, product_code, product_name;</code></p>
 <td>Supplier invoices by accounting account</td>
 <td><code>getexpenses_factura</code></td>
 <td>Wansoft</td>
-<td>2019-02-18</td>
-<td>The oldest history; only while a branch enters purchases in Wansoft</td>
+<td><strong>2023-01-01</strong></td>
+<td>Before that only scattered invoices (back to 2019-02-18, about 300 in 2022); only while a branch enters purchases in Wansoft</td>
 </tr>
 <tr>
 <td><strong>Unified supplier invoices</strong></td>
 <td><code>analytics_expense_invoices</code></td>
 <td><strong>Wansoft + Odoo</strong></td>
-<td>2019-02-18</td>
-<td>Wansoft until each branch's Odoo start and Odoo from then on; Puebla and CentroMyJ with their whole Odoo history, opening investment included (5.7)</td>
+<td><strong>2023-01-01</strong></td>
+<td>Before that only scattered invoices (back to 2019-02-18). Wansoft until each branch's Odoo start and Odoo from then on; Puebla and CentroMyJ with their whole Odoo history, opening investment included (5.7)</td>
 </tr>
 <tr>
 <td>Inventory entries</td>
@@ -612,7 +603,7 @@ GROUP BY company_source_key, product_code, product_name;</code></p>
 <td><code>analytics_inventory_current_product_location</code>, <code>analytics_inventory_balance</code></td>
 <td><strong>Wansoft + Odoo</strong></td>
 <td>Current snapshot</td>
-<td>No history by design; the Wansoft balance is recomputed nightly from every movement since 2020-11-30</td>
+<td>No history by design (for history use <code>analytics_inventory_stock_daily</code>); the Wansoft balance is recomputed nightly from every movement since 2020-11-30</td>
 </tr>
 <tr>
 <td>Parallel Wansoft inventory (8 migrated branches)</td>
@@ -648,6 +639,13 @@ GROUP BY company_source_key, product_code, product_name;</code></p>
 <td><strong>Wansoft + Odoo</strong></td>
 <td>2020-09-29</td>
 <td>Wansoft until each branch's Odoo start and Odoo from then on (CentroMyJ from 2026-06-09, Puebla from 2026-07-20); what was captured in parallel is kept with <code>include_in_business_views = 0</code></td>
+</tr>
+<tr>
+<td><strong>Unified daily stock</strong></td>
+<td><code>analytics_inventory_stock_daily</code></td>
+<td><strong>Wansoft + Odoo</strong></td>
+<td>2020-09-29</td>
+<td>Each product from its first movement in the branch; all 19 branches complete from October 2021. Wansoft until each branch's Odoo start and Odoo from then on (CentroMyJ from 2026-06-17, Puebla from 2026-07-20)</td>
 </tr>
 <tr>
 <td>Calendar</td>
@@ -993,14 +991,103 @@ for accounts payable.</p>
   <code>analytics_inventory_current_product_location</code> gives the Odoo side by
   location (warehouse, kitchen). Filter <code>include_in_business_views = 1</code>.
   <strong>It is today's snapshot: rewritten every night, no history kept.</strong></li>
-<li><strong>Wansoft movements:</strong> <code>getinputinventory_entrada</code> (entries; <code>TipoEntrada</code>:
+<li><strong>Stock per day, all 19 branches (since version 1.9):</strong>
+  <code>analytics_inventory_stock_daily</code>, one row per branch × product × day, from
+  Wansoft and Odoo, with the full history (about 18 million rows). Every
+  product appears <strong>on every day</strong> from its first movement in the branch to
+  yesterday, zero-stock days included: if a product has no row on a date, it
+  had not had any movement in that branch yet. Always filter by branch and
+  dates.</li>
+</ul>
+<table class="compacta">
+<thead>
+<tr>
+<th width="32%">Field</th>
+<th width="68%">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>stock_date</code></td>
+<td>Day; the stock is at the close of that day</td>
+</tr>
+<tr>
+<td><code>company_source_key</code></td>
+<td>Branch (short key)</td>
+</tr>
+<tr>
+<td><code>product_code</code></td>
+<td>Common product code, the same as in <code>analytics_inventory_movements</code> (Wansoft code or temporary <code>ODOO-&lt;id&gt;</code>)</td>
+</tr>
+<tr>
+<td><code>source_system</code></td>
+<td><code>wansoft</code> or <code>odoo</code>: which system that day comes from</td>
+</tr>
+<tr>
+<td><code>product_name</code></td>
+<td>Product name</td>
+</tr>
+<tr>
+<td><code>stock_qty</code></td>
+<td>Stock at the close of the day, in the product's unit (can be negative if the source system's is)</td>
+</tr>
+<tr>
+<td><code>stock_value</code></td>
+<td>Stock value: in Odoo, its valuation; in Wansoft, approximate, from the movements' cost</td>
+</tr>
+<tr>
+<td><code>moved_qty</code></td>
+<td>Net movement of that day (+ in, − out); 0 when nothing moved</td>
+</tr>
+<tr>
+<td><code>final_source_status</code></td>
+<td><code>wansoft_final</code> (Wansoft branch), <code>wansoft_history_before_odoo</code> (migrated branch, before its Odoo start), <code>odoo_final</code> (Odoo)</td>
+</tr>
+<tr>
+<td><code>include_in_business_views</code></td>
+<td>Always 1 in this table</td>
+</tr>
+<tr>
+<td><code>built_at</code></td>
+<td>When the row was computed</td>
+</tr>
+</tbody>
+</table>
+<p>Rules:
+  - <strong>Migrated branches:</strong> Wansoft until the day before their Odoo start and
+    Odoo from that day (2026-10-01 for the 8 October branches). Each system
+    with its own count: there can be a jump on the start day, because Odoo
+    starts from its opening inventory.
+  - <strong>Wansoft:</strong> stock = sum of the movements since the first one; the last
+    day equals <code>analytics_inventory_balance</code>.
+  - <strong>Odoo:</strong> computed <strong>backwards from Odoo's latest snapshot</strong>
+    (<code>odoo_inventory_quant_daily</code>, internal locations), so the last day is
+    exactly what Odoo shows. Odoo sometimes registers moves days later with
+    an earlier date: when they arrive, past days are recomputed by
+    themselves. The Odoo series is recomputed in full every night.
+  - Every night the Wansoft days touched by movements captured in the last 10
+    days are recomputed, so recent days can still change.</p>
+<pre class="bloque-codigo">-- Stock of a branch at the close of 2026-09-30 (products with stock only)
+SELECT product_code, product_name, stock_qty, stock_value
+FROM analytics_inventory_stock_daily
+WHERE company_source_key = 'Viaducto' AND stock_date = '2026-09-30'
+  AND stock_qty &lt;&gt; 0;
+-- Coca Cola Mini (1000-105-203-005): 2,939, the same as the entries − exits formula below.
+</pre>
+<p>Checked in production on 2026-10-26 and 2026-10-27: no missing day for any
+  branch × product; the last day equals Odoo's stock in the 10 Odoo branches
+  and <code>analytics_inventory_balance</code> in the Wansoft branches. Only difference:
+  8 products at Aeropuerto, because 16 entries of November 2021 are twice in
+  <code>getinputinventory_entrada</code> and <code>analytics_inventory_balance</code> adds them
+  twice; <code>analytics_inventory_stock_daily</code> counts them once.
+- <strong>Wansoft movements:</strong> <code>getinputinventory_entrada</code> (entries; <code>TipoEntrada</code>:
   <code>Factura</code>, <code>Transferencia</code>, <code>Entrada con canal</code>, <code>Producto procesado</code>,
   <code>Ajuste de inventario</code>) and <code>getoutgoinginventory_salida</code> (exits, tens of
   millions of rows: always filter by date and <code>subsidiary_name</code>). Branch =
   Wansoft id in <code>subsidiary_name</code>; product = <code>CodigoProducto</code>; quantity
   <code>Cantidad</code>, cost <code>CostoUnitario</code>. Wansoft branches only; the 8 branches
-  migrated to Odoo end on 2026-09-30.</li>
-<li><strong>Parallel Wansoft inventory (since the night of 12 to 13 October 2026):</strong>
+  migrated to Odoo end on 2026-09-30.
+- <strong>Parallel Wansoft inventory (since the night of 12 to 13 October 2026):</strong>
   the 8 branches migrated to Odoo (Acoxpa, Antenas, Tepeyac, Oceanía, La
   Esquina Coyoacán, Isabel La Católica, San Jerónimo, Vía Vallejo) keep
   capturing entries and exits in Wansoft. That capture is loaded into
@@ -1009,12 +1096,12 @@ for accounts payable.</p>
   main tables. <strong>It is for comparing Wansoft with Odoo only: never add it to
   stock or totals</strong>; for these branches the official source from 2026-10-01
   is Odoo. Use only dates from 2026-10-01 on: earlier rows are September
-  movements, read them from the main tables.</li>
-<li><strong>Stock on a past date, Wansoft branches:</strong> entries − exits up to that date,
+  movements, read them from the main tables.
+- <strong>Stock on a past date from Wansoft's raw tables</strong> (for auditing; normally use
+  <code>analytics_inventory_stock_daily</code>): entries − exits up to that date,
   with the same rules as today's balance (no transfers, no purchase orders,
   no capture errors or rejected invoices). Exits with an empty <code>Fecha</code> are
-  adjustments and waste dated in <code>FechaReal</code>: do not exclude them.</li>
-</ul>
+  adjustments and waste dated in <code>FechaReal</code>: do not exclude them.</p>
 <pre class="bloque-codigo">-- Stock of Coca Cola Mini (1000-105-203-005) at Viaducto (4961) at the close of 2026-09-30
 SELECT
   (SELECT COALESCE(SUM(Cantidad), 0) FROM getinputinventory_entrada
@@ -1035,7 +1122,8 @@ SELECT
   <code>internal</code> or <code>transit</code>, <code>quantity</code>, <code>company_source_key</code>), without
   mappings. To read it in Wansoft codes, join <code>odoo_product_id</code> to
   <code>analytics_odoo_product_code</code> (below). <strong>There is no Odoo stock
-  history before 2026-10-08.</strong></li>
+  history before 2026-10-08</strong>; for Odoo's history use
+  <code>analytics_inventory_stock_daily</code>.</li>
 <li><strong>Unified inventory movements (since version 1.4):</strong>
   <code>analytics_inventory_movements</code>, one row per movement of one product in one
   branch, Wansoft and Odoo, with full history (about 40 million rows). Use it
@@ -1111,8 +1199,8 @@ GROUP BY month, movement_type;
 </pre>
 <p>Every night the Wansoft movements captured in the last 10 days and the
   whole Odoo side are reloaded, so recent days can still change. For stock
-  use <code>analytics_inventory_balance</code> (today) and <code>odoo_inventory_quant_daily</code>
-  (Odoo per day); unified daily stock is under construction (Section 9).
+  use <code>analytics_inventory_stock_daily</code> (per day) or
+  <code>analytics_inventory_balance</code> (today).
 - <strong>Wansoft code of an Odoo product:</strong> <code>analytics_odoo_product_code</code>
   (<code>odoo_product_id</code>, <code>odoo_product_name</code>, <code>wansoft_code</code>,
   <code>wansoft_product_name</code>), one row per Odoo product with a current, reviewed
@@ -1170,7 +1258,7 @@ key; some Zenput locations have no POS branch.</p>
 </ul>
 <h2>5.7 Expenses: supplier invoices (Wansoft + Odoo)</h2>
 <p><code>analytics_expense_invoices</code> gathers <strong>every supplier invoice of every branch</strong>, from Wansoft and from Odoo, with
-the full history (since 2019-02-18), classified with Wansoft's own Cuentas and Subcuentas. It is rebuilt in full
+the full history (complete from 2023-01-01; before that only scattered invoices, back to 2019-02-18), classified with Wansoft's own Cuentas and Subcuentas. It is rebuilt in full
 every night. Use it for expenses instead of <code>getexpenses_factura</code>, which remains as Wansoft's raw table.</p>
 <ul>
 <li><strong>What it holds:</strong> from Wansoft, every invoice of <code>getexpenses_factura</code>; from Odoo, every vendor bill and
@@ -1278,6 +1366,16 @@ in Sections 4–5, provided separately (credentials are never written in this
 document). Query <code>getoutgoinginventory_salida</code> and the sales detail tables with
 date filters: they hold tens of millions of rows. Each user is limited to 4
 simultaneous connections and 30 minutes per query.</p>
+<p><strong>Large inventory tables:</strong> always filter <code>analytics_inventory_movements</code>
+(about 40 million rows) by <code>company_source_key</code> and a <code>movement_date</code> range,
+and <code>analytics_inventory_stock_daily</code> (about 18 million) by
+<code>company_source_key</code> and a <code>stock_date</code> range: that way they use their
+indexes and answer in seconds. A count or a group over the whole movements
+table (for example by <code>source_system</code>, or with <code>include_in_business_views</code>
+and no branch filter) reads all of it and takes more than 10 minutes
+(measured on 2026-10-27). For the first and last date per branch,
+<code>MIN(movement_date)</code> / <code>MAX(movement_date)</code> with <code>GROUP BY
+company_source_key</code> and no other filter answers instantly.</p>
 <p>The tables the user can read are exactly those of Appendix A, with all their
 columns. When a new table is added (Section 9), it is granted to the user and
 this guide and the appendix are updated.</p>
@@ -1310,27 +1408,10 @@ Argentina authorises, with each user's expense level:</p>
 <p>Fonda Argentina hands over the initial user list with each user's level.</p>
 
 <h1>9. Still missing (under construction)</h1>
-<p>State on 2026-10-22. The unified supplier invoices are live (5.7). The
-table below does not exist yet; when it does, it will be granted to the
-user and documented here.</p>
-<table class="compacta">
-<thead>
-<tr>
-<th width="17%">What</th>
-<th width="25%">Table</th>
-<th width="13%">State</th>
-<th width="45%">What it solves</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Unified daily stock</td>
-<td><code>analytics_inventory_stock_daily</code></td>
-<td>Being built; arrives in version 1.9</td>
-<td>Stock per branch × product × day since the first movement, both sources; replaces the entries − exits formula of Section 5.4 and covers the Odoo gaps before 2026-10-08</td>
-</tr>
-</tbody>
-</table>
+<p>State on 2026-10-27. Nothing is under construction any more: the unified
+daily stock (<code>analytics_inventory_stock_daily</code>) is live since 2026-10-26
+(5.4). When a new table arrives, it will be granted to the user and
+documented here.</p>
 <p>Other upcoming changes:</p>
 <ul>
 <li><strong>Aeropuerto and Taquería Viaducto move to Odoo on 2026-11-01</strong> (as
@@ -1346,6 +1427,14 @@ user and documented here.</p>
 
 <h1>10. Version history</h1>
 <p>The most recent version comes first.</p>
+<p><strong>Version 1.9 (2026-10-27)</strong></p>
+<ul>
+<li><strong>New daily stock table, Wansoft + Odoo:</strong> <code>analytics_inventory_stock_daily</code>, one row per branch × product × day, with the full history and every day (zero-stock days included); replaces 1.8's interim inventory note and the entries − exits formula (Sections 4, 4.1 and 5.4).</li>
+<li><strong>Supplier-invoice history corrected:</strong> <code>analytics_expense_invoices</code> and <code>getexpenses_factura</code> complete from 2023-01-01; before that only scattered invoices (4.1 and 5.7).</li>
+<li><strong>How to query the large inventory tables</strong> without reading them whole, and the start date per branch (Sections 4.1 and 8); San Fernando's name per table (Section 3).</li>
+<li><strong>Section 9:</strong> nothing under construction any more.</li>
+<li><strong>Access:</strong> 30 <code>wansoft</code> tables, all in Appendix A.</li>
+</ul>
 <p><strong>Version 1.8 (2026-10-22)</strong></p>
 <ul>
 <li><strong>New supplier invoices table, Wansoft + Odoo:</strong> <code>analytics_expense_invoices</code>, every branch with its full history, classified by Wansoft's Cuenta / Subcuenta; replaces <code>getexpenses_factura</code> for expenses (Section 5.7).</li>
@@ -1404,7 +1493,7 @@ user and documented here.</p>
 
 <div class="salto"></div>
 <h1>Appendix A. Table schemas</h1>
-<p>Columns of every table the read-only user can query, taken from the production schema on 2026-10-22. <strong>Null</strong>: whether the column accepts NULL. <strong>Key</strong>: <code>PRI</code> primary key, <code>UNI</code> part of a unique key, <code>MUL</code> part of an index. The meaning of the important fields is in the section shown in brackets.</p>
+<p>Columns of every table the read-only user can query, taken from the production schema on 2026-10-27. <strong>Null</strong>: whether the column accepts NULL. <strong>Key</strong>: <code>PRI</code> primary key, <code>UNI</code> part of a unique key, <code>MUL</code> part of an index. The meaning of the important fields is in the section shown in brackets.</p>
 <h2>A.1 Sales</h2>
 <p><strong><code>getallordenesbyday_new_venta</code></strong>: ticket header (5.1). 24 columns.</p>
 <table class="compacta">
@@ -5616,6 +5705,85 @@ user and documented here.</p>
 <td><code>product_code_status</code></td>
 <td>varchar(15)</td>
 <td>yes</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>analytics_inventory_stock_daily</code></strong>: stock per branch × product × day, Wansoft + Odoo (5.4). 11 columns.</p>
+<table class="compacta">
+<thead>
+<tr>
+<th width="40%">Column</th>
+<th width="40%">Type</th>
+<th width="10%">Null</th>
+<th width="10%">Key</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>stock_date</code></td>
+<td>date</td>
+<td>no</td>
+<td>PRI</td>
+</tr>
+<tr>
+<td><code>company_source_key</code></td>
+<td>varchar(100)</td>
+<td>no</td>
+<td>PRI</td>
+</tr>
+<tr>
+<td><code>product_code</code></td>
+<td>varchar(60)</td>
+<td>no</td>
+<td>PRI</td>
+</tr>
+<tr>
+<td><code>source_system</code></td>
+<td>varchar(10)</td>
+<td>no</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>product_name</code></td>
+<td>varchar(255)</td>
+<td>yes</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>stock_qty</code></td>
+<td>decimal(18,6)</td>
+<td>no</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>stock_value</code></td>
+<td>decimal(18,4)</td>
+<td>yes</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>moved_qty</code></td>
+<td>decimal(18,6)</td>
+<td>no</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>final_source_status</code></td>
+<td>varchar(40)</td>
+<td>no</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>include_in_business_views</code></td>
+<td>tinyint(1)</td>
+<td>no</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>built_at</code></td>
+<td>datetime</td>
+<td>no</td>
 <td>—</td>
 </tr>
 </tbody>
