@@ -115,9 +115,19 @@ def get_cost_accounts(models: Any, uid: int, db: str, password: str, odoo_compan
     Returns the expense_direct_cost account ids for a company, split into
     all / product-only / merma-only buckets.
     """
+    # A branch (child company, e.g. Aeropuerto 32 of FONDA ARGENTINA AEROPUERTO 8)
+    # has no chart of accounts of its own: it posts to its parent's accounts, with
+    # its own company_id on the journal items. Checked in Odoo on 2026-10-28.
+    company = models.execute_kw(
+        db, uid, password, "res.company", "read", [[odoo_company_id]], {"fields": ["parent_id"]}
+    )
+    company_ids = [odoo_company_id]
+    if company and company[0].get("parent_id"):
+        company_ids.append(company[0]["parent_id"][0])
+
     accounts = models.execute_kw(
         db, uid, password, "account.account", "search_read",
-        [[["company_ids", "in", [odoo_company_id]], ["account_type", "=", "expense_direct_cost"]]],
+        [[["company_ids", "in", company_ids], ["account_type", "=", "expense_direct_cost"]]],
         {"fields": ["id", "name"]}
     )
 

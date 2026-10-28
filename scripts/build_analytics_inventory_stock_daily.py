@@ -157,7 +157,8 @@ def build_branch(cur, key, odoo_start, born_on_odoo, yesterday, built_at, target
 
     # ---- Wansoft series: running sum, up to the day before the Odoo start
     if not born_on_odoo:
-        wansoft_end = (odoo_start - timedelta(days=1)) if odoo_start else yesterday
+        # Capped at yesterday: a policy row may be loaded before its start date.
+        wansoft_end = min(odoo_start - timedelta(days=1), yesterday) if odoo_start else yesterday
         if wansoft_from is None or wansoft_from <= wansoft_end:
             load_nets(cur, key, "wansoft", wansoft_end, business_only=True, since=wansoft_from)
             cur.execute("DROP TABLE IF EXISTS tmp_sd_products")
@@ -260,6 +261,16 @@ def nightly_branch(cur, key, odoo_start, born, yesterday, built_at):
                         f"AND stock_date >= %s", (key, wansoft_from))
         else:
             cur.execute(f"DELETE FROM {TABLE} WHERE company_source_key = %s AND source_system = 'wansoft'", (key,))
+        if odoo_start:
+            # Late cutover: the policy row may land after nights that already stored
+            # the start day onwards as Wansoft; those days belong to Odoo now, and
+            # the history before them is no longer final (no-ops once applied). Days
+            # after yesterday are dropped too (a series is never built into the future).
+            cur.execute(f"DELETE FROM {TABLE} WHERE company_source_key = %s AND source_system = 'wansoft' "
+                        f"AND stock_date >= %s", (key, min(odoo_start, yesterday + timedelta(days=1))))
+            cur.execute(f"UPDATE {TABLE} SET final_source_status = 'wansoft_history_before_odoo' "
+                        f"WHERE company_source_key = %s AND source_system = 'wansoft' "
+                        f"AND final_source_status = 'wansoft_final'", (key,))
     if odoo_start or born:
         cur.execute(f"DELETE FROM {TABLE} WHERE company_source_key = %s AND source_system = 'odoo'", (key,))
     rows = build_branch(cur, key, odoo_start, born, yesterday, built_at, target=TABLE, wansoft_from=wansoft_from)

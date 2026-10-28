@@ -47,7 +47,7 @@ def check_gaps(conn, plan, yesterday):
     def expected_end(row):
         odoo_start, born = plan.get(row.company_source_key, (None, False))
         if row.source_system == "wansoft" and odoo_start:
-            return odoo_start - timedelta(days=1)
+            return min(odoo_start - timedelta(days=1), yesterday)
         return yesterday
 
     series["expected_end"] = series.apply(expected_end, axis=1)
