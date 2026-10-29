@@ -93,3 +93,4 @@ Combustibles y Lubricantes,approved,Gasto,Gastos Directos,Combustibles y Lubrica
 Otros Impuestos y Derechos,approved,Gasto,Gastos Directos,Otros Impuestos o Derechos,,"owner 2026-10-19/20, docs/analytics-expense-invoices-design.md"
 Goods Received - No Invoices,product_category,,,,,goods clearing account: classify each line by its product category expense account
 Gastos de Fin de Año,approved,Gasto,Gastos Directos,Gastos de Fin de año,,"owner 2026-10-26: new Odoo account, same as the Wansoft subcuenta"
+Recibos Pendientes Banorte 3510,excluded,,,,not_an_expense,"owner 2026-10-29: bank account; the only bill (Isabel, DEVOLUCION PAGO ERRONEO GOCOS) is a refund receivable, not a cost"
