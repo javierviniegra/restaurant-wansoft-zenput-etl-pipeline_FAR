@@ -63,6 +63,45 @@ On 2026-10-12 none of them had purchase orders, warehouses or stock moves.
      `scripts/validate_purchases_canonical_layer.py` (active, date-aware);
    - test the whole thing on dev with the purchases pipeline end to end.
 
+## Done on 2026-10-28 (dev tested)
+
+- Odoo read: the warehouses now exist (Aeropuerto 35 `Aerop`, Taquería
+  Viaducto 36 `Taque`); still no purchase orders, stock moves, quants or
+  journal entries for 32/33.
+- **Odoo costs on a branch (item 1):** the lookup found 0 cost accounts for
+  32/33: a branch has only its cash account; the chart of accounts is the
+  parent's (8: 30 `expense_direct_cost` accounts).
+  `odoo_cost_report.get_cost_accounts` now also searches the parent
+  company's accounts; journal items are still filtered by the branch's
+  `company_id`. Only the six branch companies have a parent, none of them on
+  Odoo yet, so no current branch changes. To confirm with the first invoices
+  after 11-01 that Odoo stamps the branch (not the parent) on the lines.
+- `sql/migrations/cutover_06_november_wave.sql` written and applied on dev:
+  2 policy rows (the accented name stored as bytes `C3AD`), 6,187 Wansoft
+  canonical lines relabelled.
+- Code flip: `COMPANY_SOURCE` -> `"odoo"` for both, both added to
+  `COSTS_AUTO_SWITCH_TO_ODOO`, `ROLLOUT_COMPANY_EXPECTATIONS` entries.
+  The cost switch rule on dev: both stay on Wansoft (expected).
+- Daily stock (`scripts/build_analytics_inventory_stock_daily.py`):
+  late-cutover guard (deletes Wansoft days from the Odoo start, relabels the
+  history `wansoft_history_before_odoo`), and a bug found in the dev test:
+  with the policy loaded before its start date the Wansoft series was built
+  into the future (to 10-31); now capped at yesterday, in the build and in the
+  validator. Tested on dev: start 11-01, a late cutover on 10-20, and back.
+
+## Decision (owner, 2026-10-28): apply on Monday 2026-11-02
+
+During the day of Monday 11-02 (not around 07:30): the owner runs
+`cutover_06_november_wave.sql` in phpMyAdmin and the code flip is pushed the
+same day, before the VM's 00:30 pull. The night of 11-02 -> 11-03 is the first
+one configured. The night of 11-01 -> 11-02 still runs them as Wansoft: the
+detector prints `[AVISO] ... ya opera en Odoo` if Odoo already has activity
+(expected), and 11-01 may be stored as Wansoft. The next night repairs it
+without manual reruns: the Wansoft canonical load reclassifies its window, the
+movements reload their capture window, the Odoo side loads from the start
+date, and the daily stock's late-cutover guard drops the Wansoft days from
+11-01 and relabels the history (tested on dev). Costs stay on Wansoft anyway.
+
 ## Cutover (2026-11-01 is a Sunday)
 
 The repository update runs at 00:30 and the cycle at 01:30. Either commit the

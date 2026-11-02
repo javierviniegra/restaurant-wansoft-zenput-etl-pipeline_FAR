@@ -96,6 +96,18 @@ ROLLOUT_COMPANY_EXPECTATIONS = [
         "active": True,
         "description": "Activated 2026-10-01 (October wave, owner-confirmed 2026-09-30). The date-aware check tolerates no Odoo rows for 3 days after the start date. Staged 2026-08-31 for the 2026-10-01 launch wave (with Isabel La Catolica and San Jeronimo). odoo_company_migration_policy already updated (operational_start_date=2026-10-01), but COMPANY_SOURCE stays wansoft until the real cutover -- do not activate this expectation before then. As of staging, Vallejo has almost no real Odoo activity (1 purchase.order, 2024-10-21, pilot noise) -- confirm real usage has started before activating.",
     },
+    {
+        "company_source_key": "Aeropuerto",
+        "rollout_type": "migrated_from_wansoft",
+        "active": True,
+        "description": "November wave, Odoo from 2026-11-01 (owner, 2026-10-12); branch 32 of FONDA ARGENTINA AEROPUERTO. Wansoft history relabelled by sql/migrations/cutover_06_november_wave.sql. The date-aware check tolerates no Odoo rows for 3 days after the start date, and warns (does not fail) while Odoo has no confirmed order for it.",
+    },
+    {
+        "company_source_key": "Taquería Viaducto",
+        "rollout_type": "migrated_from_wansoft",
+        "active": True,
+        "description": "November wave, Odoo from 2026-11-01 (owner, 2026-10-12); branch 33 of FONDA ARGENTINA AEROPUERTO. Wansoft history relabelled by sql/migrations/cutover_06_november_wave.sql. The date-aware check tolerates no Odoo rows for 3 days after the start date, and warns (does not fail) while Odoo has no confirmed order for it.",
+    },
 ]
 
 
