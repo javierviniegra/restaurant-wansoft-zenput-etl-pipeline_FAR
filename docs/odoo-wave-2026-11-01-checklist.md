@@ -102,6 +102,21 @@ movements reload their capture window, the Odoo side loads from the start
 date, and the daily stock's late-cutover guard drops the Wansoft days from
 11-01 and relabels the history (tested on dev). Costs stay on Wansoft anyway.
 
+## Applied on Monday 2026-11-02
+
+- Odoo that morning: opening inventory loaded (inventory adjustments dated
+  11-02: 341 moves Aeropuerto, 243 Taquería Viaducto); their valuation entries
+  (accounting date 11-01) carry the branch company (32/33), not the parent (8).
+  No purchase orders or POS orders yet.
+- 12:16 the owner ran `cutover_06` in phpMyAdmin on production: 2 policy rows
+  (Taquería Viaducto's name bytes contain `C3AD`); relabelled to
+  `wansoft_history_before_odoo`: 22,261 orders, 143,420 lines, 22,261 receipts,
+  143,420 receipt moves (last Wansoft order 2026-10-31). A second run of the
+  whole file stopped at the policy insert (duplicate key, harmless): never
+  re-run the file, its inserts are not idempotent.
+- The code flip was pushed the same day (348e3e7), for the VM's 00:30 pull;
+  the night of 11-02 -> 11-03 is the first one configured.
+
 ## Cutover (2026-11-01 is a Sunday)
 
 The repository update runs at 00:30 and the cycle at 01:30. Either commit the
