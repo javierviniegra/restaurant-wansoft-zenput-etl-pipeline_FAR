@@ -5,8 +5,9 @@ Rule (owner, 2026-09-29): a branch that operates on Odoo takes its costs from
 Odoo (extract/costs/odoo_cost_report.py) from its Odoo start date on, and from
 Wansoft's cost report before it; branches still on Wansoft always use Wansoft.
 COSTS_WANSOFT_TEMPORARY_EXCEPTIONS (core/config/companies.py) keeps listed
-branches on Wansoft regardless (Antenas: its Odoo cost data is broken by the
-pilot-era tests while that database is repaired).
+branches on Wansoft until the date given there, or regardless when it is None
+(Antenas: its Odoo cost data was broken by the pilot-era tests; repaired, on
+Odoo from 2026-12-01).
 
 Why per day and not per branch: the cost scripts re-check the last
 COSTS_LOOKBACK_DAYS every night. The day after a branch's cutover, a
@@ -78,6 +79,10 @@ def load_costs_odoo_start_dates():
             start_dates[key] = NOT_SWITCHED
         else:
             start_dates[key] = max(switch, policy_start)
+    # A temporary exception with a date moves the branch's Odoo start to that day.
+    for key, until in COSTS_WANSOFT_TEMPORARY_EXCEPTIONS.items():
+        if until and start_dates.get(key):
+            start_dates[key] = max(start_dates[key], until)
     return start_dates
 
 
@@ -112,7 +117,10 @@ def costs_source_rows(start_dates, odoo_company_ids):
         if COMPANY_SOURCE.get(key, "wansoft") != "odoo":
             start, reason = None, "wansoft"
         elif key in COSTS_WANSOFT_TEMPORARY_EXCEPTIONS:
-            start, reason = None, "exception"
+            # Dated exception: start_dates already holds that date; "policy" once it is reached.
+            until = COSTS_WANSOFT_TEMPORARY_EXCEPTIONS[key]
+            start = start if until and start else None
+            reason = "policy" if start and start <= date.today() else "exception"
         elif key in COSTS_AUTO_SWITCH_TO_ODOO:
             reason = "auto_switch_pending" if start in (None, NOT_SWITCHED) else "switched"
             start = None if reason == "auto_switch_pending" else start
@@ -145,7 +153,7 @@ def costs_source(company_key, day, start_dates):
         day = day.date()
     if COMPANY_SOURCE.get(company_key, "wansoft") != "odoo":
         return "wansoft"
-    if company_key in COSTS_WANSOFT_TEMPORARY_EXCEPTIONS:
+    if company_key in COSTS_WANSOFT_TEMPORARY_EXCEPTIONS and COSTS_WANSOFT_TEMPORARY_EXCEPTIONS[company_key] is None:
         return "wansoft"
     start = start_dates.get(company_key)
     if start is None:

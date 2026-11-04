@@ -4,6 +4,7 @@ Company Data Source Configuration
 
 
 import os
+from datetime import date
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -150,10 +151,14 @@ def is_company_wansoft_source_for_costs(company_name: str) -> bool:
 # now only means "born on Odoo" (no Wansoft history at all) and still drives
 # getTablajeriaReport.py. Branches listed here keep Wansoft costs regardless,
 # as a TEMPORARY exception: Antenas was the Odoo prototype and its Odoo cost
-# data is broken by pilot tests while that database is repaired. Remove it
-# from this set once the owner confirms the repair.
+# data is broken by pilot tests while that database is repaired.
+# Value: first day on Odoo costs once repaired (None = Wansoft indefinitely).
+# Antenas (owner, 2026-11-04): product costs repaired on 11-03/04, but the
+# invoices already posted through 11-03 keep costs in the millions (offset by
+# one -114 M entry), so November stays on Wansoft and Odoo starts on 12-01: a
+# month is never mixed.
 COSTS_WANSOFT_TEMPORARY_EXCEPTIONS = {
-    "Antenas",
+    "Antenas": date(2026, 12, 1),
 }
 
 # Branches whose costs switch from Wansoft to Odoo by themselves, each on the
