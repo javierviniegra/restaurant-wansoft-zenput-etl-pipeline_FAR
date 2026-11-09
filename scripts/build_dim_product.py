@@ -12,6 +12,8 @@ Main rules:
 - Unmapped / backlog products remain visible.
 - Product identity is based on source_system + source_product_key, not product name.
 - normalized_product_name is for search/diagnostics, not uniqueness.
+- odoo_category / odoo_uom missing after the governed sources are read from
+  Odoo's product master (never overwriting a governed value).
 
 This script does not implement BI logic.
 """
@@ -830,6 +832,54 @@ def finalize_rows(rows: Dict[Tuple[str, str], ProductRow]) -> None:
             row.source_product_name = row.product_display_name
 
 
+ODOO_READ_BATCH = 500
+
+
+def fill_odoo_category_and_uom(rows: Dict[Tuple[str, str], ProductRow]) -> None:
+    """
+    Category and unit of measure of Odoo products, from product.product, where
+    the governed sources left them empty: the inventory_mapping_dictionary is
+    the only other source, so every odoo_only product had none (tukanmx,
+    2026-11-04: 523 Odoo-only products without category). A failure here only
+    leaves them empty, as before; it never fails the build.
+    """
+    pending = {}
+    for row in rows.values():
+        if row.odoo_product_id and (not row.odoo_category or not row.odoo_uom):
+            try:
+                # Ids from the purchase lines are stored as text like "8374.0".
+                pending.setdefault(int(float(row.odoo_product_id)), []).append(row)
+            except ValueError:
+                continue
+
+    if not pending:
+        return
+
+    try:
+        from core.database.odoo import get_odoo_connection
+
+        uid, models, db, password = get_odoo_connection()
+        ids = sorted(pending)
+        found = 0
+        for start in range(0, len(ids), ODOO_READ_BATCH):
+            records = models.execute_kw(
+                db, uid, password, "product.product", "read",
+                [ids[start:start + ODOO_READ_BATCH]],
+                {"fields": ["categ_id", "uom_id"], "context": {"active_test": False}},
+            )
+            for record in records:
+                category = record["categ_id"][1] if record.get("categ_id") else None
+                uom = record["uom_id"][1] if record.get("uom_id") else None
+                for row in pending.get(record["id"], []):
+                    row.odoo_category = row.odoo_category or clean_text(category)
+                    row.odoo_uom = row.odoo_uom or clean_text(uom)
+                found += 1
+        print(f"[INFO] Odoo category/uom read for {found} of {len(ids)} products missing them")
+
+    except Exception as exc:
+        print(f"[AVISO] Could not read Odoo product categories ({exc}); odoo_category stays empty for {len(pending)} products")
+
+
 def build_rows(conn) -> Dict[Tuple[str, str], ProductRow]:
     rows: Dict[Tuple[str, str], ProductRow] = {}
     odoo_index: Dict[str, ProductRow] = {}
@@ -840,6 +890,7 @@ def build_rows(conn) -> Dict[Tuple[str, str], ProductRow]:
     collect_from_odoo_inventory_snapshot(conn, rows, odoo_index, wansoft_index)
     collect_from_purchase_inventory_backlog(conn, rows, odoo_index)
 
+    fill_odoo_category_and_uom(rows)
     finalize_rows(rows)
 
     return rows
