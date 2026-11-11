@@ -59,17 +59,52 @@ def build_stages(today=None):
     return stages
 
 
+# Network failures the stages catch and print without raising (found the night
+# of 2026-11-10: with no DNS on the VM, Ventas, Inventario, Zenput and others
+# printed NameResolutionError per branch and still ended OK, loading nothing).
+CONNECTION_ERROR_MARKERS = (
+    "NameResolutionError",
+    "getaddrinfo failed",
+    "Temporary failure in name resolution",
+    "Failed to establish a new connection",
+    "Max retries exceeded",
+    "gaierror",
+)
+
+
+class _ConnectionErrorCounter:
+    """Passes writes through to the real stream and counts lines with a CONNECTION_ERROR_MARKERS entry."""
+
+    def __init__(self, stream):
+        self.stream = stream
+        self.count = 0
+
+    def write(self, text):
+        self.count += sum(1 for line in text.splitlines() if any(m in line for m in CONNECTION_ERROR_MARKERS))
+        return self.stream.write(text)
+
+    def __getattr__(self, attr):
+        return getattr(self.stream, attr)
+
+
 def run_stages(stages):
     results = []
     for name, job in stages:
         started = time.time()
         print(f"##### [{datetime.now():%H:%M:%S}] START {name}", flush=True)
+        real_stdout, real_stderr = sys.stdout, sys.stderr
+        sys.stdout, sys.stderr = _ConnectionErrorCounter(real_stdout), _ConnectionErrorCounter(real_stderr)
         try:
             job()
             status = "OK"
         except (Exception, SystemExit) as exc:
             status = f"FAILED {type(exc).__name__}: {exc}"
             traceback.print_exc()
+        finally:
+            connection_errors = sys.stdout.count + sys.stderr.count
+            sys.stdout, sys.stderr = real_stdout, real_stderr
+        if status == "OK" and connection_errors:
+            status = f"FAILED ConnectionError: {connection_errors} connection errors in the output (data may be missing)"
         seconds = time.time() - started
         print(f"##### [{datetime.now():%H:%M:%S}] END {name} -> {status} ({seconds:.0f}s)", flush=True)
         results.append((name, status, seconds))

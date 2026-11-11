@@ -578,7 +578,11 @@ the cost of recent days of Odoo branches is partial by construction (week of
 per invoiced peso stays at 35-38%. To make the closing always reach the
 stored costs, the Odoo side of the three cost scripts re-reads the whole
 current month and, until the 10th, the whole previous month
-(`odoo_costs_window_start`); a few seconds per stage. Check before trusting a
+(`odoo_costs_window_start`); a few seconds per stage. A week that straddles
+the window start (e.g. Mon 10-26 to Sun 11-01 read on 11-11) adds only the
+days rewritten that night to the stored week-to-date of the day before, so
+it never mixes stored and freshly re-read days (fixed 2026-11-11: CentroMyJ's
+week was $229 off and failed the continuity check). Check before trusting a
 recent Odoo cost: Odoo invoiced amount vs Wansoft net sales of the same day.
 Reports that need a cost for recent days should show an estimate (cost per
 invoiced peso x Wansoft net sales), labelled as such, until the period is
@@ -670,6 +674,14 @@ Good: one `OK` line per stage and `##### CYCLE DONE in N min, 0 failed`. Stages:
 **+1** every 5 days ("Compras por clasificar (cada 5 dias)": 2026-10-11, 10-16,
 10-21...). Reference times for the first week: 38.9-47.6 min in total, Analytics
 purchase about 14 min.
+
+**`FAILED ConnectionError: N connection errors in the output`** (since
+2026-11-11): the stage itself ended fine, but its output had lines with a
+network error (`NameResolutionError`, `getaddrinfo failed`, `Max retries
+exceeded`...; list in `CONNECTION_ERROR_MARKERS`, `scripts/run_daily_cycle.py`).
+Most stages catch those per branch and carry on, so on the night of
+2026-11-10, with no DNS on the VM, Ventas, Inventario, Zenput and others ended
+`OK` having loaded nothing. Check the VM's network, then re-run the night (9.3).
 
 **Warnings worth reading:**
 

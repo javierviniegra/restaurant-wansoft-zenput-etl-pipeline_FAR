@@ -307,6 +307,16 @@ if odoo_subsidiaries:
         odoo_start = COSTS_START_DATES.get(subsidiary["nombreCorto"])
         if odoo_start is not None and not df_daily.empty:
             df_daily = df_daily[df_daily["fecha"] >= odoo_start.strftime("%Y-%m-%d")]
+        # Week that straddles the window start (found 2026-11-11: after the
+        # 10th the window starts on day 1 and the days of that week in the
+        # previous month are no longer rewritten, but re-reading them from
+        # Odoo brought late invoices the stored rows don't have). Only the
+        # days rewritten tonight are summed, on top of the stored week-to-date
+        # of the day before (wansoft_period_base reads that row as it is,
+        # Wansoft or Odoo).
+        fresh_start = odoo_start_range.date() if odoo_start is None else max(odoo_start, odoo_start_range.date())
+        if not df_daily.empty:
+            df_daily = df_daily[df_daily["fecha"] >= fresh_start.strftime("%Y-%m-%d")]
 
         if df_daily.empty:
             continue
@@ -342,10 +352,11 @@ if odoo_subsidiaries:
             # Switch in the middle of the week (owner, 2026-10-02, "D1"; found
             # live: the 5 branches migrated on Thursday 2026-10-01 lost Monday-
             # Wednesday of that week): add Wansoft's week-to-date up to the day
-            # before the Odoo start, so every day counts exactly once.
+            # before the Odoo start, so every day counts exactly once. The same
+            # base covers the days of the week before the window (fresh_start).
             if odoo_start is not None:
                 base_total, base_productos, base_merma = wansoft_period_base(
-                    cursor, "costeomensual_semanapyq", subsidiary["id"], odoo_start, current_date)
+                    cursor, "costeomensual_semanapyq", subsidiary["id"], fresh_start, current_date)
                 total_costo += base_total
                 total_productos_costo += base_productos
                 costo_merma += base_merma
