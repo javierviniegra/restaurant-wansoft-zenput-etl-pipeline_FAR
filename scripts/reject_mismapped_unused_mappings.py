@@ -18,7 +18,16 @@ never re-approves. The Wansoft product itself is untouched (62 of these
 Wansoft codes are in use in 2026). The other 13 (in use) wait for the
 owner's review.
 
-Dry run by default; --apply writes. Only rows still 'approved' change.
+Owner, 2026-11-12 (tukan's P68): those 13, plus the 'pending_review'
+duplicate of one of them, are rejected too (IN_USE_IDS). Each links an Odoo
+menu item (5100-) to a Wansoft supply (1000-), e.g. "Bife de Chorizo 800 Grs"
+to "Ate de Tejocote"; none has a 2026 Odoo purchase, and their stock moves
+were already left out of analytics_inventory_movements
+(EXCLUDED_DICTIONARY_IDS there). dim_product then shows the Odoo item and the
+Wansoft supply as separate rows.
+
+Dry run by default; --apply writes. Only rows still in the batch's allowed
+statuses change.
 
     python -m scripts.reject_mismapped_unused_mappings
     python -m scripts.reject_mismapped_unused_mappings --apply
@@ -36,6 +45,41 @@ DICTIONARY_IDS = [
 NOTE = ("[2026-10-13] rejected by owner: the Odoo product id is another product "
         "(name mismatch) and has no Odoo stock move or 2026 purchase.")
 
+IN_USE_IDS = [70, 120, 138, 144, 189, 233, 243, 262, 291, 346, 352, 353, 485, 1346]
+IN_USE_NOTE = ("[2026-11-12] rejected by owner: the Odoo product is a menu item (5100-) linked to a "
+               "Wansoft supply (1000-) only by the code suffix; no 2026 Odoo purchase.")
+
+# (ids, note, statuses that may still change)
+BATCHES = [
+    (DICTIONARY_IDS, NOTE, ("approved",)),
+    (IN_USE_IDS, IN_USE_NOTE, ("approved", "pending_review")),
+]
+
+
+def reject_batch(cur, ids, note, statuses, apply):
+    marks = ",".join(["%s"] * len(ids))
+    cur.execute(f"""
+        SELECT id, odoo_product_id, odoo_product_name, wansoft_code, wansoft_product_name, mapping_status
+        FROM inventory_mapping_dictionary WHERE id IN ({marks}) ORDER BY id
+    """, ids)
+    rows = cur.fetchall()
+    pending = [r for r in rows if r[5] in statuses]
+    print(f"{len(rows)} of {len(ids)} ids found; {len(pending)} still {'/'.join(statuses)}")
+    for r in rows:
+        if r[5] not in statuses:
+            print(f"  skip id {r[0]} (status {r[5]})")
+    if not apply or not pending:
+        return 0
+    status_marks = ",".join(["%s"] * len(statuses))
+    cur.execute(f"""
+        UPDATE inventory_mapping_dictionary
+        SET mapping_status = 'rejected',
+            notes = CONCAT_WS(' | ', NULLIF(notes, ''), %s),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id IN ({",".join(["%s"] * len(pending))}) AND mapping_status IN ({status_marks})
+    """, [note] + [r[0] for r in pending] + list(statuses))
+    return cur.rowcount
+
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -44,30 +88,12 @@ def main(argv=None):
 
     conn = get_db_connection()
     cur = conn.cursor()
-    marks = ",".join(["%s"] * len(DICTIONARY_IDS))
-    cur.execute(f"""
-        SELECT id, odoo_product_id, odoo_product_name, wansoft_code, wansoft_product_name, mapping_status
-        FROM inventory_mapping_dictionary WHERE id IN ({marks}) ORDER BY id
-    """, DICTIONARY_IDS)
-    rows = cur.fetchall()
-    approved = [r for r in rows if r[5] == "approved"]
-    print(f"{len(rows)} of {len(DICTIONARY_IDS)} ids found; {len(approved)} still approved")
-    for r in rows:
-        if r[5] != "approved":
-            print(f"  skip id {r[0]} (status {r[5]})")
+    rejected = sum(reject_batch(cur, ids, note, statuses, args.apply) for ids, note, statuses in BATCHES)
     if not args.apply:
         print("Dry run: nothing written. Use --apply.")
-        return 0
-    if approved:
-        cur.execute(f"""
-            UPDATE inventory_mapping_dictionary
-            SET mapping_status = 'rejected',
-                notes = CONCAT_WS(' | ', NULLIF(notes, ''), %s),
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id IN ({",".join(["%s"] * len(approved))}) AND mapping_status = 'approved'
-        """, [NOTE] + [r[0] for r in approved])
+    else:
         conn.commit()
-        print(f"Rejected: {cur.rowcount}")
+        print(f"Rejected: {rejected}")
     conn.close()
     return 0
 

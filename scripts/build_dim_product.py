@@ -466,6 +466,11 @@ def collect_from_inventory_mapping_dictionary(
     """
 
     for item in fetch_all_dict(conn, query):
+        # A rejected mapping is a wrong link (scripts/reject_mismapped_unused_mappings.py):
+        # reading it would pair the Odoo product with the Wansoft one again (tukan's P68,
+        # 2026-11-12). Each side still comes in from its own sources, unpaired.
+        if (clean_text(item.get("mapping_status")) or "").lower() == "rejected":
+            continue
         mapping_id = item.get("id")
         source_product_key = f"dict:{mapping_id}"
 
