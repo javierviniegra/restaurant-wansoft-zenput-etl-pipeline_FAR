@@ -183,6 +183,25 @@ def _as_date(value):
     return value.date() if isinstance(value, datetime) else value
 
 
+def period_net_sales(cursor, branch, first_day, last_day):
+    """
+    Net sales before VAT (Subtotal of the tickets, Sales is always Wansoft) of
+    `branch` (the tickets' Sucursal, the short key) from first_day through
+    last_day, or None with no tickets. UtilidadMarginal of an Odoo-costed row
+    is this minus CostoTotal (owner, 2026-11-12): Wansoft's own rows hold
+    exactly that, to the cent, for the month (costeomensual, row of the day)
+    and the ISO week (costeomensual_semanapyq, row of the day after).
+    """
+    cursor.execute(
+        "SELECT SUM(CAST(Subtotal AS DECIMAL(18,2))) FROM getallordenesbyday_new_venta "
+        "WHERE Sucursal = %s AND Fecha >= %s AND Fecha < %s",
+        (branch, _as_date(first_day).strftime("%Y-%m-%d"),
+         (_as_date(last_day) + timedelta(days=1)).strftime("%Y-%m-%d")),
+    )
+    rows = cursor.fetchall()  # fetchall: the caller's cursor must be left with no unread result
+    return float(rows[0][0]) if rows and rows[0][0] is not None else None
+
+
 def wansoft_period_base(cursor, table, subsidiary_id, odoo_start, day):
     """
     Wansoft's accumulated (CostoTotal without consumo, CostoDeProductosVendidos,

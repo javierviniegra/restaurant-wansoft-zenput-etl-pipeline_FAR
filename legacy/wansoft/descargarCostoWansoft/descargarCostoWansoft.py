@@ -282,15 +282,17 @@ for subsidiary in wansoft_subsidiaries:
 # (dia 1 del mes -> la fecha), igual que el lado Wansoft, desde la
 # contabilidad de Odoo. El resto de las columnas (CostoDeCortesias,
 # CostoDeCancelaciones, CostoDeRobo, CostoDeConsumo, AjustePorSobrantes,
-# CostoIdealDeProductosPendientesDeRebaja, UtilidadMarginal) no tienen
-# equivalente confiable en la contabilidad de Odoo actual y se dejan en
-# NULL para estas filas (no se aproximan). Mismo patron que
-# getTotalCostByDate.py / getCostReport_SemanaPyQ.py.
+# CostoIdealDeProductosPendientesDeRebaja) no tienen equivalente confiable
+# en la contabilidad de Odoo actual y se dejan en NULL para estas filas (no
+# se aproximan). UtilidadMarginal = venta antes de IVA de los tickets del
+# mes a la fecha - CostoTotal, la misma definicion de Wansoft (owner,
+# 2026-11-12; extract/costs/cost_switch.py period_net_sales). Mismo patron
+# que getCostReport_SemanaPyQ.py.
 if odoo_subsidiaries:
     import pandas as pd
     from core.database.odoo import get_odoo_connection
     from extract.costs.odoo_cost_report import resolve_odoo_company_id, get_daily_cost_shared as get_daily_cost
-    from extract.costs.cost_switch import wansoft_period_base
+    from extract.costs.cost_switch import period_net_sales, wansoft_period_base
     from extract.costs.cost_routing import odoo_costs_window_start
 
     odoo_uid, odoo_models, odoo_db, odoo_password = get_odoo_connection()
@@ -381,12 +383,15 @@ if odoo_subsidiaries:
             cash_closing_row = cursor.fetchone()
             costo_cortesias = float(cash_closing_row[0]) if cash_closing_row and cash_closing_row[0] is not None else None
             costo_cancelaciones = float(cash_closing_row[1]) if cash_closing_row and cash_closing_row[1] is not None else None
+            venta = period_net_sales(cursor, subsidiary["nombreCorto"], current_date.replace(day=1), current_date)
+            utilidad = None if venta is None else round(venta - total_costo, 2)
 
             cursor.execute("""
                 SELECT id, CostoTotal, CostoDeProductosVendidos, CostoDeCortesías, CostoDeCancelaciones,
                        CostoDeConsumo IS NOT NULL OR CostoDeDesperdicio IS NOT NULL OR CostoDeRobo IS NOT NULL
-                       OR AjustePorSobrantes IS NOT NULL OR UtilidadMarginal IS NOT NULL
-                       OR CostoIdealDeProductosPendientesDeRebaja IS NOT NULL
+                       OR AjustePorSobrantes IS NOT NULL
+                       OR CostoIdealDeProductosPendientesDeRebaja IS NOT NULL,
+                       UtilidadMarginal
                 FROM costeoMensual
                 WHERE subsidiary_id = %s AND DATE(created_at) = %s
             """, (subsidiary["id"], lafecha))
@@ -400,12 +405,13 @@ if odoo_subsidiaries:
                 return abs(new_val - float(old_val)) > 0.01
 
             if existing_row:
-                record_id, total_db, productos_db, cortesias_db, cancelaciones_db, has_wansoft_only = existing_row
+                record_id, total_db, productos_db, cortesias_db, cancelaciones_db, has_wansoft_only, utilidad_db = existing_row
                 if (
                     abs(total_costo - float(total_db)) > 0.01
                     or abs(total_productos_costo - float(productos_db)) > 0.01
                     or _differs(costo_cortesias, cortesias_db)
                     or _differs(costo_cancelaciones, cancelaciones_db)
+                    or _differs(utilidad, utilidad_db) or (utilidad is None and utilidad_db is not None)
                     or has_wansoft_only
                 ):
                     # The Wansoft-only columns are cleared: a row that was
@@ -421,12 +427,12 @@ if odoo_subsidiaries:
                             CostoDeCortesías = %s,
                             CostoDeCancelaciones = %s,
                             CostoDeConsumo = NULL, CostoDeDesperdicio = NULL, CostoDeRobo = NULL,
-                            AjustePorSobrantes = NULL, UtilidadMarginal = NULL,
+                            AjustePorSobrantes = NULL, UtilidadMarginal = %s,
                             CostoIdealDeProductosPendientesDeRebaja = NULL,
                             mes_ano = %s
                         WHERE DATE(created_at) = %s AND subsidiary_id = %s
                     """, (subsidiary["name"], total_costo, total_productos_costo, costo_merma,
-                          costo_cortesias, costo_cancelaciones, mes_ano, lafecha, subsidiary["id"]))
+                          costo_cortesias, costo_cancelaciones, utilidad, mes_ano, lafecha, subsidiary["id"]))
                     print(f"[🔁] Actualizado (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
                 else:
                     print(f"[✔] Igual (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
@@ -434,10 +440,10 @@ if odoo_subsidiaries:
                 cursor.execute("""
                     INSERT INTO costeoMensual
                         (subsidiary_id, subsidiary_name, CostoTotal, CostoDeProductosVendidos, CostoDeMerma,
-                         CostoDeCortesías, CostoDeCancelaciones, mes_ano, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         CostoDeCortesías, CostoDeCancelaciones, UtilidadMarginal, mes_ano, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (subsidiary["id"], subsidiary["name"], total_costo, total_productos_costo, costo_merma,
-                      costo_cortesias, costo_cancelaciones, mes_ano, lafecha))
+                      costo_cortesias, costo_cancelaciones, utilidad, mes_ano, lafecha))
                 print(f"[🆕] Insertado (Odoo): {subsidiary['nombreCorto']} - {lafecha}")
 
             db_connection.commit()
