@@ -157,8 +157,12 @@ def is_company_wansoft_source_for_costs(company_name: str) -> bool:
 # invoices already posted through 11-03 keep costs in the millions (offset by
 # one -114 M entry), so November stays on Wansoft and Odoo starts on 12-01: a
 # month is never mixed.
+# Moved to 2027-02-01 (owner, 2026-11-12): checked in Odoo, the repair held
+# only until 11-04; from 11-05 the FIFO valuation of 14 products inflated
+# again (cost of sale 1.46 trillion pesos on 11-07, inventory account 115.01
+# at -1.57 trillion in November) while the implementer fixes it.
 COSTS_WANSOFT_TEMPORARY_EXCEPTIONS = {
-    "Antenas": date(2026, 12, 1),
+    "Antenas": date(2027, 2, 1),
 }
 
 # Branches whose costs switch from Wansoft to Odoo by themselves, each on the

@@ -6,8 +6,8 @@ Odoo (extract/costs/odoo_cost_report.py) from its Odoo start date on, and from
 Wansoft's cost report before it; branches still on Wansoft always use Wansoft.
 COSTS_WANSOFT_TEMPORARY_EXCEPTIONS (core/config/companies.py) keeps listed
 branches on Wansoft until the date given there, or regardless when it is None
-(Antenas: its Odoo cost data was broken by the pilot-era tests; repaired, on
-Odoo from 2026-12-01).
+(Antenas: its Odoo cost data was broken by the pilot-era tests and inflated
+again after the 11-03 repair; on Odoo from 2027-02-01).
 
 Why per day and not per branch: the cost scripts re-check the last
 COSTS_LOOKBACK_DAYS every night. The day after a branch's cutover, a
