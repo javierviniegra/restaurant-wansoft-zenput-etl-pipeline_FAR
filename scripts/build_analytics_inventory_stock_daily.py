@@ -28,6 +28,23 @@ How a day's stock is computed:
 stock_value: running sum of the movements' signed total_cost (Odoo:
 valuation layers; Wansoft: movement costs, approximate).
 
+Odoo value correction (owner, 2026-11-12): Odoo's FIFO valuation broke in
+Antenas (selling with no stock + manual adjustments at an already inflated
+cost: unit costs up to 1.5 trillion pesos, its stock at -1.7 trillion). An
+Odoo row whose value is surely wrong gets stock_value = stock_qty x a real
+unit price; Odoo's own value stays in stock_value_source and value_method
+says which one stock_value is. Surely wrong (WRONG_VALUE_SQL): |unit value|
+> 100,000, a value whose sign is opposite to the quantity, or a zero value on
+a non-zero quantity. The price, in order: the branch's average
+purchase-receipt cost of the last 90 days (purchase_price), the same over
+every Odoo branch (purchase_price_group), the average incoming cost of any
+other kind in another Odoo branch (other_branch_cost, e.g. preparations);
+with none, stock_value is NULL (no_price). Rows that only look odd (unit value
+outside 0.2x-5x of the purchase price, which can also be a wrong purchase)
+are listed but not corrected. Yesterday's list, corrected or not, is
+rewritten every night in odoo_stock_value_exceptions, for the Odoo
+implementer, and the log prints one [AVISO] per branch.
+
 Rows of a day with zero stock and no movement are not stored unless
 KEEP_ZERO_DAYS (a missing row means zero; see the decision in the design doc).
 
@@ -70,10 +87,50 @@ DDL = f"""
         final_source_status       VARCHAR(40)   NOT NULL,
         include_in_business_views TINYINT(1)    NOT NULL,
         built_at                  DATETIME      NOT NULL,
+        stock_value_source        DECIMAL(18,4) NULL,
+        value_method              VARCHAR(30)   NOT NULL DEFAULT 'source',
         PRIMARY KEY (company_source_key, product_code, stock_date),
         KEY idx_stock_daily_date (stock_date, company_source_key)
     )
 """
+
+# Columns added on 2026-11-12 to a live table built before (MariaDB adds them instantly).
+NEW_COLUMNS = (
+    "stock_value_source DECIMAL(18,4) NULL",
+    "value_method VARCHAR(30) NOT NULL DEFAULT 'source'",
+)
+INSERT_COLUMNS = ("stock_date, company_source_key, product_code, source_system, product_name, stock_qty, stock_value, "
+                  "moved_qty, final_source_status, include_in_business_views, built_at, stock_value_source")
+
+EXCEPTIONS = "odoo_stock_value_exceptions"
+EXCEPTIONS_DDL = f"""
+    CREATE TABLE IF NOT EXISTS {EXCEPTIONS} (
+        company_source_key  VARCHAR(100)  NOT NULL,
+        product_code        VARCHAR(60)   NOT NULL,
+        product_name        VARCHAR(255)  NULL,
+        stock_date          DATE          NOT NULL,
+        stock_qty           DECIMAL(18,6) NOT NULL,
+        stock_value_source  DECIMAL(18,4) NULL,
+        unit_value_source   DECIMAL(30,4) NULL,
+        unit_price          DECIMAL(18,6) NULL,
+        stock_value         DECIMAL(18,4) NULL,
+        value_method        VARCHAR(30)   NOT NULL,
+        reason              VARCHAR(60)   NOT NULL,
+        built_at            DATETIME      NOT NULL,
+        PRIMARY KEY (company_source_key, product_code)
+    )
+"""
+UNIT_VALUE_LIMIT = 100000
+PRICE_WINDOW_DAYS = 90
+# An Odoo row whose value is surely wrong (s = the stock table row; v = Odoo's value).
+WRONG_VALUE_SQL = f"""(ABS(s.stock_qty) > {ZERO} AND (
+    ABS(s.stock_value_source) > {UNIT_VALUE_LIMIT} * ABS(s.stock_qty)
+    OR SIGN(s.stock_value_source) = -SIGN(s.stock_qty)
+    OR ABS(COALESCE(s.stock_value_source, 0)) < 0.005))"""
+WRONG_REASON_SQL = f"""CASE
+    WHEN ABS(s.stock_value_source) > {UNIT_VALUE_LIMIT} * ABS(s.stock_qty) THEN 'costo unitario mayor a 100,000'
+    WHEN SIGN(s.stock_value_source) = -SIGN(s.stock_qty) THEN 'valor con signo contrario a la existencia'
+    ELSE 'valor cero con existencia' END"""
 
 
 def fetch(cur, sql, params=()):
@@ -129,9 +186,9 @@ def insert_days(cur, target, key, source, status, first_day_sql, last_day, keep_
     """
     zero_filter = "" if KEEP_ZERO_DAYS else f"AND (ABS(x.stock_qty) > {ZERO} OR x.moved_qty <> 0)"
     cur.execute(f"""
-        INSERT INTO {target}
+        INSERT INTO {target} ({INSERT_COLUMNS})
         SELECT x.stock_date, %s, x.product_code, %s, x.product_name, x.stock_qty, x.stock_value, x.moved_qty,
-               %s, 1, %s
+               %s, 1, %s, x.stock_value
         FROM (
             SELECT t.calendar_date AS stock_date, p.product_code, p.product_name,
                    {stock_sql} AS stock_qty,
@@ -225,10 +282,83 @@ def build_branch(cur, key, odoo_start, born_on_odoo, yesterday, built_at, target
         stock = running if capture is None else f"p.cap_qty + {running} - p.fwd_at_capture"
         rows += insert_days(cur, target, key, "odoo", "odoo_final", "p.first_d", yesterday, series_start, stock,
                             RUNNING_VALUE, built_at)
+        correct_odoo_values(cur, target, key, yesterday, built_at)
     return rows
 
 
-HELPERS = ("tmp_sd_nets", "tmp_sd_products", "tmp_sd_capture")
+def correct_odoo_values(cur, target, key, yesterday, built_at):
+    """
+    The Odoo value correction of the module docstring for one branch: prices
+    into tmp_sd_price, then stock_value of the surely wrong rows of `target`
+    rewritten, then yesterday's list in odoo_stock_value_exceptions.
+    """
+    since = yesterday - timedelta(days=PRICE_WINDOW_DAYS - 1)
+    cur.execute("DROP TABLE IF EXISTS tmp_sd_price")
+    cur.execute(f"""
+        CREATE TABLE tmp_sd_price ENGINE=InnoDB AS
+        SELECT p.product_code,
+               COALESCE(b.price, g.price, o.price) AS price,
+               CASE WHEN b.price IS NOT NULL THEN 'purchase_price'
+                    WHEN g.price IS NOT NULL THEN 'purchase_price_group'
+                    WHEN o.price IS NOT NULL THEN 'other_branch_cost' ELSE 'no_price' END AS method,
+               b.price AS branch_price, g.price AS group_price
+        FROM (SELECT DISTINCT product_code FROM {target} WHERE company_source_key = %s AND source_system = 'odoo') p
+        LEFT JOIN (SELECT product_code, SUM(total_cost) / SUM(quantity) AS price FROM {MOVES}
+                   WHERE company_source_key = %s AND source_system = 'odoo' AND movement_type = 'purchase_receipt'
+                     AND quantity > 0 AND total_cost > 0 AND movement_date BETWEEN %s AND %s
+                   GROUP BY product_code) b ON b.product_code = p.product_code
+        LEFT JOIN (SELECT product_code, SUM(total_cost) / SUM(quantity) AS price FROM {MOVES}
+                   WHERE source_system = 'odoo' AND movement_type = 'purchase_receipt'
+                     AND quantity > 0 AND total_cost > 0 AND movement_date BETWEEN %s AND %s
+                   GROUP BY product_code) g ON g.product_code = p.product_code
+        LEFT JOIN (SELECT product_code, SUM(total_cost) / SUM(quantity) AS price FROM {MOVES}
+                   WHERE source_system = 'odoo' AND company_source_key <> %s AND counts_in_stock = 1
+                     AND quantity > 0 AND total_cost > 0 AND total_cost < {UNIT_VALUE_LIMIT} * quantity
+                     AND movement_date BETWEEN %s AND %s
+                   GROUP BY product_code) o ON o.product_code = p.product_code
+    """, (key, key, since, yesterday, since, yesterday, key, since, yesterday))
+    cur.execute("ALTER TABLE tmp_sd_price ADD PRIMARY KEY (product_code)")
+    cur.execute(f"""
+        UPDATE {target} s JOIN tmp_sd_price p ON p.product_code = s.product_code
+        SET s.stock_value = IF(p.price IS NULL, NULL, ROUND(s.stock_qty * p.price, 4)), s.value_method = p.method
+        WHERE s.company_source_key = %s AND s.source_system = 'odoo' AND {WRONG_VALUE_SQL}
+    """, (key,))
+    corrected = cur.rowcount
+
+    cur.execute(EXCEPTIONS_DDL)
+    cur.execute(f"DELETE FROM {EXCEPTIONS} WHERE company_source_key = %s", (key,))
+    ratio = "s.stock_value_source / s.stock_qty / COALESCE(p.branch_price, p.group_price)"
+    cur.execute(f"""
+        INSERT INTO {EXCEPTIONS} (company_source_key, product_code, product_name, stock_date, stock_qty,
+               stock_value_source, unit_value_source, unit_price, stock_value, value_method, reason, built_at)
+        SELECT s.company_source_key, s.product_code, s.product_name, s.stock_date, s.stock_qty,
+               s.stock_value_source, ROUND(s.stock_value_source / s.stock_qty, 4), p.price, s.stock_value,
+               s.value_method,
+               IF({WRONG_VALUE_SQL}, {WRONG_REASON_SQL}, 'revisar: costo fuera de 0.2x-5x de su compra'), %s
+        FROM {target} s JOIN tmp_sd_price p ON p.product_code = s.product_code
+        WHERE s.company_source_key = %s AND s.source_system = 'odoo' AND s.stock_date = %s
+          AND ({WRONG_VALUE_SQL} OR (ABS(s.stock_qty) > {ZERO} AND COALESCE(p.branch_price, p.group_price) > 0
+               AND ({ratio} > 5 OR {ratio} < 0.2)))
+    """, (built_at, key, yesterday))
+    listed = cur.rowcount
+    if listed:
+        cur.execute(f"""SELECT SUM(value_method <> 'source'), SUM(value_method = 'no_price'),
+                               COALESCE(SUM(stock_value_source), 0), COALESCE(SUM(stock_value), 0)
+                        FROM {EXCEPTIONS} WHERE company_source_key = %s""", (key,))
+        fixed, no_price, before, after = cur.fetchone()
+        print(f"[AVISO] valor de inventario de Odoo corregido en {key}: {int(fixed or 0)} productos al {yesterday} "
+              f"({int(no_price or 0)} sin precio), {listed - int(fixed or 0)} solo por revisar; "
+              f"valor de Odoo {float(before):,.2f} -> corregido {float(after):,.2f} "
+              f"(lista en {EXCEPTIONS}; {corrected:,} días-producto corregidos en la serie)")
+
+
+HELPERS = ("tmp_sd_nets", "tmp_sd_products", "tmp_sd_capture", "tmp_sd_price")
+
+
+def ensure_new_columns(cur):
+    """The live table built before 2026-11-12 gets the value-correction columns (no-op afterwards)."""
+    for column in NEW_COLUMNS:
+        cur.execute(f"ALTER TABLE {TABLE} ADD COLUMN IF NOT EXISTS {column}")
 
 
 def drop_helpers(cur):
@@ -297,6 +427,7 @@ def main(argv=None):
         if not args.full:
             if not fetch(cur, "SHOW TABLES LIKE %s", (TABLE,)):
                 raise SystemExit(f"{TABLE} does not exist yet: run once with --full")
+            ensure_new_columns(cur)
             total = 0
             for key in branches:
                 started = time.time()
