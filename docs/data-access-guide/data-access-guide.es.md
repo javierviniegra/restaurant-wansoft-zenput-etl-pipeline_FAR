@@ -6,19 +6,19 @@ Para: equipos externos que construirán su propio ETL sobre estas bases (por
 ejemplo, una capa de preguntas y respuestas / chatbot). Indica **qué tabla usar
 para cada pregunta de negocio, qué campos importan, cómo se unen las tablas y
 qué trampas evitar**. Cada regla se verificó contra el esquema y los datos
-reales el 2026-09-28; la guía está actualizada al **2026-10-27**. El 2026-10-07
+reales el 2026-09-28; la guía está actualizada al **2026-11-12**. El 2026-10-07
 se comprobó que existen en producción todas las tablas y columnas que nombra, y
 el esquema completo de cada tabla (Apéndice A) se tomó de producción el
 2026-10-13. Versión en PDF: [data-access-guide.es.pdf](data-access-guide.es.pdf).
 
-**Versión 1.9 (2026-10-27).** Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.
+**Versión 1.10 (2026-11-12).** Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.
 
-> **Novedades de la versión 1.9** (respecto a la 1.8 del 2026-10-22):
+> **Novedades de la versión 1.10** (respecto a la 1.9 del 2026-10-27):
 >
-> - **Nueva tabla de existencias por día, Wansoft + Odoo:** `analytics_inventory_stock_daily`, una fila por sucursal × producto × día, con todo el histórico y todos los días (también los de existencia cero). **Reemplaza la nota "Cómo calcular el inventario (por ahora)" de la 1.8** y la fórmula de entradas − salidas (secciones 4, 4.1 y 5.4).
-> - **Histórico de gastos corregido:** `analytics_expense_invoices` y `getexpenses_factura` están completas desde el **2023-01-01**; antes solo hay facturas sueltas (desde 2019-02-18). La 1.8 decía "desde 2019-02-18" (secciones 4.1 y 5.7).
-> - **Cómo consultar las tablas grandes de inventario** sin leerlas completas, y la fecha de inicio por sucursal (secciones 4.1 y 8).
-> - **Acceso:** 30 tablas de `wansoft` (se agregó `analytics_inventory_stock_daily`).
+> - **Valor del inventario de Odoo corregido:** en `analytics_inventory_stock_daily`, cuando el valor de Odoo está claramente mal (Antenas llegó a −1.7 billones de pesos), `stock_value` se recalcula como existencia × precio real de compra. Columnas nuevas: `stock_value_source` (el valor original de Odoo) y `value_method` (de dónde sale `stock_value`) (sección 5.4).
+> - **Valor del inventario de Wansoft:** `stock_value` arrastra errores de captura desde 2021; para valuar, usa cantidad × costo de compra del mes (sección 5.4).
+> - **Utilidad marginal en los meses de Odoo:** `UtilidadMarginal` de `costeomensual` y `costeomensual_semanapyq` ya viene llena en las filas de Odoo, con la misma fórmula de Wansoft; julio y agosto de 2026 de CentroMyJ y Puebla quedaron corregidos (sección 5.2).
+> - **Antenas** toma su costo de Wansoft hasta el 2027-02-01 (sección 5.2).
 
 ## Índice
 
@@ -276,12 +276,15 @@ De dónde viene el costo de cada sucursal:
 | Migrada a Odoo (Acoxpa, Tepeyac, Oceanía, La Esquina Coyoacán) | Wansoft hasta el 30 de septiembre de 2026; Odoo desde el 1 de octubre |
 | **Ola de octubre (Isabel La Católica, San Jeronimo, Vía Vallejo)** | Wansoft hasta que Odoo tenga un mes completo facturado (cada día con venta tiene costo en Odoo y el total del mes es razonable frente a Wansoft); desde el día 1 del mes siguiente, Odoo. Un mes nunca mezcla los dos sistemas. Mientras tanto, en las filas de Wansoft la merma y el consumo vienen en 0 porque ya no se capturan ahí |
 | Nueva, nacida en Odoo (Puebla, CentroMyJ y las que abran después) | Odoo desde su apertura. Odoo no tiene costo de venta de CentroMyJ antes de julio de 2026 ni de Puebla antes del 27 de julio de 2026: esos días valen 0 |
-| **Antenas (excepción temporal)** | Wansoft, mientras se repara su base de datos en Odoo |
+| **Antenas (excepción temporal)** | Wansoft hasta el 2027-02-01, mientras se corrige la valuación de sus productos en Odoo; Odoo desde ese día |
 
 El costo de Odoo se calcula desde su contabilidad (cuentas de costo directo) y
 se guarda en las mismas tablas. Trae `CostoTotal`, `CostoDeProductosVendidos`
 y `CostoDeMerma`; `CostoDeCortesías` y `CostoDeCancelaciones` vienen del cierre
-de caja; el resto de las columnas queda vacío (no tiene equivalente en Odoo).
+de caja; `UtilidadMarginal` (desde la versión 1.10) es la venta antes de IVA de
+los tickets del periodo menos `CostoTotal`, la misma fórmula de Wansoft, que la
+cumple al centavo; el resto de las columnas queda vacío (no tiene equivalente
+en Odoo).
 **En las filas de Odoo las columnas sin equivalente son NULL**: usa
 `COALESCE(columna, 0)` al restar o sumar, o el resultado sale NULL (por ejemplo,
 `CostoTotal - CostoDeConsumo` da NULL en Puebla). El cambio de fuente aplica
@@ -344,6 +347,7 @@ Campos de `costeomensual` y cómo los usan los reportes del dueño:
 | Gasto de Venta | `CostoDeConsumo` |
 | Costo de Mermas | `CostoDeMerma` |
 | Cortesías / Cancelaciones | `CostoDeCortesías`, `CostoDeCancelaciones` (valor de venta, del cierre de caja) |
+| Utilidad marginal | `UtilidadMarginal` = venta antes de IVA (`Subtotal` de los tickets) del día 1 del mes a `created_date` − `CostoTotal`; en `costeomensual_semanapyq`, del lunes al día anterior a `created_date`. Igual en Wansoft y en Odoo |
 
 ```sql
 -- Costo del mes por sucursal: última foto del mes
@@ -484,7 +488,9 @@ registra en otro lado), así que no uses ese campo para cuentas por pagar.
 | `source_system` | `wansoft` u `odoo`: de qué sistema sale ese día |
 | `product_name` | Nombre del producto |
 | `stock_qty` | Existencia al cierre del día, en la unidad del producto (puede ser negativa si el sistema de origen lo es) |
-| `stock_value` | Valor de la existencia: en Odoo, su valuación; en Wansoft, aproximado con el costo de los movimientos |
+| `stock_value` | Valor de la existencia: en Odoo, su valuación, o el valor corregido cuando la de Odoo está claramente mal (ver `value_method`); en Wansoft, aproximado con el costo de los movimientos (ver abajo) |
+| `stock_value_source` | Desde la 1.10: el valor original del sistema de origen, sin corregir. En las filas de Wansoft construidas antes del 2026-11-12 viene vacío; ahí es igual a `stock_value` |
+| `value_method` | Desde la 1.10: de dónde sale `stock_value`: `source` (el del sistema de origen), `purchase_price` (existencia × costo promedio de compra de la sucursal en los últimos 90 días), `purchase_price_group` (el mismo promedio con todas las sucursales de Odoo), `other_branch_cost` (costo de entrada del producto en otra sucursal, p. ej. preparaciones) o `no_price` (sin precio: `stock_value` vacío en lugar de un valor falso) |
 | `moved_qty` | Movimiento neto de ese día (+ entra, − sale); 0 si no hubo movimiento |
 | `final_source_status` | `wansoft_final` (sucursal Wansoft), `wansoft_history_before_odoo` (sucursal migrada, antes de su arranque en Odoo), `odoo_final` (Odoo) |
 | `include_in_business_views` | Siempre 1 en esta tabla |
@@ -506,6 +512,25 @@ registra en otro lado), así que no uses ese campo para cuentas por pagar.
   - Cada noche se recalculan los días de Wansoft tocados por movimientos
     capturados en los últimos 10 días, así que los días recientes todavía
     pueden cambiar.
+  - **Valor de Odoo corregido (desde la 1.10):** la valuación de Odoo (PEPS)
+    se rompió en Antenas al vender sin existencia y capturar ajustes al costo
+    ya inflado (costos unitarios de hasta 1.5 billones de pesos). Una fila de
+    Odoo se recalcula cuando su valor es claramente incorrecto: costo
+    unitario de más de 100,000 pesos, signo contrario a la existencia o valor
+    cero con existencia. Se aplica cada noche a toda la serie de Odoo y deja
+    de aplicarse sola en cuanto Odoo queda bien. Al 2026-11-11, Antenas pasa
+    de −1,702,771 millones a 296,990 pesos; en las demás sucursales la
+    corrección es de unos miles de pesos.
+  - **Valor de Wansoft:** `stock_value` es la suma del costo de todos los
+    movimientos desde 2021 y arrastra errores de captura (por ejemplo, el
+    costo de la caja capturado como costo de la pieza; muchos se revirtieron
+    en Wansoft con salidas "Error de captura", que no cuentan en la
+    existencia). Para valuar el inventario de Wansoft usa `stock_qty` × el
+    costo promedio de compra del producto en la sucursal en el mes de la
+    fecha (o el último mes con compra), de `analytics_inventory_movements`
+    con `movement_type = 'purchase_receipt'`. Metepec no registra la rebaja
+    de carne ni carbón desde septiembre de 2022: sus existencias y su costo
+    no son comparables con las demás sucursales.
 
 ```sql
 -- Existencias de una sucursal al cierre del 2026-09-30 (solo productos con existencia)
@@ -798,6 +823,13 @@ Otros cambios próximos:
 
 La versión más reciente va primero.
 
+**Versión 1.10 (2026-11-12)**
+
+- **Valor del inventario de Odoo corregido** en `analytics_inventory_stock_daily`: las filas con valor claramente incorrecto se recalculan como existencia × precio real de compra; nuevas columnas `stock_value_source` y `value_method` (5.4).
+- **Cómo valuar el inventario de Wansoft** sin los errores de captura que arrastra `stock_value`, y la advertencia sobre Metepec (5.4).
+- **`UtilidadMarginal` en las filas de Odoo** de `costeomensual` y `costeomensual_semanapyq`, con la fórmula de Wansoft; toda la historia recalculada (5.2).
+- **Antenas** con costo de Wansoft hasta el 2027-02-01 (5.2).
+
 **Versión 1.9 (2026-10-27)**
 
 - **Nueva tabla de existencias por día, Wansoft + Odoo:** `analytics_inventory_stock_daily`, una fila por sucursal × producto × día, con todo el histórico y todos los días (también los de existencia cero); reemplaza la nota provisional de inventario de la 1.8 y la fórmula de entradas − salidas (secciones 4, 4.1 y 5.4).
@@ -864,7 +896,7 @@ La versión más reciente va primero.
 
 ## Apéndice A. Esquema de las tablas
 
-Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas del esquema de producción el 2026-10-27. **Nulo**: si la columna admite NULL. **Llave**: `PRI` llave primaria, `UNI` parte de una llave única, `MUL` parte de un índice. El significado de los campos importantes está en la sección indicada entre paréntesis.
+Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas del esquema de producción el 2026-11-12. **Nulo**: si la columna admite NULL. **Llave**: `PRI` llave primaria, `UNI` parte de una llave única, `MUL` parte de un índice. El significado de los campos importantes está en la sección indicada entre paréntesis.
 
 ### A.1 Ventas
 
@@ -1641,7 +1673,7 @@ Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas d
 | `product_code` | varchar(60) | sí | MUL |
 | `product_code_status` | varchar(15) | sí |  |
 
-**`analytics_inventory_stock_daily`**: existencias por sucursal × producto × día, Wansoft + Odoo (5.4). 11 columnas.
+**`analytics_inventory_stock_daily`**: existencias por sucursal × producto × día, Wansoft + Odoo (5.4). 13 columnas.
 
 | Columna | Tipo | Nulo | Llave |
 |---|---|---|---|
@@ -1656,6 +1688,8 @@ Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas d
 | `final_source_status` | varchar(40) | no |  |
 | `include_in_business_views` | tinyint(1) | no |  |
 | `built_at` | datetime | no |  |
+| `stock_value_source` | decimal(18,4) | sí |  |
+| `value_method` | varchar(30) | no |  |
 
 **`analytics_odoo_product_code`**: código de Wansoft de cada producto de Odoo (5.4). 6 columnas.
 

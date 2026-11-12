@@ -61,18 +61,18 @@
 example, a question-and-answer / chatbot layer). It tells you <strong>which table to
 use for each business question, which fields matter, how tables join, and the
 traps to avoid</strong>. Every rule here was checked against the live schema and data
-on 2026-09-28; the guide is current as of <strong>2026-10-27</strong>. Every table and
+on 2026-09-28; the guide is current as of <strong>2026-11-12</strong>. Every table and
 column it names was confirmed to exist in production on 2026-10-07, and the
 full schema of every table (Appendix A) was taken from production on
 2026-10-13. PDF version: <a href="data-access-guide.en.pdf">data-access-guide.en.pdf</a>.</p>
-<p><strong>Version 1.9 (2026-10-27).</strong> Every change to this guide raises its version number and is recorded in Section 10.</p>
+<p><strong>Version 1.10 (2026-11-12).</strong> Every change to this guide raises its version number and is recorded in Section 10.</p>
 <blockquote>
-<p><strong>What is new in version 1.9</strong> (compared with 1.8 of 2026-10-22):</p>
+<p><strong>What is new in version 1.10</strong> (compared with 1.9 of 2026-10-27):</p>
 <ul>
-<li><strong>New daily stock table, Wansoft + Odoo:</strong> <code>analytics_inventory_stock_daily</code>, one row per branch × product × day, with the full history and every day (zero-stock days included). <strong>It replaces the note "How to compute inventory (for now)" of 1.8</strong> and the entries − exits formula (Sections 4, 4.1 and 5.4).</li>
-<li><strong>Supplier-invoice history corrected:</strong> <code>analytics_expense_invoices</code> and <code>getexpenses_factura</code> are complete from <strong>2023-01-01</strong>; before that there are only scattered invoices (back to 2019-02-18). Version 1.8 said "since 2019-02-18" (Sections 4.1 and 5.7).</li>
-<li><strong>How to query the large inventory tables</strong> without reading them whole, and the start date per branch (Sections 4.1 and 8).</li>
-<li><strong>Access:</strong> 30 <code>wansoft</code> tables (<code>analytics_inventory_stock_daily</code> added).</li>
+<li><strong>Odoo stock value corrected:</strong> in <code>analytics_inventory_stock_daily</code>, when Odoo's value is clearly wrong (Antenas reached −1.7 trillion pesos), <code>stock_value</code> is recomputed as stock × real purchase price. New columns: <code>stock_value_source</code> (Odoo's original value) and <code>value_method</code> (where <code>stock_value</code> comes from) (Section 5.4).</li>
+<li><strong>Wansoft stock value:</strong> <code>stock_value</code> carries capture errors since 2021; to value it, use quantity × the month's purchase cost (Section 5.4).</li>
+<li><strong>Marginal profit in Odoo months:</strong> <code>UtilidadMarginal</code> of <code>costeomensual</code> and <code>costeomensual_semanapyq</code> is now filled on Odoo rows, with Wansoft's own formula; July and August 2026 of CentroMyJ and Puebla were corrected (Section 5.2).</li>
+<li><strong>Antenas</strong> takes its cost from Wansoft until 2027-02-01 (Section 5.2).</li>
 </ul>
 </blockquote>
 <h1>1. What is where</h1>
@@ -757,14 +757,16 @@ Amounts here are <strong>sale value</strong>. Use it to reconcile daily totals.<
 </tr>
 <tr>
 <td><strong>Antenas (temporary exception)</strong></td>
-<td>Wansoft, while its Odoo database is repaired</td>
+<td>Wansoft until 2027-02-01, while the valuation of its products in Odoo is corrected; Odoo from that day</td>
 </tr>
 </tbody>
 </table>
 <p>Odoo cost is computed from Odoo accounting (direct-cost accounts) and stored in
 the same tables. It fills <code>CostoTotal</code>, <code>CostoDeProductosVendidos</code> and
 <code>CostoDeMerma</code>; <code>CostoDeCortesías</code> and <code>CostoDeCancelaciones</code> come from the
-cash closing; the other columns stay empty (no Odoo equivalent). <strong>In Odoo rows the columns with no equivalent are NULL</strong>: use <code>COALESCE(column, 0)</code>
+cash closing; <code>UtilidadMarginal</code> (since version 1.10) is the period's net sales
+before VAT from the tickets minus <code>CostoTotal</code>, Wansoft's own formula, which its
+rows meet to the cent; the other columns stay empty (no Odoo equivalent). <strong>In Odoo rows the columns with no equivalent are NULL</strong>: use <code>COALESCE(column, 0)</code>
 when adding or subtracting, or the result is NULL (e.g. <code>CostoTotal - CostoDeConsumo</code>
 is NULL for Puebla). The switch is per day: days before the start date keep
 Wansoft's cost. When the switch falls in the middle of a month or week, the
@@ -859,6 +861,10 @@ period is complete.</p>
 <tr>
 <td>Cortesías / Cancelaciones</td>
 <td><code>CostoDeCortesías</code>, <code>CostoDeCancelaciones</code> (sale value, from the cash closing)</td>
+</tr>
+<tr>
+<td>Marginal profit</td>
+<td><code>UtilidadMarginal</code> = net sales before VAT (tickets' <code>Subtotal</code>) from the 1st of the month through <code>created_date</code> − <code>CostoTotal</code>; in <code>costeomensual_semanapyq</code>, Monday through the day before <code>created_date</code>. Same in Wansoft and Odoo</td>
 </tr>
 </tbody>
 </table>
@@ -1033,7 +1039,15 @@ for accounts payable.</p>
 </tr>
 <tr>
 <td><code>stock_value</code></td>
-<td>Stock value: in Odoo, its valuation; in Wansoft, approximate, from the movements' cost</td>
+<td>Stock value: in Odoo, its valuation, or the corrected value when Odoo's is clearly wrong (see <code>value_method</code>); in Wansoft, approximate, from the movements' cost (see below)</td>
+</tr>
+<tr>
+<td><code>stock_value_source</code></td>
+<td>Since 1.10: the source system's original value, uncorrected. Empty on Wansoft rows built before 2026-11-12; there it equals <code>stock_value</code></td>
+</tr>
+<tr>
+<td><code>value_method</code></td>
+<td>Since 1.10: where <code>stock_value</code> comes from: <code>source</code> (the source system's), <code>purchase_price</code> (stock × the branch's average purchase cost of the last 90 days), <code>purchase_price_group</code> (the same average over every Odoo branch), <code>other_branch_cost</code> (the product's incoming cost in another branch, e.g. preparations) or <code>no_price</code> (no price: <code>stock_value</code> empty instead of a false value)</td>
 </tr>
 <tr>
 <td><code>moved_qty</code></td>
@@ -1066,7 +1080,25 @@ for accounts payable.</p>
     an earlier date: when they arrive, past days are recomputed by
     themselves. The Odoo series is recomputed in full every night.
   - Every night the Wansoft days touched by movements captured in the last 10
-    days are recomputed, so recent days can still change.</p>
+    days are recomputed, so recent days can still change.
+  - <strong>Corrected Odoo value (since 1.10):</strong> Odoo's FIFO valuation broke in
+    Antenas by selling with no stock and capturing adjustments at an already
+    inflated cost (unit costs up to 1.5 trillion pesos). An Odoo row is
+    recomputed when its value is clearly wrong: unit cost above 100,000
+    pesos, sign opposite to the stock, or zero value on a non-zero stock. It
+    applies every night to the whole Odoo series and stops applying by
+    itself once Odoo is right. On 2026-11-11 Antenas goes from −1,702,771
+    million to 296,990 pesos; in the other branches the correction is a few
+    thousand pesos.
+  - <strong>Wansoft value:</strong> <code>stock_value</code> is the sum of the cost of every movement
+    since 2021 and carries capture errors (e.g. a box's cost captured as the
+    piece's cost; many were reversed in Wansoft with "Error de captura" exits,
+    which do not count in the stock). To value Wansoft's stock use
+    <code>stock_qty</code> × the product's average purchase cost in the branch in the
+    date's month (or the last month with a purchase), from
+    <code>analytics_inventory_movements</code> with <code>movement_type = 'purchase_receipt'</code>.
+    Metepec has not recorded its meat and charcoal deductions since September
+    2022: its stock and cost are not comparable with the other branches.</p>
 <pre class="bloque-codigo">-- Stock of a branch at the close of 2026-09-30 (products with stock only)
 SELECT product_code, product_name, stock_qty, stock_value
 FROM analytics_inventory_stock_daily
@@ -1427,6 +1459,13 @@ documented here.</p>
 
 <h1>10. Version history</h1>
 <p>The most recent version comes first.</p>
+<p><strong>Version 1.10 (2026-11-12)</strong></p>
+<ul>
+<li><strong>Odoo stock value corrected</strong> in <code>analytics_inventory_stock_daily</code>: rows with a clearly wrong value are recomputed as stock × real purchase price; new columns <code>stock_value_source</code> and <code>value_method</code> (5.4).</li>
+<li><strong>How to value Wansoft's stock</strong> without the capture errors <code>stock_value</code> carries, and the Metepec warning (5.4).</li>
+<li><strong><code>UtilidadMarginal</code> on Odoo rows</strong> of <code>costeomensual</code> and <code>costeomensual_semanapyq</code>, with Wansoft's formula; the whole history recomputed (5.2).</li>
+<li><strong>Antenas</strong> on Wansoft cost until 2027-02-01 (5.2).</li>
+</ul>
 <p><strong>Version 1.9 (2026-10-27)</strong></p>
 <ul>
 <li><strong>New daily stock table, Wansoft + Odoo:</strong> <code>analytics_inventory_stock_daily</code>, one row per branch × product × day, with the full history and every day (zero-stock days included); replaces 1.8's interim inventory note and the entries − exits formula (Sections 4, 4.1 and 5.4).</li>
@@ -1493,7 +1532,7 @@ documented here.</p>
 
 <div class="salto"></div>
 <h1>Appendix A. Table schemas</h1>
-<p>Columns of every table the read-only user can query, taken from the production schema on 2026-10-27. <strong>Null</strong>: whether the column accepts NULL. <strong>Key</strong>: <code>PRI</code> primary key, <code>UNI</code> part of a unique key, <code>MUL</code> part of an index. The meaning of the important fields is in the section shown in brackets.</p>
+<p>Columns of every table the read-only user can query, taken from the production schema on 2026-11-12. <strong>Null</strong>: whether the column accepts NULL. <strong>Key</strong>: <code>PRI</code> primary key, <code>UNI</code> part of a unique key, <code>MUL</code> part of an index. The meaning of the important fields is in the section shown in brackets.</p>
 <h2>A.1 Sales</h2>
 <p><strong><code>getallordenesbyday_new_venta</code></strong>: ticket header (5.1). 24 columns.</p>
 <table class="compacta">
@@ -5709,7 +5748,7 @@ documented here.</p>
 </tr>
 </tbody>
 </table>
-<p><strong><code>analytics_inventory_stock_daily</code></strong>: stock per branch × product × day, Wansoft + Odoo (5.4). 11 columns.</p>
+<p><strong><code>analytics_inventory_stock_daily</code></strong>: stock per branch × product × day, Wansoft + Odoo (5.4). 13 columns.</p>
 <table class="compacta">
 <thead>
 <tr>
@@ -5783,6 +5822,18 @@ documented here.</p>
 <tr>
 <td><code>built_at</code></td>
 <td>datetime</td>
+<td>no</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>stock_value_source</code></td>
+<td>decimal(18,4)</td>
+<td>yes</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>value_method</code></td>
+<td>varchar(30)</td>
 <td>no</td>
 <td>—</td>
 </tr>
