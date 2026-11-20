@@ -34,7 +34,7 @@ Odoo side (odoo_stock_move_snapshot, done moves with valuation):
 - quantity = done_qty (the product's unit), total_cost = the valuation layers'
   value, both signed; counts_in_stock = product_is_storable.
 - wansoft_code from the approved dictionary mapping when the Odoo product has
-  exactly one and it is not under review (EXCLUDED_DICTIONARY_IDS);
+  exactly one;
   product_code / product_code_status (generated columns) carry the Wansoft
   code or a temporary ODOO-<id> until the weekly name matcher maps it.
 - final_source_status: 'odoo_final' for an Odoo branch from its start date,
@@ -59,11 +59,11 @@ TABLE = "analytics_inventory_movements"
 DEFAULT_WINDOW_DAYS = 10
 ODOO_SOURCE = "odoo_stock_move_snapshot"
 PRODUCT_CODE_TABLE = "analytics_odoo_product_code"
-# Approved mappings whose Odoo id is another product but is in use in 2026;
-# waiting for the owner's review (reports/inventory_mapping_review/
-# revision_mapeos_odoo_wansoft_20261013.xlsx). Their moves keep odoo_product_id
-# and get no wansoft_code until then.
-EXCLUDED_DICTIONARY_IDS = (70, 120, 138, 144, 189, 233, 243, 262, 291, 346, 352, 485, 1346)
+# The fixed list of 13 approved-but-wrong mappings excluded here since
+# 2026-10-13 was removed on 2026-11-20: the owner rejected them on 11-12
+# (scripts/reject_mismapped_unused_mappings.py), and on 11-15 the weekly name
+# matcher re-pointed 7 of them to the right Odoo product and approved them
+# again (e.g. Mayonesa Grande to Odoo 433), which the list kept blocking.
 CHUNK = 200_000  # source primary-key ids per statement in a full rebuild
 
 # (TipoEntrada / TipoSalida) -> (movement_type, counts_in_stock); owner, 2026-10-13
@@ -326,10 +326,9 @@ def create_odoo_helpers(cur):
         FROM inventory_mapping_dictionary
         WHERE mapping_status = 'approved' AND odoo_product_id IS NOT NULL
           AND wansoft_code IS NOT NULL AND wansoft_code <> ''
-          AND id NOT IN ({",".join(["%s"] * len(EXCLUDED_DICTIONARY_IDS))})
         GROUP BY odoo_product_id
         HAVING COUNT(DISTINCT wansoft_code) = 1
-    """, EXCLUDED_DICTIONARY_IDS)
+    """)
     publish_odoo_product_codes(cur)
 
 

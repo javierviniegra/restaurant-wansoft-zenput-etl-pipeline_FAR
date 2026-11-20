@@ -22,8 +22,8 @@ Owner, 2026-11-12 (tukan's P68): those 13, plus the 'pending_review'
 duplicate of one of them, are rejected too (IN_USE_IDS). Each links an Odoo
 menu item (5100-) to a Wansoft supply (1000-), e.g. "Bife de Chorizo 800 Grs"
 to "Ate de Tejocote"; none has a 2026 Odoo purchase, and their stock moves
-were already left out of analytics_inventory_movements
-(EXCLUDED_DICTIONARY_IDS there). dim_product then shows the Odoo item and the
+were already left out of analytics_inventory_movements (a fixed id list
+there, removed on 2026-11-20 once these were rejected). dim_product then shows the Odoo item and the
 Wansoft supply as separate rows.
 
 Dry run by default; --apply writes. Only rows still in the batch's allowed
