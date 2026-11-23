@@ -1,7 +1,7 @@
 """
 Approve the Odoo -> Wansoft product equivalences the owner reviewed by hand
 (seeds/odoo_wansoft_mapping_approvals.csv; first batch: tukan's P71,
-2026-11-20, 106 pairs; P72, 2026-11-23: Odoo 166 Baileys).
+2026-11-20, 106 pairs; P72 and P73, 2026-11-23: Odoo 166 Baileys, Odoo 95 Tallarines).
 
 For each (odoo_product_id, wansoft_code) of the seed, in
 inventory_mapping_dictionary (domain 'inventory'):
