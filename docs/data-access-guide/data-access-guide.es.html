@@ -47,7 +47,7 @@
     <td style="border: none; width: 100px; padding: 0;"><img class="logo" src="{{ logo_path }}"></td>
     <td style="border: none; padding: 0;">
       <p class="titulo">Guía de acceso a datos</p>
-      <p class="subtitulo">Bases analíticas <code>wansoft</code> y <code>zenput</code> | Fonda Argentina | Versión 1.10 (2026-11-12)</p>
+      <p class="subtitulo">Bases analíticas <code>wansoft</code> y <code>zenput</code> | Fonda Argentina | Versión 1.11 (2026-11-23)</p>
     </td>
   </tr>
 </table>
@@ -62,14 +62,13 @@ octubre de 2026</b>. El 7 de octubre se comprobó que existen en producción tod
 las tablas y columnas que nombra, y el esquema completo de cada tabla
 (Apéndice A) se tomó de producción el 13 de octubre.
 </p>
-<p><b>Versión 1.10 (12 de noviembre de 2026).</b> Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.</p>
+<p><b>Versión 1.11 (23 de noviembre de 2026).</b> Cada cambio de esta guía sube su número de versión y queda registrado en la sección 10.</p>
 <table style="border: none; margin: 6px 0 14px;"><tr style="border: none;"><td style="border: none; background-color: #f0e9d8; padding: 8px 12px; font-size: 9pt;">
-<span class="nota-titulo">Novedades de la versión 1.10</span> (respecto a la 1.9 del 27 de octubre de 2026):
+<span class="nota-titulo">Novedades de la versión 1.11</span> (respecto a la 1.10 del 12 de noviembre de 2026):
 <ul>
-  <li><b>Valor del inventario de Odoo corregido:</b> en <code>analytics_inventory_stock_daily</code>, cuando el valor de Odoo está claramente mal (Antenas llegó a −1.7 billones de pesos), <code>stock_value</code> se recalcula como existencia × precio real de compra. Columnas nuevas: <code>stock_value_source</code> (el valor original de Odoo) y <code>value_method</code> (de dónde sale <code>stock_value</code>) (sección 5.4).</li>
-  <li><b>Valor del inventario de Wansoft:</b> <code>stock_value</code> arrastra errores de captura desde 2021; para valuar, usa cantidad × costo de compra del mes (sección 5.4).</li>
-  <li><b>Utilidad marginal en los meses de Odoo:</b> <code>UtilidadMarginal</code> de <code>costeomensual</code> y <code>costeomensual_semanapyq</code> ya viene llena en las filas de Odoo, con la misma fórmula de Wansoft; julio y agosto de 2026 de CentroMyJ y Puebla quedaron corregidos (sección 5.2).</li>
-  <li><b>Antenas</b> toma su costo de Wansoft hasta el 2027-02-01 (sección 5.2).</li>
+  <li><b>Cortes de caja sin copias:</b> en <code>getglobalcashclosing</code> ya no vienen los cortes guardados varias veces en Wansoft (mismas cifras, hasta 48 horas de diferencia, incluidos los que se vuelven a guardar a la mañana siguiente). Se quitaron 296 copias de la historia y la carga ya no las mete. Sin ellas, el corte cuadra mejor con los tickets en todos los años (sección 5.1).</li>
+  <li><b>Cortesías y cancelaciones de <code>costeomensual</code></b> de septiembre a noviembre de 2026 recalculadas sin esas copias (sección 5.2).</li>
+  <li><b>Más equivalencias de Odoo con Wansoft</b> en <code>analytics_odoo_product_code</code>: 113 pares revisados a mano, y un código de Wansoft puede tener varios productos de Odoo (sección 5.4).</li>
 </ul>
 </td></tr></table>
 
@@ -310,7 +309,13 @@ GROUP BY Sucursal, DATE(Fecha);</pre>
 (<code>subsidiary_id</code>, <code>fecha_corte</code>): <code>total_ventas</code>,
 <code>no_ordenes</code>, <code>total_personas</code>, promedios, y número y monto
 de cortesías, cancelaciones, descuentos, anulaciones y promociones. Aquí los
-montos son <b>valor de venta</b>. Úsalo para cuadrar los totales del día.</p>
+montos son <b>valor de venta</b>. Úsalo para cuadrar los totales del día.
+<b>Desde la 1.11 no trae copias:</b> cuando un cajero guarda el mismo corte varias
+veces (mismas cifras en todas las columnas de importes y conteos, con hasta 48 horas
+de diferencia, incluido el corte de la noche que se vuelve a guardar a la mañana
+siguiente), solo queda el primero; la carga no mete las copias y las 296 de la
+historia se quitaron el 2026-11-23. Para la venta del día usa los tickets; el corte
+sirve para verificarla.</p>
 
 <h2>5.2 Costos (Wansoft u Odoo, según la sucursal)</h2>
 
@@ -741,7 +746,9 @@ GROUP BY mes, movement_type;
   vigente y revisada; se reescribe cada noche y es la misma que usa
   <code>analytics_inventory_movements</code>. Úsala para leer <code>odoo_inventory_quant_daily</code>
   en códigos Wansoft. <strong>No uses <code>dim_product</code> para esto</strong>: incluye
-  equivalencias que todavía están en revisión.</p>
+  equivalencias que todavía están en revisión. Un código de Wansoft puede tener
+  varios productos de Odoo (p. ej. tres Chandon Spritz); desde la 1.11 incluye 113
+  pares revisados a mano (2026-11-20 y 2026-11-23).</p>
 
 <h2>5.5 Zenput (base zenput)</h2>
 <table>
@@ -883,6 +890,12 @@ concederá al usuario y se documentará aquí.</p>
 
 <h1>10. Historial de versiones</h1>
 <p>La versión más reciente va primero.</p>
+<p><b>Versión 1.11 (2026-11-23)</b></p>
+<ul>
+  <li><b><code>getglobalcashclosing</code> sin copias:</b> la carga ya no mete un corte guardado otra vez con las mismas cifras (hasta 48 horas después) y se quitaron las 296 copias de la historia (5.1).</li>
+  <li><b><code>CostoDeCortesías</code> y <code>CostoDeCancelaciones</code> de <code>costeomensual</code></b> de septiembre a noviembre de 2026 recalculados sin esas copias (5.2).</li>
+  <li><b><code>analytics_odoo_product_code</code>:</b> 113 equivalencias revisadas a mano; un código de Wansoft puede tener varios productos de Odoo (5.4).</li>
+</ul>
 <p><b>Versión 1.10 (2026-11-12)</b></p>
 <ul>
   <li><b>Valor del inventario de Odoo corregido</b> en <code>analytics_inventory_stock_daily</code>: las filas con valor claramente incorrecto se recalculan como existencia × precio real de compra; nuevas columnas <code>stock_value_source</code> y <code>value_method</code> (5.4).</li>
@@ -956,7 +969,7 @@ concederá al usuario y se documentará aquí.</p>
 <!-- schema-appendix:start -->
 <div class="salto"></div>
 <h1>Apéndice A. Esquema de las tablas</h1>
-<p>Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas del esquema de producción el 2026-11-12. <b>Nulo</b>: si la columna admite NULL. <b>Llave</b>: <code>PRI</code> llave primaria, <code>UNI</code> parte de una llave única, <code>MUL</code> parte de un índice. El significado de los campos importantes está en la sección indicada entre paréntesis.</p>
+<p>Columnas de cada tabla que el usuario de solo lectura puede consultar, tomadas del esquema de producción el 2026-11-23. <b>Nulo</b>: si la columna admite NULL. <b>Llave</b>: <code>PRI</code> llave primaria, <code>UNI</code> parte de una llave única, <code>MUL</code> parte de un índice. El significado de los campos importantes está en la sección indicada entre paréntesis.</p>
 <h2>A.1 Ventas</h2>
 <p><b><code>getallordenesbyday_new_venta</code></b>: encabezado del ticket (5.1). 24 columnas.</p>
 <table class="compacta"><tr><th width="40%">Columna</th><th width="40%">Tipo</th><th width="10%">Nulo</th><th width="10%">Llave</th></tr><tr><td><code>id</code></td><td>int(11)</td><td>no</td><td>PRI</td></tr><tr><td><code>Sucursal</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>Venta_Id</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>Movimento</code></td><td>varchar(255)</td><td>sí</td><td>MUL</td></tr><tr><td><code>Orden</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>Mesa</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>Fecha</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>Mesero</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>Subtotal</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>IVA</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>IEPS</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>Total</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>Terminal</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>Personas</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>Descuento</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>Impuesto</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>MontoDescontado</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>TipoOrden</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>HoraApertura</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>HoraCierre</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>Moneda</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>CodigoCliente</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>Estatus</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr><tr><td><code>Ventas_Id</code></td><td>varchar(255)</td><td>sí</td><td>—</td></tr></table>

@@ -65,14 +65,13 @@ on 2026-09-28; the guide is current as of <strong>2026-11-12</strong>. Every tab
 column it names was confirmed to exist in production on 2026-10-07, and the
 full schema of every table (Appendix A) was taken from production on
 2026-10-13. PDF version: <a href="data-access-guide.en.pdf">data-access-guide.en.pdf</a>.</p>
-<p><strong>Version 1.10 (2026-11-12).</strong> Every change to this guide raises its version number and is recorded in Section 10.</p>
+<p><strong>Version 1.11 (2026-11-23).</strong> Every change to this guide raises its version number and is recorded in Section 10.</p>
 <blockquote>
-<p><strong>What is new in version 1.10</strong> (compared with 1.9 of 2026-10-27):</p>
+<p><strong>What is new in version 1.11</strong> (compared with 1.10 of 2026-11-12):</p>
 <ul>
-<li><strong>Odoo stock value corrected:</strong> in <code>analytics_inventory_stock_daily</code>, when Odoo's value is clearly wrong (Antenas reached −1.7 trillion pesos), <code>stock_value</code> is recomputed as stock × real purchase price. New columns: <code>stock_value_source</code> (Odoo's original value) and <code>value_method</code> (where <code>stock_value</code> comes from) (Section 5.4).</li>
-<li><strong>Wansoft stock value:</strong> <code>stock_value</code> carries capture errors since 2021; to value it, use quantity × the month's purchase cost (Section 5.4).</li>
-<li><strong>Marginal profit in Odoo months:</strong> <code>UtilidadMarginal</code> of <code>costeomensual</code> and <code>costeomensual_semanapyq</code> is now filled on Odoo rows, with Wansoft's own formula; July and August 2026 of CentroMyJ and Puebla were corrected (Section 5.2).</li>
-<li><strong>Antenas</strong> takes its cost from Wansoft until 2027-02-01 (Section 5.2).</li>
+<li><strong>Cash closings without copies:</strong> <code>getglobalcashclosing</code> no longer carries cortes saved several times in Wansoft (same figures, up to 48 hours apart, including those saved again the next morning). 296 copies were removed from the history and the load no longer lets them in. Without them the closing matches the tickets better in every year (Section 5.1).</li>
+<li><strong>Courtesies and cancellations in <code>costeomensual</code></strong> for September to November 2026 recomputed without those copies (Section 5.2).</li>
+<li><strong>More Odoo-to-Wansoft equivalences</strong> in <code>analytics_odoo_product_code</code>: 113 pairs reviewed by hand, and one Wansoft code may have several Odoo products (Section 5.4).</li>
 </ul>
 </blockquote>
 <h1>1. What is where</h1>
@@ -728,7 +727,12 @@ GROUP BY Sucursal, DATE(Fecha);
 <p><code>getglobalcashclosing</code> — the official close per branch (<code>subsidiary_id</code>,
 <code>fecha_corte</code>): <code>total_ventas</code>, <code>no_ordenes</code>, <code>total_personas</code>, averages, and
 counts/amounts of courtesies, cancellations, discounts, voids, promotions.
-Amounts here are <strong>sale value</strong>. Use it to reconcile daily totals.</p>
+Amounts here are <strong>sale value</strong>. Use it to reconcile daily totals. <strong>Since 1.11
+it has no copies:</strong> when a cashier saves the same corte several times (same
+figures in every amount and count column, up to 48 hours apart, including last
+night's corte saved again the next morning), only the first one stays; the load
+does not insert the copies and the 296 in the history were removed on
+2026-11-23. For the day's sales use the tickets; the closing is the check.</p>
 <h2>5.2 Costs (Wansoft or Odoo, by branch)</h2>
 <p>Where each branch's cost comes from:</p>
 <table class="compacta">
@@ -1239,7 +1243,9 @@ GROUP BY month, movement_type;
   equivalence; rewritten every night, the same one
   <code>analytics_inventory_movements</code> uses. Use it to read
   <code>odoo_inventory_quant_daily</code> in Wansoft codes. <strong>Do not use <code>dim_product</code> for
-  this</strong>: it includes equivalences still under review.
+  this</strong>: it includes equivalences still under review. One Wansoft code may
+  have several Odoo products (e.g. three Chandon Spritz); since 1.11 it
+  includes 113 pairs reviewed by hand (2026-11-20 and 2026-11-23).
 - Detailed coverage per branch: <code>docs/inventory-coverage-by-branch.md</code> in the
   repository.</p>
 <h2>5.5 Zenput (<code>zenput</code> database)</h2>
@@ -1459,6 +1465,12 @@ documented here.</p>
 
 <h1>10. Version history</h1>
 <p>The most recent version comes first.</p>
+<p><strong>Version 1.11 (2026-11-23)</strong></p>
+<ul>
+<li><strong><code>getglobalcashclosing</code> without copies:</strong> the load no longer inserts a corte saved again with the same figures (up to 48 hours later), and the 296 copies in the history were removed (5.1).</li>
+<li><strong><code>CostoDeCortesías</code> and <code>CostoDeCancelaciones</code> in <code>costeomensual</code></strong> for September to November 2026 recomputed without those copies (5.2).</li>
+<li><strong><code>analytics_odoo_product_code</code>:</strong> 113 equivalences reviewed by hand; one Wansoft code may have several Odoo products (5.4).</li>
+</ul>
 <p><strong>Version 1.10 (2026-11-12)</strong></p>
 <ul>
 <li><strong>Odoo stock value corrected</strong> in <code>analytics_inventory_stock_daily</code>: rows with a clearly wrong value are recomputed as stock × real purchase price; new columns <code>stock_value_source</code> and <code>value_method</code> (5.4).</li>
@@ -1532,7 +1544,7 @@ documented here.</p>
 
 <div class="salto"></div>
 <h1>Appendix A. Table schemas</h1>
-<p>Columns of every table the read-only user can query, taken from the production schema on 2026-11-12. <strong>Null</strong>: whether the column accepts NULL. <strong>Key</strong>: <code>PRI</code> primary key, <code>UNI</code> part of a unique key, <code>MUL</code> part of an index. The meaning of the important fields is in the section shown in brackets.</p>
+<p>Columns of every table the read-only user can query, taken from the production schema on 2026-11-23. <strong>Null</strong>: whether the column accepts NULL. <strong>Key</strong>: <code>PRI</code> primary key, <code>UNI</code> part of a unique key, <code>MUL</code> part of an index. The meaning of the important fields is in the section shown in brackets.</p>
 <h2>A.1 Sales</h2>
 <p><strong><code>getallordenesbyday_new_venta</code></strong>: ticket header (5.1). 24 columns.</p>
 <table class="compacta">

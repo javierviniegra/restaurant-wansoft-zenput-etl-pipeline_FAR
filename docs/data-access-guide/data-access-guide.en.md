@@ -11,14 +11,13 @@ column it names was confirmed to exist in production on 2026-10-07, and the
 full schema of every table (Appendix A) was taken from production on
 2026-10-13. PDF version: [data-access-guide.en.pdf](data-access-guide.en.pdf).
 
-**Version 1.10 (2026-11-12).** Every change to this guide raises its version number and is recorded in Section 10.
+**Version 1.11 (2026-11-23).** Every change to this guide raises its version number and is recorded in Section 10.
 
-> **What is new in version 1.10** (compared with 1.9 of 2026-10-27):
+> **What is new in version 1.11** (compared with 1.10 of 2026-11-12):
 >
-> - **Odoo stock value corrected:** in `analytics_inventory_stock_daily`, when Odoo's value is clearly wrong (Antenas reached −1.7 trillion pesos), `stock_value` is recomputed as stock × real purchase price. New columns: `stock_value_source` (Odoo's original value) and `value_method` (where `stock_value` comes from) (Section 5.4).
-> - **Wansoft stock value:** `stock_value` carries capture errors since 2021; to value it, use quantity × the month's purchase cost (Section 5.4).
-> - **Marginal profit in Odoo months:** `UtilidadMarginal` of `costeomensual` and `costeomensual_semanapyq` is now filled on Odoo rows, with Wansoft's own formula; July and August 2026 of CentroMyJ and Puebla were corrected (Section 5.2).
-> - **Antenas** takes its cost from Wansoft until 2027-02-01 (Section 5.2).
+> - **Cash closings without copies:** `getglobalcashclosing` no longer carries cortes saved several times in Wansoft (same figures, up to 48 hours apart, including those saved again the next morning). 296 copies were removed from the history and the load no longer lets them in. Without them the closing matches the tickets better in every year (Section 5.1).
+> - **Courtesies and cancellations in `costeomensual`** for September to November 2026 recomputed without those copies (Section 5.2).
+> - **More Odoo-to-Wansoft equivalences** in `analytics_odoo_product_code`: 113 pairs reviewed by hand, and one Wansoft code may have several Odoo products (Section 5.4).
 
 ## Contents
 
@@ -257,7 +256,12 @@ GROUP BY Sucursal, DATE(Fecha);
 `getglobalcashclosing` — the official close per branch (`subsidiary_id`,
 `fecha_corte`): `total_ventas`, `no_ordenes`, `total_personas`, averages, and
 counts/amounts of courtesies, cancellations, discounts, voids, promotions.
-Amounts here are **sale value**. Use it to reconcile daily totals.
+Amounts here are **sale value**. Use it to reconcile daily totals. **Since 1.11
+it has no copies:** when a cashier saves the same corte several times (same
+figures in every amount and count column, up to 48 hours apart, including last
+night's corte saved again the next morning), only the first one stays; the load
+does not insert the copies and the 296 in the history were removed on
+2026-11-23. For the day's sales use the tickets; the closing is the check.
 
 ### 5.2 Costs (Wansoft or Odoo, by branch)
 
@@ -617,7 +621,9 @@ GROUP BY month, movement_type;
   equivalence; rewritten every night, the same one
   `analytics_inventory_movements` uses. Use it to read
   `odoo_inventory_quant_daily` in Wansoft codes. **Do not use `dim_product` for
-  this**: it includes equivalences still under review.
+  this**: it includes equivalences still under review. One Wansoft code may
+  have several Odoo products (e.g. three Chandon Spritz); since 1.11 it
+  includes 113 pairs reviewed by hand (2026-11-20 and 2026-11-23).
 - Detailed coverage per branch: `docs/inventory-coverage-by-branch.md` in the
   repository.
 
@@ -796,6 +802,12 @@ Other upcoming changes:
 
 The most recent version comes first.
 
+**Version 1.11 (2026-11-23)**
+
+- **`getglobalcashclosing` without copies:** the load no longer inserts a corte saved again with the same figures (up to 48 hours later), and the 296 copies in the history were removed (5.1).
+- **`CostoDeCortesías` and `CostoDeCancelaciones` in `costeomensual`** for September to November 2026 recomputed without those copies (5.2).
+- **`analytics_odoo_product_code`:** 113 equivalences reviewed by hand; one Wansoft code may have several Odoo products (5.4).
+
 **Version 1.10 (2026-11-12)**
 
 - **Odoo stock value corrected** in `analytics_inventory_stock_daily`: rows with a clearly wrong value are recomputed as stock × real purchase price; new columns `stock_value_source` and `value_method` (5.4).
@@ -869,7 +881,7 @@ The most recent version comes first.
 
 ## Appendix A. Table schemas
 
-Columns of every table the read-only user can query, taken from the production schema on 2026-11-12. **Null**: whether the column accepts NULL. **Key**: `PRI` primary key, `UNI` part of a unique key, `MUL` part of an index. The meaning of the important fields is in the section shown in brackets.
+Columns of every table the read-only user can query, taken from the production schema on 2026-11-23. **Null**: whether the column accepts NULL. **Key**: `PRI` primary key, `UNI` part of a unique key, `MUL` part of an index. The meaning of the important fields is in the section shown in brackets.
 
 ### A.1 Sales
 
