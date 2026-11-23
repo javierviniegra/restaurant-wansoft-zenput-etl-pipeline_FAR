@@ -1,7 +1,7 @@
 """
 Approve the Odoo -> Wansoft product equivalences the owner reviewed by hand
 (seeds/odoo_wansoft_mapping_approvals.csv; first batch: tukan's P71,
-2026-11-20, 106 pairs).
+2026-11-20, 106 pairs; P72, 2026-11-23: Odoo 166 Baileys).
 
 For each (odoo_product_id, wansoft_code) of the seed, in
 inventory_mapping_dictionary (domain 'inventory'):
@@ -87,7 +87,7 @@ def main(argv=None):
             taken_keys.add(key(name, code))
             wname, wdept = dim_wansoft.get(code, (None, None))
             insert.append((oid, name, dim_odoo.get(oid, (None, None))[1], code, wname, wdept, note))
-        reject += [(r[0], f"[{s['decided_on']}] {s['decided_by']}: rejected, Odoo {oid} is {code} (tukan P71)")
+        reject += [(r[0], f"[{s['decided_on']}] {s['decided_by']}: rejected, Odoo {oid} is {code}")
                    for r in rows if r[2] != code and r[3] in ("approved", "pending_review")]
 
     print(f"{len(seed)} pairs in the seed: {len(approve)} rows to approve, {len(insert)} to insert, "
