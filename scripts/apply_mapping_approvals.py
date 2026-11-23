@@ -18,6 +18,12 @@ inventory_mapping_dictionary (domain 'inventory'):
 One Wansoft code may have several Odoo products (e.g. three Chandon Spritz).
 The nightly movements build then publishes them in analytics_odoo_product_code.
 
+seeds/odoo_wansoft_mapping_rejections.csv (same columns) lists pairs the
+owner said are NOT the same product, with no correct code to give instead
+(tukan's P76, 2026-11-23: Jugo de Mango 355 Ml is not the 250 Ml one): any
+approved or pending row with that pair is set to 'rejected'. Pairs, not row
+ids, because ids differ between dev and prod. A pair in both seeds is an error.
+
 Dry run by default; --apply writes.
 
     python -m scripts.apply_mapping_approvals
@@ -31,6 +37,7 @@ from pathlib import Path
 from core.database.mysql import get_db_connection
 
 SEED = Path(__file__).resolve().parents[1] / "seeds" / "odoo_wansoft_mapping_approvals.csv"
+REJECT_SEED = SEED.with_name("odoo_wansoft_mapping_rejections.csv")
 SOURCE = "owner_review"
 
 
@@ -40,8 +47,10 @@ def key(name, code):
     return fold(name), fold(code)
 
 
-def load_seed():
-    with open(SEED, encoding="utf-8") as f:
+def load_seed(path=SEED):
+    if not path.exists():
+        return []
+    with open(path, encoding="utf-8") as f:
         return [dict(r, odoo_product_id=int(r["odoo_product_id"])) for r in csv.DictReader(f)]
 
 
@@ -92,6 +101,20 @@ def main(argv=None):
 
     print(f"{len(seed)} pairs in the seed: {len(approve)} rows to approve, {len(insert)} to insert, "
           f"{len(reject)} other rows of the same Odoo products to reject")
+
+    not_same = load_seed(REJECT_SEED)
+    both = {(s["odoo_product_id"], s["wansoft_code"]) for s in seed} & \
+           {(s["odoo_product_id"], s["wansoft_code"]) for s in not_same}
+    if both:
+        raise SystemExit(f"pairs in both the approvals and the rejections seed: {sorted(both)}")
+    n_before = len(reject)
+    for s in not_same:
+        cur.execute("""SELECT id FROM inventory_mapping_dictionary WHERE domain = 'inventory'
+                       AND odoo_product_id = %s AND wansoft_code = %s
+                       AND mapping_status IN ('approved', 'pending_review')""",
+                    (s["odoo_product_id"], s["wansoft_code"]))
+        reject += [(r[0], f"[{s['decided_on']}] {s['decided_by']}: rejected, {s['note']}") for r in cur.fetchall()]
+    print(f"{len(not_same)} pairs in the rejections seed: {len(reject) - n_before} rows to reject")
     for i in insert[:5]:
         print("  insert", i[:6])
     if not args.apply:
