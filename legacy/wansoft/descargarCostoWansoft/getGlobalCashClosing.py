@@ -14,6 +14,7 @@ if sys.stdout.encoding != "utf-8":
 # 2. Ahora sí podemos importar nuestra función
 from core.database.mysql import get_db_connection
 from core.config.lookback import WANSOFT_LOOKBACK_DAYS
+from extract.costs.cash_closing_copies import find_original
 
 # Fechas de inicio y fin (puedes cambiarlas fuera del loop)
 #start_date_range = datetime.now() - timedelta(days=1)
@@ -371,6 +372,10 @@ for subsidiary in subsidiaries:
                         print(f"  [🔁] Actualizado: {data['fecha_corte']}")
                     else:
                         print(f"  [✔] Sin cambios: {data['fecha_corte']}")
+                elif (original_id := find_original(cursor, subsidiary['id'], data['fecha_corte'], data)):
+                    # Same corte saved again (same figures, within 48 h):
+                    # not loaded, or sums count it twice (tukan's P77).
+                    print(f"  [=] Copia del corte {original_id}, no se inserta: {data['fecha_corte']}")
                 else:
                     # Insertar nuevo registro
                     insert_query = """
